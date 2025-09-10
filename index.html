@@ -39,70 +39,105 @@
     <main>
         <!-- 1. Section Héro -->
         <section id="hero" class="hero">
-            <div class="container hero-container">
-                <div class="hero-blob" aria-hidden="true"></div>
-                <div class="hero-text">
-                    <span class="hero-subtitle">Développeur Full-Stack & UX/UI Designer — Marseille</span>
-                    <h1 class="hero-title">Je conçois et développe des produits élégants et performants.</h1>
-                    <p class="hero-description">Je m’appelle Kyliann Le Garrec. J’allie design centré utilisateur et code propre pour livrer des expériences minimalistes, rapides et accessibles.</p>
+            <div class="container hero-container split">
+                <!-- Colonne gauche: portrait sombre -->
+                <div class="hero-left">
+                    <div class="hero-portrait" role="img" aria-label="Portrait de Kyliann Le Garrec"></div>
+                    <div class="hero-badge">
+                        <span>Full‑Stack • UX/UI</span>
+                    </div>
+                </div>
+
+                <!-- Colonne droite: texte et CTA -->
+                <div class="hero-right">
+                    <span class="hero-subtitle">Disponible • Marseille</span>
+                    <h1 class="hero-title">Développement web niveau agence, au tarif freelance.</h1>
+                    <p class="hero-description">Je conçois et développe des sites et applications que vous et votre audience allez adorer. Design centré utilisateur, code propre, performances.</p>
+                    <div class="hero-buttons">
+                        <a href="#contact" class="cta-button whatsapp">
+                            Discuter sur WhatsApp
+                            <i class="fab fa-whatsapp" aria-hidden="true"></i>
+                        </a>
+                    </div>
                     <ul class="hero-badges" aria-label="Compétences principales">
                         <li>React / Next.js</li>
                         <li>Node.js</li>
                         <li>TypeScript</li>
                         <li>Figma</li>
                     </ul>
-                    <div class="hero-buttons">
-                        <a href="#projects" class="cta-button">Voir mes projets</a>
-                        <a href="#about" class="cta-button secondary">En savoir plus</a>
-                    </div>
                 </div>
             </div>
+
+            <!-- Navbar bas de Héro -->
+            <nav class="hero-bottom-nav" aria-label="Navigation sections">
+                <ul>
+                    <li><a href="#hero" class="active">Home</a></li>
+                    <li><a href="#about">About me</a></li>
+                    <li><a href="#projects">Work</a></li>
+                    <li><a href="#skills">Services</a></li>
+                    <li><a href="#contact">Contact</a></li>
+                </ul>
+            </nav>
         </section>
 
         <!-- 2. À propos / Bio -->
         <section id="about" class="about">
+            <div class="about-marquee" aria-hidden="true">
+                <div class="marquee-track">
+                    <span>À PROPOS</span>
+                    <span>À PROPOS</span>
+                    <span>À PROPOS</span>
+                    <span>À PROPOS</span>
+                </div>
+            </div>
             <div class="container about-container">
                 <div class="about-image">
                     <img src="assets/images/imgmoi.jpg" alt="Portrait de Kyliann Le Garrec">
                 </div>
                 <div class="about-content">
-                    <h2 class="section-title">À propos</h2>
-                    <p class="about-bio">Développeur Fullstack passionné, spécialisé dans la création d’applications web et mobiles performantes et scalables. Expérience en React, Angular, Next.js, Node.js, SQL, MongoDB, Firebase, et expertise en UI/UX design (Figma, prototypage, animations). Capable de mener un projet de A à Z : conception, développement, optimisation et déploiement.</p>
+                    <div class="about-header">
+                        <h2 class="section-title">À propos</h2>
+                        <p class="about-bio">Développeur Fullstack & UI/UX Designer, je conçois des produits élégants, performants et centrés utilisateur. Je couvre l’ensemble du cycle: recherche, design, développement, optimisation et déploiement.</p>
+                    </div>
 
-                    <div class="skills-grid">
-                        <div class="skill-category">
+                    <div class="info-cards">
+                        <div class="info-card">
                             <h3>Profil</h3>
                             <ul>
-                                <li><strong>Nom:</strong> Kyliann Le Garrec</li>
-                                <li><strong>Rôle:</strong> Fullstack Developer & UI/UX Designer</li>
-                                <li><strong>Email:</strong> <a href="mailto:lgkylian@gmail.com">lgkylian@gmail.com</a></li>
+                                <li><strong>Nom</strong> — Kyliann Le Garrec</li>
+                                <li><strong>Rôle</strong> — Fullstack Developer & UI/UX Designer</li>
+                                <li><strong>Email</strong> — <a href="mailto:lgkylian@gmail.com">lgkylian@gmail.com</a></li>
+                                <li><strong>Localisation</strong> — Marseille</li>
                             </ul>
                         </div>
-                        <div class="skill-category">
+                        <div class="info-card">
                             <h3>Formation</h3>
                             <ul>
-                                <li>Prestashop – RG DESIGN</li>
-                                <li>Licence UI/UX Designer – GRETA</li>
+                                <li>Prestashop — RG DESIGN</li>
+                                <li>Licence UI/UX Designer — GRETA</li>
                             </ul>
                         </div>
-                        <div class="skill-category">
+                        <div class="info-card">
                             <h3>Expériences</h3>
                             <ul>
-                                <li><strong>Fullstack Developer & Project Manager</strong> – Agence Web Marseille<br>React, Node.js, TypeScript, e-commerce (Prestashop/WooCommerce), Figma, GSAP, SEO.</li>
-                                <li><strong>Développeur Freelance Fullstack</strong> – Indépendant<br>SaaS, app mobile React Native, branding, vitrines & e-commerce. Stack: React, Next.js, Node.js, Firebase, MongoDB, PHP, TypeScript.</li>
-                                <li><strong>Développeur Web (Stage)</strong> – Beview<br>Front SEO, vitrines & e-commerce, animations JS/GSAP.</li>
-                                <li><strong>UI/UX Designer (Stage)</strong> – GRETA<br>Modules interactifs (Animate CC), SCORM, UI responsive.</li>
+                                <li>Fullstack Developer & PM — Agence Web Marseille</li>
+                                <li>Développeur Freelance Fullstack — Indépendant</li>
+                                <li>Développeur Web (Stage) — Beview</li>
+                                <li>UI/UX Designer (Stage) — GRETA</li>
                             </ul>
                         </div>
-                        <div class="skill-category">
+                        <div class="info-card">
                             <h3>Soft skills</h3>
                             <ul>
-                                <li>Créativité</li>
-                                <li>Rigueur</li>
-                                <li>Polyvalence</li>
-                                <li>Communication</li>
+                                <li>Créativité, Rigueur</li>
+                                <li>Polyvalence, Communication</li>
                             </ul>
                         </div>
+                    </div>
+
+                    <div class="about-cta">
+                        <a href="#projects" class="cta-button">Voir mes projets</a>
+                        <a href="#contact" class="cta-button secondary">Me contacter</a>
                     </div>
                 </div>
             </div>

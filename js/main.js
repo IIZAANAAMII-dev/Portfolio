@@ -60,13 +60,12 @@ document.addEventListener('DOMContentLoaded', () => {
         .from('.navbar .nav-cta', { y: -8, opacity: 0, duration: 0.3 }, '-=0.25');
 
     // Animation de la section Héro
-    gsap.from('.hero-text > *', {
-        y: 30,
-        opacity: 0,
-        stagger: 0.15,
-        duration: 0.8,
-        ease: 'power3.out'
-    });
+    // Version split: portrait + contenu
+    const heroTl = gsap.timeline({ defaults: { ease: 'power3.out' } });
+    heroTl
+        .from('.hero-portrait', { y: 40, opacity: 0, duration: 0.8 })
+        .from('.hero-badge', { y: 14, opacity: 0, duration: 0.4 }, '-=0.4')
+        .from('.hero-right > *', { y: 24, opacity: 0, duration: 0.6, stagger: 0.12 }, '-=0.3');
 
     // Apparition des badges de compétences
     gsap.from('.hero-badges li', {
@@ -129,6 +128,92 @@ document.addEventListener('DOMContentLoaded', () => {
             ease: 'power3.out'
         });
     });
+
+    // --- Animations section À propos ---
+    const aboutTl = gsap.timeline({
+        scrollTrigger: {
+            trigger: '#about',
+            start: 'top 75%',
+            toggleActions: 'play none none none'
+        }
+    });
+    aboutTl
+        .from('#about .section-title', { y: 20, opacity: 0, duration: 0.5, ease: 'power2.out' })
+        .from('#about .about-bio', { y: 16, opacity: 0, duration: 0.5, ease: 'power2.out' }, '-=0.25');
+
+    gsap.from('#about .about-image img', {
+        scrollTrigger: {
+            trigger: '#about .about-image',
+            start: 'top 80%',
+            toggleActions: 'play none none none'
+        },
+        y: 24,
+        scale: 0.98,
+        opacity: 0,
+        duration: 0.7,
+        ease: 'power3.out'
+    });
+
+    gsap.from('#about .info-card', {
+        scrollTrigger: {
+            trigger: '#about .info-cards',
+            start: 'top 80%',
+            toggleActions: 'play none none none'
+        },
+        y: 20,
+        opacity: 0,
+        duration: 0.5,
+        stagger: 0.1,
+        ease: 'power2.out'
+    });
+
+    gsap.from('#about .about-cta a', {
+        scrollTrigger: {
+            trigger: '#about .about-cta',
+            start: 'top 85%'
+        },
+        y: 12,
+        opacity: 0,
+        duration: 0.4,
+        stagger: 0.08,
+        ease: 'power2.out'
+    });
+
+    // Marquee horizontale "À PROPOS" contrôlée par le scroll
+    gsap.to('.about-marquee .marquee-track', {
+        xPercent: -50,
+        ease: 'none',
+        scrollTrigger: {
+            trigger: '#about',
+            start: 'top bottom',
+            end: 'bottom top',
+            scrub: true
+        }
+    });
+
+    // --- Active state sur la navbar bas de Héro en fonction de la section visible ---
+    const bottomNavLinks = document.querySelectorAll('.hero-bottom-nav a');
+    const sectionsMap = Array.from(bottomNavLinks).map(link => ({
+        id: link.getAttribute('href'),
+        link
+    }));
+
+    sectionsMap.forEach(({ id, link }) => {
+        const target = document.querySelector(id);
+        if (!target) return;
+        ScrollTrigger.create({
+            trigger: target,
+            start: 'top center',
+            end: 'bottom center',
+            onEnter: () => setActive(link),
+            onEnterBack: () => setActive(link)
+        });
+    });
+
+    function setActive(activeLink) {
+        bottomNavLinks.forEach(a => a.classList.remove('active'));
+        activeLink.classList.add('active');
+    }
 
 });
 
