@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="800" height="600" viewBox="0 0 800 600" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <!-- Background shape -->
+    <path d="M600 300C600 465.685 465.685 600 300 600C134.315 600 0 465.685 0 300C0 134.315 134.315 0 300 0C465.685 0 600 134.315 600 300Z" fill="#EFF6FF"/>
+    
+    <!-- Laptop -->
+    <rect x="150" y="150" width="350" height="200" rx="10" fill="#1E40AF"/>
+    <rect x="170" y="170" width="310" height="160" rx="5" fill="#3B82F6"/>
+    <rect x="240" y="350" width="170" height="20" rx="5" fill="#1E40AF"/>
+    
+    <!-- Code lines -->
+    <rect x="190" y="190" width="80" height="10" rx="5" fill="white"/>
+    <rect x="190" y="210" width="120" height="10" rx="5" fill="white" fill-opacity="0.7"/>
+    <rect x="190" y="230" width="150" height="10" rx="5" fill="white" fill-opacity="0.5"/>
+    <rect x="190" y="250" width="100" height="10" rx="5" fill="white" fill-opacity="0.3"/>
+    
+    <!-- Icons -->
+    <circle cx="490" cy="200" r="40" fill="#DBEAFE"/>
+    <circle cx="490" cy="200" r="25" fill="#3B82F6"/>
+    <rect x="485" cy="240" width="10" height="40" rx="5" fill="#DBEAFE"/>
+    
+    <!-- Decorative elements -->
+    <circle cx="100" cy="100" r="30" fill="#DBEAFE"/>
+    <circle cx="700" cy="100" r="20" fill="#DBEAFE"/>
+    <circle cx="100" cy="500" r="25" fill="#DBEAFE"/>
+    <circle cx="650" cy="450" r="40" fill="#DBEAFE"/>
+    
+    <!-- Dots pattern -->
+    <circle cx="50" cy="200" r="5" fill="#3B82F6" fill-opacity="0.3"/>
+    <circle cx="80" cy="200" r="5" fill="#3B82F6" fill-opacity="0.3"/>
+    <circle cx="110" cy="200" r="5" fill="#3B82F6" fill-opacity="0.3"/>
+    
+    <circle cx="700" cy="300" r="5" fill="#3B82F6" fill-opacity="0.3"/>
+    <circle cx="700" cy="330" r="5" fill="#3B82F6" fill-opacity="0.3"/>
+    <circle cx="700" cy="360" r="5" fill="#3B82F6" fill-opacity="0.3"/>
+    
+    <!-- Animated circles -->
+    <circle cx="400" cy="400" r="10" fill="#3B82F6" fill-opacity="0.3">
+        <animate attributeName="r" values="10;20;10" dur="3s" repeatCount="indefinite"/>
+        <animate attributeName="opacity" values="0.3;0.1;0.3" dur="3s" repeatCount="indefinite"/>
+    </circle>
+    
+    <circle cx="200" cy="400" r="15" fill="#3B82F6" fill-opacity="0.3">
+        <animate attributeName="r" values="15;25;15" dur="4s" repeatCount="indefinite"/>
+        <animate attributeName="opacity" values="0.3;0.1;0.3" dur="4s" repeatCount="indefinite"/>
+    </circle>
+</svg>

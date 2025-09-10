@@ -3,208 +3,310 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Kyliann Le Garrec - Portfolio</title>
+    <title>Kyliann Le Garrec — Développeur Full-Stack & UX/UI Designer</title>
+
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.1.1/css/all.min.css">
+
+    <!-- CSS -->
     <link rel="stylesheet" href="css/style.css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
 </head>
 <body>
-    <!-- Header / Navbar -->
-    <header class="header">
-        <nav class="navbar">
-            <div class="logo">KLG</div>
-            <ul class="nav-links">
-                <li><a href="#accueil">Accueil</a></li>
-                <li><a href="#apropos">À propos</a></li>
-                <li><a href="#projets">Projets</a></li>
-                <li><a href="#contact">Contact</a></li>
-            </ul>
-            <a href="#projets" class="cta-button">Voir mes projets</a>
-        </nav>
+
+    <header class="header" role="banner">
+        <div class="container">
+            <nav class="navbar" role="navigation" aria-label="Navigation principale">
+                <a href="#hero" class="logo" aria-label="Accueil">Kyliann</a>
+                <ul id="primary-menu" class="nav-links" role="menubar">
+                    <li role="none"><a role="menuitem" href="#about">À propos</a></li>
+                    <li role="none"><a role="menuitem" href="#projects">Projets</a></li>
+                    <li role="none"><a role="menuitem" href="#skills">Compétences</a></li>
+                    <li role="none"><a role="menuitem" href="#contact">Contact</a></li>
+                </ul>
+                <a href="#contact" class="cta-button nav-cta">Me contacter</a>
+                <button class="menu-toggle" aria-label="Ouvrir le menu" aria-expanded="false" aria-controls="primary-menu">
+                    <i class="fas fa-bars" aria-hidden="true"></i>
+                </button>
+            </nav>
+        </div>
     </header>
 
-    <!-- Hero Section -->
-    <section id="accueil" class="hero">
-        <div class="hero-content">
-            <h1>Kyliann Le Garrec</h1>
-            <h2>UI/UX Designer & Front-End Developer</h2>
-            <p>Création de sites web, apps mobiles et identité visuelle avec une approche centrée utilisateur</p>
-            <a href="#projets" class="cta-button">Découvrir mes projets</a>
-        </div>
-        <div class="hero-illustration">
-            <!-- Illustration sera ajoutée en CSS -->
-        </div>
-    </section>
-
-    <!-- À Propos Section -->
-    <section id="apropos" class="about">
-        <div class="about-content">
-            <h2>À Propos de Moi</h2>
-            <div class="about-grid">
-                <div class="about-text">
-                    <p>Développeur passionné avec une double compétence en design et développement, je crée des expériences numériques mémorables et fonctionnelles.</p>
-                    
-                    <div class="skills">
-                        <h3>Compétences</h3>
-                        <div class="skill-category">
-                            <h4>Front-End</h4>
-                            <div class="skill">
-                                <span>HTML/CSS</span>
-                                <div class="skill-level"><div class="skill-progress" style="width: 90%;"></div></div>
-                            </div>
-                            <div class="skill">
-                                <span>JavaScript/TypeScript</span>
-                                <div class="skill-level"><div class="skill-progress" style="width: 85%;"></div></div>
-                            </div>
-                            <div class="skill">
-                                <span>React/React Native</span>
-                                <div class="skill-level"><div class="skill-progress" style="width: 82%;"></div></div>
-                            </div>
-                        </div>
-                        
-                        <div class="skill-category">
-                            <h4>Back-End</h4>
-                            <div class="skill">
-                                <span>Node.js</span>
-                                <div class="skill-level"><div class="skill-progress" style="width: 80%;"></div></div>
-                            </div>
-                            <div class="skill">
-                                <span>Python</span>
-                                <div class="skill-level"><div class="skill-progress" style="width: 75%;"></div></div>
-                            </div>
-                            <div class="skill">
-                                <span>Bases de données</span>
-                                <div class="skill-level"><div class="skill-progress" style="width: 78%;"></div></div>
-                            </div>
-                        </div>
+    <main>
+        <!-- 1. Section Héro -->
+        <section id="hero" class="hero">
+            <div class="container hero-container">
+                <div class="hero-blob" aria-hidden="true"></div>
+                <div class="hero-text">
+                    <span class="hero-subtitle">Développeur Full-Stack & UX/UI Designer — Marseille</span>
+                    <h1 class="hero-title">Je conçois et développe des produits élégants et performants.</h1>
+                    <p class="hero-description">Je m’appelle Kyliann Le Garrec. J’allie design centré utilisateur et code propre pour livrer des expériences minimalistes, rapides et accessibles.</p>
+                    <ul class="hero-badges" aria-label="Compétences principales">
+                        <li>React / Next.js</li>
+                        <li>Node.js</li>
+                        <li>TypeScript</li>
+                        <li>Figma</li>
+                    </ul>
+                    <div class="hero-buttons">
+                        <a href="#projects" class="cta-button">Voir mes projets</a>
+                        <a href="#about" class="cta-button secondary">En savoir plus</a>
                     </div>
                 </div>
+            </div>
+        </section>
+
+        <!-- 2. À propos / Bio -->
+        <section id="about" class="about">
+            <div class="container about-container">
                 <div class="about-image">
-                    <!-- Photo de profil -->
-                    <div class="profile-image"></div>
+                    <img src="assets/images/portrait.png" alt="Portrait de Kyliann Le Garrec">
                 </div>
-            </div>
-        </div>
-    </section>
+                <div class="about-content">
+                    <h2 class="section-title">À propos</h2>
+                    <p class="about-bio">Développeur Fullstack passionné, spécialisé dans la création d’applications web et mobiles performantes et scalables. Expérience en React, Angular, Next.js, Node.js, SQL, MongoDB, Firebase, et expertise en UI/UX design (Figma, prototypage, animations). Capable de mener un projet de A à Z : conception, développement, optimisation et déploiement.</p>
 
-    <!-- Projets Section -->
-    <section id="projets" class="projects">
-        <div class="container">
-            <h2>Mes Projets</h2>
-            <div class="filters">
-                <button class="filter-btn active" data-filter="all">Tous</button>
-                <button class="filter-btn" data-filter="web">Web</button>
-                <button class="filter-btn" data-filter="mobile">Mobile</button>
-                <button class="filter-btn" data-filter="ecommerce">E-commerce</button>
-                <button class="filter-btn" data-filter="branding">Branding</button>
+                    <div class="skills-grid">
+                        <div class="skill-category">
+                            <h3>Profil</h3>
+                            <ul>
+                                <li><strong>Nom:</strong> Kyliann Le Garrec</li>
+                                <li><strong>Rôle:</strong> Fullstack Developer & UI/UX Designer</li>
+                                <li><strong>Email:</strong> <a href="mailto:lgkylian@gmail.com">lgkylian@gmail.com</a></li>
+                            </ul>
+                        </div>
+                        <div class="skill-category">
+                            <h3>Formation</h3>
+                            <ul>
+                                <li>Prestashop – RG DESIGN</li>
+                                <li>Licence UI/UX Designer – GRETA</li>
+                            </ul>
+                        </div>
+                        <div class="skill-category">
+                            <h3>Expériences</h3>
+                            <ul>
+                                <li><strong>Fullstack Developer & Project Manager</strong> – Agence Web Marseille<br>React, Node.js, TypeScript, e-commerce (Prestashop/WooCommerce), Figma, GSAP, SEO.</li>
+                                <li><strong>Développeur Freelance Fullstack</strong> – Indépendant<br>SaaS, app mobile React Native, branding, vitrines & e-commerce. Stack: React, Next.js, Node.js, Firebase, MongoDB, PHP, TypeScript.</li>
+                                <li><strong>Développeur Web (Stage)</strong> – Beview<br>Front SEO, vitrines & e-commerce, animations JS/GSAP.</li>
+                                <li><strong>UI/UX Designer (Stage)</strong> – GRETA<br>Modules interactifs (Animate CC), SCORM, UI responsive.</li>
+                            </ul>
+                        </div>
+                        <div class="skill-category">
+                            <h3>Soft skills</h3>
+                            <ul>
+                                <li>Créativité</li>
+                                <li>Rigueur</li>
+                                <li>Polyvalence</li>
+                                <li>Communication</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
             </div>
-            
-            <div class="projects-grid">
-                <!-- Projet 1 -->
-                <div class="project-card" data-category="mobile">
-                    <div class="project-image">
-                        <img src="https://via.placeholder.com/400x300" alt="Application Mobile">
-                    </div>
-                    <div class="project-info">
-                        <h3>App Mobile Flutter</h3>
-                        <p>Application de suivi de fitness avec tableau de bord personnalisé</p>
-                        <a href="#" class="project-link">Voir le projet <i class="fas fa-arrow-right"></i></a>
-                    </div>
-                </div>
-                
-                <!-- Projet 2 -->
-                <div class="project-card" data-category="web">
-                    <div class="project-image">
-                        <img src="https://via.placeholder.com/400x300" alt="Site E-commerce">
-                    </div>
-                    <div class="project-info">
-                        <h3>Boutique en ligne React</h3>
-                        <p>Plateforme e-commerce complète avec paiement en ligne</p>
-                        <a href="#" class="project-link">Voir le projet <i class="fas fa-arrow-right"></i></a>
-                    </div>
-                </div>
-                
-                <!-- Projet 3 -->
-                <div class="project-card" data-category="web">
-                    <div class="project-image">
-                        <img src="https://via.placeholder.com/400x300" alt="Dashboard">
-                    </div>
-                    <div class="project-info">
-                        <h3>Dashboard Administratif</h3>
-                        <p>Tableau de bord analytique avec visualisation de données</p>
-                        <a href="#" class="project-link">Voir le projet <i class="fas fa-arrow-right"></i></a>
-                    </div>
-                </div>
-                
-                <!-- Plus de projets... -->
-            </div>
-        </div>
-    </section>
+        </section>
 
-    <!-- Témoignages Section -->
-    <section class="testimonials">
-        <div class="container">
-            <h2>Ce qu'ils disent de moi</h2>
-            <div class="testimonials-grid">
+        <!-- 3. Projets phares -->
+        <section id="projects" class="projects">
+            <div class="container">
+                <h2 class="section-title">Projets Récents</h2>
+                <div class="projects-grid">
+                    <!-- Projet 1 -->
+                    <div class="project-card">
+                        <div class="project-image">
+                            <img src="assets/projets/saas-dashboard.png" alt="Dashboard d'une application SaaS">
+                        </div>
+                        <div class="project-content">
+                            <span class="project-category">Application SaaS</span>
+                            <h3 class="project-title">Dashboard Analytique</h3>
+                            <p class="project-description">Conception et développement d'un dashboard pour une application SaaS, permettant la visualisation de données complexes.</p>
+                            <div class="project-stack">
+                                <span>React</span><span>TypeScript</span><span>Node.js</span><span>D3.js</span>
+                            </div>
+                            <a href="#" class="project-link">Voir l'étude de cas <i class="fas fa-arrow-right"></i></a>
+                        </div>
+                    </div>
+                    <!-- Projet 2 -->
+                    <div class="project-card">
+                        <div class="project-image">
+                            <img src="assets/projets/mobile-app.png" alt="Application mobile">
+                        </div>
+                        <div class="project-content">
+                            <span class="project-category">Application Mobile</span>
+                            <h3 class="project-title">App de Coaching Sportif</h3>
+                            <p class="project-description">Application cross-platform pour le suivi de programmes sportifs personnalisés, développée en React Native.</p>
+                            <div class="project-stack">
+                                <span>React Native</span><span>Firebase</span><span>Stripe</span>
+                            </div>
+                            <a href="#" class="project-link">Voir l'étude de cas <i class="fas fa-arrow-right"></i></a>
+                        </div>
+                    </div>
+                    <!-- Projet 3 -->
+                    <div class="project-card">
+                        <div class="project-image">
+                            <img src="assets/projets/refonte-ux.png" alt="Refonte d'un site web">
+                        </div>
+                        <div class="project-content">
+                            <span class="project-category">Refonte UX/UI</span>
+                            <h3 class="project-title">Site E-commerce</h3>
+                            <p class="project-description">Audit et refonte complète de l'expérience utilisateur d'un site e-commerce pour augmenter le taux de conversion.</p>
+                            <div class="project-stack">
+                                <span>Figma</span><span>Next.js</span><span>Headless CMS</span>
+                            </div>
+                            <a href="#" class="project-link">Voir l'étude de cas <i class="fas fa-arrow-right"></i></a>
+                        </div>
+                    </div>
+                    <!-- Projet 4 -->
+                    <div class="project-card">
+                        <div class="project-image">
+                            <img src="assets/projets/branding.png" alt="Identité visuelle">
+                        </div>
+                        <div class="project-content">
+                            <span class="project-category">Branding</span>
+                            <h3 class="project-title">Identité Visuelle Startup</h3>
+                            <p class="project-description">Création d'une identité de marque complète (logo, charte graphique) pour une startup dans le secteur de la tech.</p>
+                            <div class="project-stack">
+                                <span>Illustrator</span><span>Figma</span>
+                            </div>
+                            <a href="#" class="project-link">Voir l'étude de cas <i class="fas fa-arrow-right"></i></a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 4. Compétences Techniques & Design -->
+        <section id="skills" class="skills">
+            <div class="container">
+                <h2 class="section-title">Compétences</h2>
+                <div class="skills-container">
+                    <div class="skills-column">
+                        <h3>Frontend</h3>
+                        <ul>
+                            <li>React, Angular, Next.js</li>
+                            <li>TypeScript, JavaScript</li>
+                            <li>React Native</li>
+                            <li>HTML, CSS, TailwindCSS</li>
+                            <li>GSAP, Framer Motion</li>
+                        </ul>
+                    </div>
+                    <div class="skills-column">
+                        <h3>Backend</h3>
+                        <ul>
+                            <li>Node.js, PHP</li>
+                            <li>SQL (PostgreSQL, MySQL)</li>
+                            <li>MongoDB, Firebase</li>
+                            <li>REST APIs</li>
+                        </ul>
+                    </div>
+                    <div class="skills-column">
+                        <h3>UI/UX & Outils</h3>
+                        <ul>
+                            <li>Figma, Adobe XD, Photoshop</li>
+                            <li>Wireframing, Prototypage, Design Systems</li>
+                            <li>Animations 2D/3D</li>
+                            <li>Git/GitHub, Agile/Scrum</li>
+                            <li>SEO, Branding, Optimisation performance</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 5. Processus & Méthodologie -->
+        <section id="process" class="process">
+            <div class="container">
+                <h2 class="section-title">Ma méthodologie</h2>
+                <div class="process-timeline">
+                    <div class="process-step">
+                        <div class="process-icon"><i class="fas fa-search"></i></div>
+                        <h3>1. Recherche</h3>
+                        <p>Analyse des besoins, interviews utilisateurs et audit concurrentiel.</p>
+                    </div>
+                    <div class="process-step">
+                        <div class="process-icon"><i class="fas fa-drafting-compass"></i></div>
+                        <h3>2. Conception</h3>
+                        <p>Wireframes, prototypes interactifs et création du design system.</p>
+                    </div>
+                    <div class="process-step">
+                        <div class="process-icon"><i class="fas fa-code"></i></div>
+                        <h3>3. Développement</h3>
+                        <p>Développement front-end et back-end en suivant les meilleures pratiques.</p>
+                    </div>
+                    <div class="process-step">
+                        <div class="process-icon"><i class="fas fa-rocket"></i></div>
+                        <h3>4. Déploiement</h3>
+                        <p>Tests, optimisation des performances et mise en production.</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 6. Témoignages (optionnel) -->
+        <section id="testimonials" class="testimonials">
+            <div class="container">
                 <div class="testimonial-card">
-                    <div class="quote">"Kyliann a su comprendre nos besoins et livrer un produit qui dépasse nos attentes."</div>
-                    <div class="client">
-                        <div class="client-name">Marie D.</div>
-                        <div class="client-role">CEO, Entreprise XYZ</div>
-                    </div>
-                </div>
-                
-                <div class="testimonial-card">
-                    <div class="quote">"Un professionnel talentueux avec une approche très méthodique."</div>
-                    <div class="client">
-                        <div class="client-name">Thomas L.</div>
-                        <div class="client-role">Directeur Marketing</div>
-                    </div>
+                    <p class="testimonial-quote">"Une collaboration exceptionnelle. Sa capacité à traduire une vision complexe en un produit fonctionnel et élégant est remarquable. Je recommande vivement ses services."</p>
+                    <span class="testimonial-author">- Jean Dupont, CEO de TechInnov</span>
                 </div>
             </div>
-        </div>
-    </section>
+        </section>
 
-    <!-- Contact Section -->
-    <section id="contact" class="contact">
-        <div class="container">
-            <h2>Travaillons ensemble</h2>
-            <div class="contact-grid">
-                <div class="contact-info">
-                    <h3>Contactez-moi</h3>
-                    <p>Vous avez un projet en tête ? Discutons-en !</p>
-                    <div class="social-links">
-                        <a href="#" target="_blank"><i class="fab fa-linkedin"></i></a>
-                        <a href="#" target="_blank"><i class="fab fa-github"></i></a>
-                        <a href="#" target="_blank"><i class="fab fa-instagram"></i></a>
-                    </div>
-                </div>
+        <!-- 7. Contact / Call to Action -->
+        <section id="contact" class="contact">
+            <div class="container">
+                <h2 class="section-title">Travaillons ensemble</h2>
+                <p class="contact-subtitle">Vous avez un projet en tête ? Parlons-en !</p>
+                <p>Contact direct: <a href="mailto:lgkylian@gmail.com">lgkylian@gmail.com</a></p>
                 <form class="contact-form">
                     <div class="form-group">
-                        <input type="text" placeholder="Votre nom" required>
+                        <input type="text" name="name" placeholder="Votre nom" required>
+                        <input type="email" name="email" placeholder="Votre email" required>
                     </div>
-                    <div class="form-group">
-                        <input type="email" placeholder="Votre email" required>
-                    </div>
-                    <div class="form-group">
-                        <textarea placeholder="Votre message" rows="5" required></textarea>
-                    </div>
+                    <textarea name="message" placeholder="Votre message" rows="6" required></textarea>
                     <button type="submit" class="cta-button">Envoyer le message</button>
                 </form>
-            </div>
-        </div>
-    </section>
-
-    <!-- Footer -->
-    <footer class="footer">
-        <div class="container">
-            <div class="footer-content">
-                <div class="footer-logo">KLG</div>
-                <p>© 2024 Kyliann Le Garrec. Tous droits réservés.</p>
-                <div class="footer-links">
-                    <a href="#">Mentions légales</a>
-                    <a href="#">Politique de confidentialité</a>
+                <div class="social-links">
+                    <a href="#" aria-label="LinkedIn"><i class="fab fa-linkedin-in"></i></a>
+                    <a href="#" aria-label="GitHub"><i class="fab fa-github"></i></a>
+                    <a href="#" aria-label="Dribbble"><i class="fab fa-dribbble"></i></a>
+                    <a href="#" aria-label="Behance"><i class="fab fa-behance"></i></a>
                 </div>
             </div>
+        </section>
+    </main>
+
+    <footer class="footer">
+        <div class="container footer-container">
+            <div class="footer-col">
+                <h4>Contact</h4>
+                <ul class="footer-list">
+                    <li>Adresse : 50 rue Decazes, Marseille</li>
+                    <li>Tél : <a href="tel:+33646358534">(+33) 06 46 35 85 34</a></li>
+                    <li>Email : <a href="mailto:lgkylian@gmail.com">lgkylian@gmail.com</a></li>
+                </ul>
+            </div>
+            <div class="footer-col">
+                <h4>Réseaux</h4>
+                <ul class="footer-list">
+                    <li><a href="https://www.linkedin.com/in/kyliann-le-garrec" target="_blank" rel="noopener">LinkedIn</a></li>
+                    <li><a href="https://github.com/IIZAANAAMII-dev" target="_blank" rel="noopener">GitHub</a></li>
+                    <li><a href="/" target="_self" rel="noopener">Portfolio</a></li>
+                </ul>
+            </div>
+            <div class="footer-col">
+                <h4>Liens</h4>
+                <div class="footer-links">
+                    <a href="#">Mentions légales</a>
+                    <a href="#">Confidentialité</a>
+                    <a href="#">CV (PDF)</a>
+                </div>
+            </div>
+        </div>
+        <div class="container footer-bottom">
+            <p>&copy; 2024 Kyliann Le Garrec — Tous droits réservés.</p>
         </div>
     </footer>
 
