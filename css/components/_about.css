@@ -1,0 +1,141 @@
+/* About Section */
+.about {
+    background-color: #f9fafb;
+    position: relative;
+    overflow: hidden;
+}
+
+.about .container {
+    position: relative;
+    z-index: 2;
+}
+
+.about-content {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 4rem;
+    align-items: center;
+}
+
+.about-text {
+    color: #4b5563;
+}
+
+.about-text p {
+    margin-bottom: 1.5rem;
+    line-height: 1.8;
+}
+
+.about-info {
+    margin: 2rem 0;
+}
+
+.info-item {
+    display: flex;
+    margin-bottom: 1rem;
+    align-items: center;
+}
+
+.info-label {
+    font-weight: 600;
+    color: #111827;
+    min-width: 100px;
+}
+
+.info-value {
+    color: #4b5563;
+}
+
+.info-value a {
+    color: #6366f1;
+    text-decoration: none;
+    transition: all 0.3s ease;
+}
+
+.info-value a:hover {
+    color: #4f46e5;
+    text-decoration: underline;
+}
+
+.skills-container {
+    display: grid;
+    gap: 1.5rem;
+}
+
+.skill {
+    margin-bottom: 1.5rem;
+}
+
+.skill-info {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 0.5rem;
+}
+
+.skill-name {
+    font-weight: 500;
+    color: #111827;
+}
+
+.skill-percent {
+    color: #6b7280;
+    font-weight: 500;
+}
+
+.skill-bar {
+    height: 8px;
+    background-color: #e5e7eb;
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.skill-progress {
+    height: 100%;
+    background: linear-gradient(90deg, #6366f1, #8b5cf6);
+    border-radius: 4px;
+    position: relative;
+    transition: width 1.5s ease-in-out;
+}
+
+/* Responsive Styles */
+@media (max-width: 992px) {
+    .about-content {
+        grid-template-columns: 1fr;
+        gap: 3rem;
+    }
+    
+    .about-text {
+        order: 1;
+    }
+    
+    .about-skills {
+        order: 2;
+    }
+}
+
+/* Dark mode styles */
+@media (prefers-color-scheme: dark) {
+    .about {
+        background-color: #111827;
+    }
+    
+    .about-text {
+        color: #d1d5db;
+    }
+    
+    .info-label {
+        color: #f3f4f6;
+    }
+    
+    .info-value {
+        color: #9ca3af;
+    }
+    
+    .skill-name {
+        color: #f3f4f6;
+    }
+    
+    .skill-bar {
+        background-color: #374151;
+    }
+}
