@@ -1,0 +1,212 @@
+@import "tailwindcss";
+
+/* Tokens : voir docs/DESIGN.md. Aucune couleur ne doit être écrite en dur ailleurs. */
+:root {
+  --abyss: #05080f;
+  --deep: #0b1a2b;
+  --shallow: #1d5f74;
+  --foam: #dff3f5;
+  --sand: #e8d9b8;
+  --moss: #5c8c5a;
+  --stone: #6b6f76;
+  --dawn: #f6c99f;
+  --ink: #0a0e14;
+  --paper: #f4f1ea;
+}
+
+@theme inline {
+  --color-abyss: var(--abyss);
+  --color-deep: var(--deep);
+  --color-foam: var(--foam);
+  --color-sand: var(--sand);
+  --color-dawn: var(--dawn);
+  --color-ink: var(--ink);
+  --color-paper: var(--paper);
+  --font-sans: var(--font-inter);
+  --font-hand: var(--font-caveat);
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  background: var(--abyss);
+  color: var(--paper);
+  font-family: var(--font-inter), system-ui, sans-serif;
+  overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+body.is-quick-view {
+  overflow: auto;
+}
+
+::selection {
+  background: var(--dawn);
+  color: var(--ink);
+}
+
+/* --- Primitives d'interface ------------------------------------------------ */
+
+.eyebrow {
+  font-size: 0.6875rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  opacity: 0.55;
+}
+
+.hand {
+  font-family: var(--font-caveat), cursive;
+}
+
+.ghost-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.45rem 0.9rem;
+  border: 1px solid color-mix(in srgb, var(--paper) 22%, transparent);
+  border-radius: 999px;
+  font-size: 0.75rem;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--paper) 78%, transparent);
+  background: color-mix(in srgb, var(--abyss) 45%, transparent);
+  backdrop-filter: blur(8px);
+  transition:
+    color 200ms ease,
+    border-color 200ms ease,
+    transform 200ms ease;
+}
+
+.ghost-button:hover {
+  color: var(--paper);
+  border-color: color-mix(in srgb, var(--paper) 55%, transparent);
+  transform: translateY(-1px);
+}
+
+.ghost-button[aria-pressed='true'] {
+  border-color: var(--dawn);
+  color: var(--dawn);
+}
+
+/* --- Étiquettes d'îles (rendues en DOM au-dessus du canvas) ---------------- */
+
+.island-label {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.1rem;
+  white-space: nowrap;
+  text-align: center;
+  opacity: 0.55;
+  transform: translateY(4px);
+  transition:
+    opacity 300ms ease,
+    transform 300ms ease;
+}
+
+.island-label.is-active {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.island-label__name {
+  font-size: 0.8rem;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--paper);
+  text-shadow: 0 2px 14px rgba(0, 0, 0, 0.7);
+}
+
+.island-label__tagline {
+  font-family: var(--font-caveat), cursive;
+  font-size: 0.95rem;
+  color: var(--dawn);
+  opacity: 0;
+  transition: opacity 300ms ease;
+}
+
+.island-label.is-active .island-label__tagline {
+  opacity: 0.9;
+}
+
+/* --- Panneau de contenu ---------------------------------------------------- */
+
+.panel {
+  background: color-mix(in srgb, var(--paper) 96%, transparent);
+  color: var(--ink);
+  border-radius: 20px;
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(20px);
+}
+
+.panel h2 {
+  font-size: 1.75rem;
+  letter-spacing: -0.02em;
+}
+
+.panel p {
+  line-height: 1.65;
+}
+
+.chip {
+  display: inline-block;
+  padding: 0.2rem 0.6rem;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  letter-spacing: 0.05em;
+  background: color-mix(in srgb, var(--ink) 8%, transparent);
+  color: color-mix(in srgb, var(--ink) 75%, transparent);
+}
+
+.link-underline {
+  border-bottom: 1px solid color-mix(in srgb, var(--ink) 30%, transparent);
+  transition: border-color 200ms ease;
+}
+
+.link-underline:hover {
+  border-color: var(--ink);
+}
+
+/* --- Animations ------------------------------------------------------------ */
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes breathe {
+  0%,
+  100% {
+    opacity: 0.45;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+.animate-rise {
+  animation: rise 700ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.animate-breathe {
+  animation: breathe 3.2s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
