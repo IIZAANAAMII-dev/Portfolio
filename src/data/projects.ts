@@ -1,51 +1,62 @@
 import type { Project } from '@/types';
 
-// TODO Kyliann : remplacer par tes vrais projets. L'ancien site ne contenait que des
-// placeholders ("Projet 1", "Projet 2"), rien de réel n'a pu être récupéré.
-// La structure ci-dessous est celle attendue par l'île PROJECTS : garde les champs,
-// change le contenu. `offset` = position de la structure sur l'île, relative au centre.
-
 export const projects: Project[] = [
   {
-    id: 'archipelago',
-    title: 'Portfolio Archipel',
+    id: 'feeder',
+    title: 'Feeder.fr',
     year: '2026',
     summary:
-      'Un portfolio conçu comme une petite expérience 3D navigable plutôt que comme une page à scroller.',
+      'Plateforme B2B qui connecte distributeurs technologiques et revendeurs en un seul espace.',
     problem:
-      "Un portfolio classique se parcourt en dix secondes et ne démontre rien de la capacité à construire une interface complexe.",
+      "Les revendeurs perdaient du temps à jongler entre catalogues, devis et commandes sans outil centralisé.",
     solution:
-      "Une scène React Three Fiber pilotée par une machine à états : révélation cinématique du monde, navigation au clic, contenu data-driven, et une Quick View DOM complète pour les visiteurs pressés.",
-    role: 'Conception, direction artistique et développement.',
-    stack: ['Next.js', 'TypeScript', 'React Three Fiber', 'Three.js', 'GSAP', 'Tailwind CSS'],
+      "J'ai construit une application React / TypeScript avec un espace revendeurs complet : tarifs personnalisés, devis, commandes et achats, plus un site sectoriel dynamique et une vitrine internationale.",
+    role: 'Développement full stack, intégration métier et expérience utilisateur.',
+    stack: ['React.js', 'TypeScript', 'Node.js', 'Next.js', 'Three.js'],
     outcomes: [
-      'Fallback complet sans WebGL',
-      'Respect de prefers-reduced-motion',
-      'Aucun contenu prisonnier du canvas',
+      'Parcours revendeur clair et autonome',
+      'Site sectoriel connecté au back en temps réel',
+      'Déploiement d’une vitrine internationale Feeder.ae',
     ],
-    links: { github: 'https://github.com/IIZAANAAMII-dev/Portfolio' },
+    links: { demo: 'https://feeder.fr' },
     offset: [-6, -4],
   },
   {
-    id: 'project-two',
-    title: 'Projet à renseigner',
-    year: '—',
-    summary: 'Remplace cette entrée par un projet réel dans src/data/projects.ts.',
-    problem: 'Quel problème concret le projet résolvait-il ?',
-    solution: 'Quelle approche technique as-tu choisie, et pourquoi celle-là ?',
-    role: 'Ton rôle exact sur le projet.',
-    stack: ['—'],
+    id: 'psyme',
+    title: 'PsyMe',
+    year: '2024 — 2026',
+    summary:
+      'Doctolib des psychologues : prise de rendez-vous, suivi patient et visibilité en ligne.',
+    problem:
+      "Les psychologues manquaient d'une solution dédiée pour gérer leur cabinet et attirer de nouveaux patients.",
+    solution:
+      "Direction UX/UI et développement front-end d'une plateforme fluide : design system, animations Lottie et parcours patient pensé pour rassurer dès le premier clic.",
+    role: 'Conception web, branding et développement front-end chez RG Design.',
+    stack: ['React', 'Figma', 'Lottie', 'UX Design', 'Branding'],
+    outcomes: [
+      'Identité visuelle cohérente sur desktop et mobile',
+      'Parcours de prise de rendez-vous optimisé',
+      'Micro-animations qui guident l’utilisateur',
+    ],
     offset: [7, -2],
   },
   {
-    id: 'project-three',
-    title: 'Projet à renseigner',
-    year: '—',
-    summary: 'Remplace cette entrée par un projet réel dans src/data/projects.ts.',
-    problem: 'Quel problème concret le projet résolvait-il ?',
-    solution: 'Quelle approche technique as-tu choisie, et pourquoi celle-là ?',
-    role: 'Ton rôle exact sur le projet.',
-    stack: ['—'],
+    id: 'cinebot',
+    title: 'Cinebot',
+    year: '2025',
+    summary:
+      'Bot Discord pour partager et synchroniser des séances de visionnage entre amis.',
+    problem:
+      "Aucun outil ne permettait simplement de proposer un film ou une vidéo YouTube à son serveur et de fixer une séance.",
+    solution:
+      "Développement d’un bot Node.js performant avec des commandes claires, un hébergement optimisé et une expérience utilisateur réduite à l’essentiel.",
+    role: 'Conception et développement complet en solo, de l’idée au déploiement.',
+    stack: ['Node.js', 'Discord.js', 'JavaScript', 'UX Design'],
+    outcomes: [
+      'Partage de séances en quelques commandes',
+      'Hébergement gratuit et fiable',
+      'Expérience instantanée sans friction',
+    ],
     offset: [1, 6],
   },
 ];

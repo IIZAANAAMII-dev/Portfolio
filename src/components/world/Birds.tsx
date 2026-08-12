@@ -6,22 +6,33 @@ import { InstancedMesh, Object3D } from 'three';
 import { useWorld } from '@/lib/store';
 import { hash } from '@/lib/utils/math';
 
-const COUNT = 9;
+const COUNT = 48;
+
+type Bird = {
+  radius: number;
+  height: number;
+  speed: number;
+  offset: number;
+  wingSpeed: number;
+  wander: number;
+};
 
 /**
- * Quelques oiseaux au loin. Aucun rôle fonctionnel : ils existent uniquement pour que
- * le ciel ne soit jamais complètement immobile. Un seul draw call.
+ * Nuée de mouettes en vol. Elles se baladent en essaim autour de l'archipel
+ * avec des trajectoires ondulantes et un battement d'ailes rapide.
  */
 export function Birds() {
   const mesh = useRef<InstancedMesh>(null);
   const dummy = useMemo(() => new Object3D(), []);
-  const flock = useMemo(
+  const flock = useMemo<Bird[]>(
     () =>
       Array.from({ length: COUNT }, (_, i) => ({
-        radius: 55 + hash(i * 1.7) * 60,
-        height: 34 + hash(i * 3.3) * 26,
-        speed: 0.05 + hash(i * 5.9) * 0.05,
+        radius: 50 + hash(i * 1.7) * 95,
+        height: 32 + hash(i * 3.3) * 50,
+        speed: 0.05 + hash(i * 5.9) * 0.08,
         offset: hash(i * 7.1) * Math.PI * 2,
+        wingSpeed: 7 + hash(i * 2.3) * 6,
+        wander: hash(i * 4.4) * Math.PI * 2,
       })),
     [],
   );
@@ -29,19 +40,24 @@ export function Birds() {
   useFrame((state) => {
     if (!mesh.current) return;
     const reveal = useWorld.getState().reveal;
-    mesh.current.visible = reveal > 0.75;
+    mesh.current.visible = reveal > 0.35;
     if (!mesh.current.visible) return;
 
     const t = state.clock.elapsedTime;
     flock.forEach((bird, i) => {
-      const angle = bird.offset + t * bird.speed;
+      const drift = Math.sin(t * 0.18 + bird.wander) * 0.4;
+      const angle = bird.offset + t * bird.speed + drift;
+      const flap = Math.sin(t * bird.wingSpeed + bird.offset) * 0.45;
+      const r = bird.radius + Math.sin(t * 0.22 + bird.wander) * 12;
+
       dummy.position.set(
-        Math.cos(angle) * bird.radius,
-        bird.height + Math.sin(t * 0.4 + bird.offset) * 3,
-        Math.sin(angle) * bird.radius,
+        Math.cos(angle) * r,
+        bird.height + Math.sin(t * 0.45 + bird.offset) * 6 + Math.sin(t * 0.17 + bird.wander) * 4,
+        Math.sin(angle) * r,
       );
-      dummy.rotation.set(Math.sin(t * 6 + bird.offset) * 0.5, -angle, 0);
-      dummy.scale.setScalar(1.6);
+
+      dummy.rotation.set(Math.PI / 2 + flap, -angle, 0);
+      dummy.scale.set(2.6, 0.3, 0.55);
       dummy.updateMatrix();
       mesh.current!.setMatrixAt(i, dummy.matrix);
     });
@@ -49,9 +65,9 @@ export function Birds() {
   });
 
   return (
-    <instancedMesh ref={mesh} args={[undefined, undefined, COUNT]} frustumCulled={false}>
-      <coneGeometry args={[0.35, 1.6, 3]} />
-      <meshBasicMaterial color="#2c3440" transparent opacity={0.5} />
+    <instancedMesh ref={mesh} args={[undefined, undefined, COUNT]} frustumCulled={false} renderOrder={10}>
+      <coneGeometry args={[0.35, 0.35, 3]} />
+      <meshBasicMaterial color="#e8f4ff" transparent opacity={0.92} depthWrite={false} />
     </instancedMesh>
   );
 }

@@ -8,12 +8,13 @@ import { dockPosition, useWorld } from '@/lib/store';
 import { clamp, damp, shortestAngle } from '@/lib/utils/math';
 import type { Vec2 } from '@/types';
 
-const MAX_SPEED = 9.5;
-const ACCELERATION = 3.2;
-const TURN_RATE = 1.15; // rad/s
+export const MAX_SPEED = 13.5;
+const ACCELERATION = 4.4;
+const TURN_RATE = 1.28; // rad/s
 const ARRIVAL_RADIUS = 1.4;
 /** Rayon dans lequel le bateau ralentit pour accoster proprement. */
-const BRAKING_DISTANCE = 12;
+const BRAKING_DISTANCE = 16;
+const BOAT_RADIUS = 2.1;
 
 const SOLIDS = [
   { position: homeIsland.position, radius: homeIsland.radius },
@@ -47,6 +48,11 @@ export function useBoatNavigation() {
     const dt = Math.min(delta, 1 / 30);
     const { destination, freeTarget, arrive, reducedMotion } = useWorld.getState();
 
+    if (useWorld.getState().phase !== 'playing') {
+      boatState.speed = damp(boatState.speed, 0, 5, Math.min(delta, 1 / 30));
+      return;
+    }
+
     target.current = destination
       ? dockPosition(destination)
       : freeTarget
@@ -78,7 +84,41 @@ export function useBoatNavigation() {
       }
     }
 
+    const previousX = boatState.position.x;
+    const previousZ = boatState.position.z;
     boatState.position.x += Math.cos(boatState.heading) * boatState.speed * dt;
     boatState.position.z += Math.sin(boatState.heading) * boatState.speed * dt;
+
+    boatState.collision = damp(boatState.collision, 0, 5, dt);
+    for (const solid of SOLIDS) {
+      const dx = boatState.position.x - solid.position[0];
+      const dz = boatState.position.z - solid.position[1];
+      const distance = Math.hypot(dx, dz);
+      const minDistance = solid.radius + BOAT_RADIUS;
+      if (distance >= minDistance) continue;
+
+      const nx = distance > 0.001 ? dx / distance : Math.cos(boatState.heading + Math.PI);
+      const nz = distance > 0.001 ? dz / distance : Math.sin(boatState.heading + Math.PI);
+      const moveX = boatState.position.x - previousX;
+      const moveZ = boatState.position.z - previousZ;
+      const intoCoast = Math.min(0, moveX * nx + moveZ * nz);
+
+      // Retire uniquement la composante qui entre dans l'île : le bateau glisse le
+      // long du rivage au lieu de se téléporter ou de rester brutalement bloqué.
+      boatState.position.x -= intoCoast * nx;
+      boatState.position.z -= intoCoast * nz;
+      const correctedDx = boatState.position.x - solid.position[0];
+      const correctedDz = boatState.position.z - solid.position[1];
+      const correctedDistance = Math.max(Math.hypot(correctedDx, correctedDz), 0.001);
+      if (correctedDistance < minDistance) {
+        boatState.position.x = solid.position[0] + (correctedDx / correctedDistance) * minDistance;
+        boatState.position.z = solid.position[1] + (correctedDz / correctedDistance) * minDistance;
+      }
+      boatState.speed *= -0.32;
+      boatState.position.x -= nx * 0.65;
+      boatState.position.z -= nz * 0.65;
+      boatState.collision = 1;
+      if (!destination) useWorld.getState().sailToPoint([previousX, previousZ]);
+    }
   });
 }

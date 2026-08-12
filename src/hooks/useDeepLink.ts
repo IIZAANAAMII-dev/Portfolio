@@ -24,7 +24,7 @@ export function useDeepLink() {
   }, []);
 
   useEffect(() => {
-    if (phase === 'loading' || phase === 'intro') return;
+    if (phase === 'loading' || phase === 'intro' || phase === 'transitioning') return;
     const url = new URL(window.location.href);
     if (activeIsland) url.searchParams.set('section', activeIsland);
     else url.searchParams.delete('section');

@@ -16,6 +16,8 @@ export const boatState = {
   heading: homeIsland.dockAngle + Math.PI / 2,
   /** Vitesse actuelle en unités/seconde, utilisée pour le sillage et le roulis. */
   speed: 0,
+  /** Intensité du dernier contact avec une côte, utilisée pour le feedback visuel. */
+  collision: 0,
 };
 
 export function resetBoat() {
@@ -26,4 +28,5 @@ export function resetBoat() {
   );
   boatState.heading = homeIsland.dockAngle + Math.PI / 2;
   boatState.speed = 0;
+  boatState.collision = 0;
 }

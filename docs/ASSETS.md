@@ -20,6 +20,9 @@ manque, la scène perd son habillage mais reste entièrement navigable
 | Pirate Kit 2.1 — tours, maisons, toits   | Kenney | https://kenney.nl/assets/pirate-kit | CC0     | Non requise  |
 | Pirate Kit 2.1 — tonneaux, caisses, drapeaux | Kenney | https://kenney.nl/assets/pirate-kit | CC0 | Non requise  |
 | Atlas `Textures/colormap.png`            | Kenney | https://kenney.nl/assets/pirate-kit | CC0     | Non requise  |
+| Fishing Boat IV | gogiart | https://sketchfab.com/3d-models/fishing-boat-iv-8c5e9fbd3b614d3094ea781319ce6a61 | CC-BY 4.0 | Obligatoire |
+| Full Low Poly Sea & Ships Pack | Muyaya Concept | https://sketchfab.com/3d-models/full-low-poly-sea-ships-pack-0a770f4c0a854c5ca805831cd5cb2bdd | CC-BY 4.0 | Obligatoire |
+| Animated Fish Pack | Quaternius | https://opengameart.org/content/animated-fish | CC0 1.0 | Non requise |
 
 Le crédit n'est pas obligatoire en CC0, mais Kenney est cité dans le README : c'est la
 moindre des choses, et cela évite toute ambiguïté sur la provenance.

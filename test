@@ -1,0 +1,287 @@
+Je veux corriger complètement le comportement des poissons dans la scène.
+
+PROBLÈMES ACTUELS
+
+En regardant le rendu actuel :
+
+les poissons sont beaucoup trop gros
+leur échelle casse la perception de profondeur
+ils attirent trop l’attention
+ils semblent flotter/glisser plutôt que nager
+les changements de direction paraissent artificiels
+plusieurs poissons tournent trop en même temps
+le banc manque de désynchronisation
+les trajectoires sont trop propres / mécaniques
+les poissons donnent parfois l’impression de pivoter sur place
+leur vitesse ne semble pas liée à leur animation
+leur orientation ne suit pas toujours naturellement leur déplacement
+
+Je veux un comportement beaucoup plus crédible et subtil.
+
+OBJECTIF
+
+Les poissons doivent être un détail d’ambiance.
+
+Ils doivent renforcer la sensation que l’océan est vivant, sans devenir le centre de l’écran.
+
+Ils doivent paraître :
+
+plus petits
+plus éloignés
+plus nombreux si nécessaire
+plus subtils
+plus organiques
+plus désynchronisés
+
+ÉCHELLE
+
+Réduire clairement leur taille.
+
+Je veux commencer avec environ 35 à 50 % de leur échelle actuelle.
+
+Ajouter une légère variation par individu, par exemple :
+
+0.75x à 1.15x autour de la nouvelle taille de référence.
+
+Éviter que tous les poissons aient exactement la même taille.
+
+PROFONDEUR
+
+Répartir les poissons sur plusieurs profondeurs.
+
+Je ne veux pas un banc qui ressemble à une ligne plate.
+
+Créer :
+
+variation X
+variation Y
+variation Z
+
+Certains poissons doivent être plus profonds et moins visibles.
+
+Utiliser la brume / couleur de l’eau / profondeur pour les intégrer naturellement à la scène.
+
+ANIMATION DE NAGE
+
+Le mouvement doit être basé sur une vraie direction de déplacement.
+
+Chaque poisson doit avoir :
+
+une velocity
+une direction
+une vitesse cible
+une rotation interpolée
+éventuellement une accélération légère
+
+La rotation doit suivre la velocity.
+
+Ne jamais faire :
+rotation instantanée → nouvelle direction.
+
+Utiliser une interpolation douce.
+
+Par exemple :
+desiredDirection
+→ smooth steering
+→ velocity
+→ rotation basée sur velocity
+
+Le poisson doit tourner progressivement comme un animal.
+
+TRAJECTOIRES
+
+Éviter les trajectoires parfaitement circulaires ou répétitives.
+
+Utiliser une combinaison légère de :
+
+wander
+noise
+steering
+avoidance
+cohesion
+separation
+alignment
+
+Un comportement de flocking simplifié est préférable à des trajectoires pré-écrites.
+
+Ne pas rendre le système trop lourd.
+
+BANC DE POISSONS
+
+Le groupe doit avoir une direction générale commune, mais chaque poisson garde une petite indépendance.
+
+Utiliser des principes de boids si pertinent :
+
+cohesion très légère
+alignment modéré
+separation claire
+wander individuel
+
+IMPORTANT :
+ne synchronise pas tous les poissons.
+
+Chaque individu doit avoir :
+
+phase différente
+vitesse légèrement différente
+amplitude différente
+délai différent
+trajectoire légèrement différente
+
+VITESSE
+
+Réduire la nervosité.
+
+Je veux une nage calme.
+
+Les poissons ne doivent pas :
+
+accélérer brutalement
+freiner brutalement
+changer de sens soudainement
+
+Ajouter une vitesse minimale et maximale raisonnable.
+
+Les gros poissons peuvent être légèrement plus lents.
+
+ROTATION
+
+Limiter fortement les rotations brusques.
+
+Ne pas faire de slerp avec un facteur trop fort.
+
+Créer un turnRate maximum.
+
+Un poisson doit avoir besoin d’un petit délai pour changer de cap.
+
+Éviter absolument :
+
+demi-tour instantané
+rotation de 90° en quelques frames
+pivot sur place
+
+ANIMATION DU CORPS
+
+Si les modèles le permettent :
+
+ajouter une petite animation de nage.
+
+Pour un poisson low-poly :
+
+léger mouvement latéral du corps
+queue qui oscille
+amplitude liée à la vitesse
+fréquence liée à la vitesse
+
+Quand le poisson accélère :
+la queue bat légèrement plus vite.
+
+Quand il nage lentement :
+mouvement plus calme.
+
+Si le modèle est un mesh unique, utiliser si pertinent :
+
+vertex shader
+ou
+légère déformation procédurale
+
+Éviter de déplacer tout le poisson de gauche à droite comme substitut à une vraie animation.
+
+ORIENTATION
+
+Le nez du poisson doit toujours correspondre à la direction réelle du mouvement.
+
+Vérifier l’axe forward du modèle.
+
+Si nécessaire, corriger une rotation initiale propre au modèle, mais ne compense pas avec des rotations étranges à chaque frame.
+
+VARIATION
+
+Ajouter des variations subtiles par poisson :
+
+vitesse
+taille
+phase d’animation
+profondeur
+rayon de wander
+distance au voisin
+hauteur
+
+Cela doit casser l’effet clone.
+
+POSITIONNEMENT
+
+Ne mets pas le banc juste devant la caméra en permanence.
+
+Les poissons doivent :
+
+parfois passer au loin
+parfois disparaître dans la brume
+parfois passer sous le bateau
+parfois être visibles sur le côté
+
+Ils ne doivent pas constamment traverser le centre de l’écran.
+
+ÉVITER LE BATEAU
+
+Ajouter une avoidance douce autour du bateau.
+
+Les poissons ne doivent pas traverser directement la coque.
+
+Quand le bateau approche :
+
+certains poissons s’écartent légèrement
+accélération subtile
+puis retour progressif à leur comportement normal
+
+Pas de panique exagérée.
+
+PERFORMANCES
+
+Le système doit rester léger.
+
+Si beaucoup de poissons sont présents :
+
+InstancedMesh si pertinent
+calcul simplifié de boids
+voisinage limité
+update moins fréquent pour poissons très éloignés
+LOD comportemental si nécessaire
+
+Ne crée pas un système CPU lourd pour une décoration secondaire.
+
+DIRECTION ARTISTIQUE
+
+Je veux un comportement stylisé crédible.
+
+Pas besoin d’une simulation biologique parfaite.
+
+L’objectif est simplement que le cerveau dise :
+
+“oui, ces poissons nagent”
+
+au lieu de :
+
+“ce sont des modèles 3D qui se déplacent”.
+
+TEST VISUEL
+
+Après modification :
+
+regarder réellement la scène pendant au moins 20 à 30 secondes.
+
+Vérifier :
+
+taille des poissons
+profondeur
+variations
+rotation
+vitesse
+désynchronisation
+absence de pivot brutal
+absence de trajectoire répétitive
+interaction avec le bateau
+
+Si le mouvement paraît encore mécanique, ne considère pas la tâche terminée.
+
+Commence par inspecter le code actuel des poissons et explique brièvement pourquoi leur animation paraît artificielle, puis corrige directement le système.

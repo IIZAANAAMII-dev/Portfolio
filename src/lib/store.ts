@@ -23,16 +23,23 @@ interface WorldState {
   /** Cible libre en pleine mer (clic sur l'océan). */
   freeTarget: Vec2 | null;
   hovered: IslandId | null;
-  /** Progression 0 -> 1 de la révélation du monde, lue dans useFrame. */
+  /** Monde entièrement visible dès l'intro ; conservé pour l'atmosphère et les îles. */
   reveal: number;
+  /** Progression de l'unique transition intro → caméra de jeu. */
+  gameTransition: number;
   soundOn: boolean;
   quickView: boolean;
   reducedMotion: boolean;
   webglFailed: boolean;
+  isNight: boolean;
+  /** Heure du cycle : 0 = minuit, 0.25 = lever, 0.5 = midi, 0.75 = coucher. */
+  timeOfDay: number;
 
   ready: () => void;
   start: () => void;
   setReveal: (value: number) => void;
+  setGameTransition: (value: number) => void;
+  setTimeOfDay: (value: number) => void;
   revealComplete: () => void;
   sailTo: (id: IslandId) => void;
   sailToPoint: (point: Vec2) => void;
@@ -40,6 +47,7 @@ interface WorldState {
   close: () => void;
   hover: (id: IslandId | null) => void;
   toggleSound: () => void;
+  toggleDayNight: () => void;
   setQuickView: (value: boolean) => void;
   setReducedMotion: (value: boolean) => void;
   failWebgl: () => void;
@@ -54,42 +62,45 @@ export const useWorld = create<WorldState>((set, get) => ({
   destination: null,
   freeTarget: null,
   hovered: null,
-  reveal: 0,
+  reveal: 1,
+  gameTransition: 0,
   soundOn: false,
   quickView: false,
   reducedMotion: false,
   webglFailed: false,
+  isNight: false,
+  timeOfDay: 0.45,
 
   ready: () =>
     set((s) => (s.phase === 'loading' ? { phase: 'intro', sceneReady: true } : { sceneReady: true })),
-  start: () => set((s) => (s.phase === 'intro' ? { phase: 'reveal' } : {})),
+  start: () => set((s) => (s.phase === 'intro' ? { phase: 'transitioning', gameTransition: 0, soundOn: true } : {})),
   setReveal: (value) => set({ reveal: value }),
-  revealComplete: () => set({ phase: 'sailing', reveal: 1 }),
+  setGameTransition: (value) => set({ gameTransition: value }),
+  setTimeOfDay: (value) => set({ timeOfDay: value - Math.floor(value) }),
+  revealComplete: () => set({ phase: 'playing', reveal: 1, gameTransition: 1 }),
 
   sailTo: (id) => {
-    if (get().phase === 'intro' || get().phase === 'loading') return;
-    set({ phase: 'sailing', destination: id, freeTarget: null, activeIsland: null });
+    if (get().phase !== 'playing' && get().phase !== 'docked') return;
+    set({ phase: 'playing', destination: id, freeTarget: null, activeIsland: null });
   },
   sailToPoint: (point) => {
     const { phase } = get();
-    if (phase === 'loading' || phase === 'intro') return;
-    // Pendant la révélation le bateau avance déjà : on lui donne un cap sans
-    // interrompre la phase cinématique.
-    if (phase === 'reveal') return set({ destination: null, freeTarget: point });
-    set({ phase: 'sailing', destination: null, freeTarget: point, activeIsland: null });
+    if (phase !== 'playing' && phase !== 'docked') return;
+    set({ phase: 'playing', destination: null, freeTarget: point, activeIsland: null });
   },
   arrive: () => {
     const { destination } = get();
     if (!destination) return set({ freeTarget: null });
     set({ phase: 'docked', activeIsland: destination, destination: null });
   },
-  close: () => set({ phase: 'sailing', activeIsland: null }),
+  close: () => set({ phase: 'playing', activeIsland: null }),
 
   hover: (id) => set({ hovered: id }),
   toggleSound: () => set((s) => ({ soundOn: !s.soundOn })),
   setQuickView: (value) => set({ quickView: value }),
   setReducedMotion: (value) => set({ reducedMotion: value }),
   failWebgl: () => set({ webglFailed: true, quickView: true }),
+  toggleDayNight: () => set((s) => ({ isNight: !s.isNight, timeOfDay: s.isNight ? 0.3 : 0.8 })),
 
   jumpTo: (id) =>
     set({

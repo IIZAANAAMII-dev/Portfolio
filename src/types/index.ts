@@ -7,7 +7,7 @@ export type IslandId =
   | 'contact';
 
 /** Phases de l'expérience. Voir docs/ARCHITECTURE.md */
-export type WorldPhase = 'loading' | 'intro' | 'reveal' | 'sailing' | 'docked';
+export type WorldPhase = 'loading' | 'intro' | 'transitioning' | 'playing' | 'docked';
 
 export type Vec2 = [x: number, z: number];
 

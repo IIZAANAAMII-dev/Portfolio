@@ -1,8 +1,80 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import { islands } from '@/data/islands';
 import { site } from '@/data/site';
-import { useWorld } from '@/lib/store';
+import { boatState } from '@/lib/boat-state';
+import { dockPosition, useWorld } from '@/lib/store';
+
+const RAD2DEG = 180 / Math.PI;
+
+/**
+ * Boussole en bas à gauche. Elle est rafraîchie à 60 fps pour refléter la
+ * position réelle du bateau. Les îles apparaissent comme des repères autour du
+ * cadran ; un repère cliqué définit la destination. L'aiguille pointe vers
+ * l'île cible (ou le cap du bateau si aucune cible n'est active).
+ */
+function Compass() {
+  const [boat, setBoat] = useState({ x: boatState.position.x, z: boatState.position.z });
+  const destination = useWorld((s) => s.destination);
+  const activeIsland = useWorld((s) => s.activeIsland);
+  const sailTo = useWorld((s) => s.sailTo);
+  const hover = useWorld((s) => s.hover);
+
+  useEffect(() => {
+    let rafId = 0;
+    const loop = () => {
+      setBoat({ x: boatState.position.x, z: boatState.position.z });
+      rafId = requestAnimationFrame(loop);
+    };
+    rafId = requestAnimationFrame(loop);
+    return () => cancelAnimationFrame(rafId);
+  }, []);
+
+  const targetId = destination || activeIsland;
+  let needleAngle = boatState.heading * RAD2DEG + 90;
+  if (targetId) {
+    const [tx, tz] = dockPosition(targetId);
+    const dx = tx - boat.x;
+    const dz = tz - boat.z;
+    needleAngle = Math.atan2(dz, dx) * RAD2DEG + 90;
+  }
+
+  return (
+    <div className="intro-compass hud-compass" aria-label="Boussole">
+      <span>N</span>
+      <i style={{ transform: `rotate(${needleAngle}deg)` }} />
+      <span>S</span>
+      <b>✦</b>
+      {islands.map((island) => {
+        const dx = island.position[0] - boat.x;
+        const dz = island.position[1] - boat.z;
+        const angle = Math.atan2(dz, dx);
+        const left = 50 + 44 * Math.cos(angle);
+        const top = 50 + 44 * Math.sin(angle);
+        return (
+          <button
+            key={island.id}
+            type="button"
+            className="hud-island-dot"
+            aria-label={island.label}
+            onClick={(e) => {
+              e.stopPropagation();
+              sailTo(island.id);
+            }}
+            onMouseEnter={() => hover(island.id)}
+            onMouseLeave={() => hover(null)}
+            style={{
+              left: `${left}%`,
+              top: `${top}%`,
+              backgroundColor: island.accent,
+            }}
+          />
+        );
+      })}
+    </div>
+  );
+}
 
 /**
  * L'interface permanente. Trois éléments seulement, tous dans les marges : le monde
@@ -13,12 +85,14 @@ export function Hud() {
   const activeIsland = useWorld((s) => s.activeIsland);
   const destination = useWorld((s) => s.destination);
   const soundOn = useWorld((s) => s.soundOn);
+  const isNight = useWorld((s) => s.isNight);
   const toggleSound = useWorld((s) => s.toggleSound);
+  const toggleDayNight = useWorld((s) => s.toggleDayNight);
   const setQuickView = useWorld((s) => s.setQuickView);
   const sailTo = useWorld((s) => s.sailTo);
   const hover = useWorld((s) => s.hover);
 
-  const visible = phase === 'sailing' || phase === 'docked';
+  const visible = phase === 'playing' || phase === 'docked';
 
   return (
     <div
@@ -36,6 +110,14 @@ export function Hud() {
             onClick={toggleSound}
           >
             {soundOn ? 'Sound on' : 'Sound off'}
+          </button>
+          <button
+            type="button"
+            className="ghost-button"
+            aria-pressed={isNight}
+            onClick={toggleDayNight}
+          >
+            {isNight ? 'Nuit' : 'Jour'}
           </button>
           <button type="button" className="ghost-button" onClick={() => setQuickView(true)}>
             Quick view
@@ -69,6 +151,8 @@ export function Hud() {
           );
         })}
       </nav>
+
+      {visible && <Compass />}
     </div>
   );
 }

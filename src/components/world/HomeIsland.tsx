@@ -1,7 +1,7 @@
 'use client';
 
 import { Dock } from '@/components/islands/Dock';
-import { Boulders, Bushes, Palms, Prop } from '@/components/islands/decor';
+import { Boulders, Bushes, Palms, Prop, Shoreline } from '@/components/islands/decor';
 import { Terrain } from '@/components/islands/Terrain';
 import { AssetBoundary } from '@/components/world/AssetBoundary';
 import { homeIsland } from '@/data/islands';
@@ -17,14 +17,15 @@ export function HomeIsland() {
   return (
     <group position={[homeIsland.position[0], 0, homeIsland.position[1]]}>
       <Terrain radius={radius} elevation={elevation} ground="#5f8a55" seed={1} />
+      <Shoreline radius={radius} seed={3} count={4} />
       <Dock angle={homeIsland.dockAngle} reach={radius} />
 
       <AssetBoundary>
         {/* Le palmier central est le point de repère de la toute première image. */}
-        <Prop name={MODEL.palm} position={[-1.5, 2.3, 1.1]} rotation={0.7} scale={1.25} />
-        <Palms radius={radius} seed={21} count={4} />
-        <Bushes radius={radius} seed={21} count={9} />
-        <Boulders radius={radius} seed={64} count={4} />
+        <Prop name={MODEL.palm} position={[-2.2, 2.3, 1.5]} rotation={0.7} scale={1.05} />
+        <Palms radius={radius} seed={21} count={3} />
+        <Bushes radius={radius} seed={21} count={7} />
+        <Boulders radius={radius} seed={64} count={3} />
         <Prop name={MODEL.crate} position={[2.1, 2.1, -1.4]} rotation={-0.4} />
         <Prop name={MODEL.barrel} position={[2.9, 2.05, -0.3]} rotation={0.9} scale={0.9} />
       </AssetBoundary>

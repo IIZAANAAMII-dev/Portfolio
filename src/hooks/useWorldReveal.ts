@@ -4,7 +4,7 @@ import { useEffect } from 'react';
 import gsap from 'gsap';
 import { useWorld } from '@/lib/store';
 
-const REVEAL_DURATION = 8.5;
+const TRANSITION_DURATION = 0.85;
 
 /**
  * La révélation du monde. Une seule valeur (`reveal`, 0 -> 1) pilote le brouillard,
@@ -15,29 +15,22 @@ export function useWorldReveal() {
   const phase = useWorld((s) => s.phase);
 
   useEffect(() => {
-    if (phase !== 'reveal') return;
-    const { setReveal, revealComplete, sailToPoint, reducedMotion } = useWorld.getState();
+    if (phase !== 'transitioning') return;
+    const { setGameTransition, revealComplete, reducedMotion } = useWorld.getState();
 
     if (reducedMotion) {
-      setReveal(1);
+      setGameTransition(1);
       revealComplete();
       return;
     }
 
-    // Le bateau quitte le ponton dès la première seconde : c'est son mouvement qui
-    // justifie le recul de la caméra.
-    sailToPoint([46, -62]);
-
     const progress = { value: 0 };
     const tween = gsap.to(progress, {
       value: 1,
-      duration: REVEAL_DURATION,
-      ease: 'power2.inOut',
-      onUpdate: () => setReveal(progress.value),
-      onComplete: () => {
-        // Un temps de suspension sur le plan large avant de rendre la main.
-        gsap.delayedCall(1.1, revealComplete);
-      },
+      duration: TRANSITION_DURATION,
+      ease: 'power3.inOut',
+      onUpdate: () => setGameTransition(progress.value),
+      onComplete: revealComplete,
     });
 
     return () => {

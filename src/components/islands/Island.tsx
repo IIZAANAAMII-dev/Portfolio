@@ -9,6 +9,7 @@ import { damp } from '@/lib/utils/math';
 import { Dock } from './Dock';
 import { Silhouette } from './Silhouette';
 import { Terrain } from './Terrain';
+import { Shoreline } from './decor';
 import type { IslandConfig } from '@/types';
 
 export function Island({ island, index }: { island: IslandConfig; index: number }) {
@@ -61,6 +62,7 @@ export function Island({ island, index }: { island: IslandConfig; index: number 
         ground={island.ground}
         seed={index * 17 + 3}
       />
+      <Shoreline radius={island.radius} seed={index * 29 + 11} count={island.radius > 17 ? 10 : 7} />
       <Silhouette island={island} />
       <Dock angle={island.dockAngle} reach={island.radius} />
 

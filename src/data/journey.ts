@@ -1,37 +1,34 @@
 import type { JourneyStep } from '@/types';
 
-// TODO Kyliann : ajuster les dates et les étapes de ton parcours réel.
-// L'île JOURNEY dessine un chemin physique : une étape = un point sur ce chemin.
-
 export const journey: JourneyStep[] = [
   {
     id: 'start',
-    year: '20XX',
+    year: '2022',
     title: 'Premiers pas',
-    description: 'Le moment où le code est passé de curiosité à intention.',
+    description: 'Premiers projets graphiques : le design et le code deviennent un même langage.',
   },
   {
     id: 'training',
-    year: '20XX',
-    title: 'Formation',
-    description: 'Diplôme, école ou apprentissage à renseigner.',
+    year: '2023',
+    title: 'Concepteur Designer UI',
+    description: 'Diplôme Bac+3 au GRETA Occitanie. Entre Figma, Photoshop et prototypage, j’apprends à penser l’interface.',
   },
   {
     id: 'design',
-    year: '20XX',
+    year: '2024',
     title: 'Design d’interface',
-    description: 'Apprendre à penser une interface avant de l’écrire.',
+    description: 'Stages UI/UX : de la maquette à la page web, je passe du design au développement.',
   },
   {
     id: 'fullstack',
-    year: '20XX',
+    year: '2025',
     title: 'Full stack',
-    description: 'Assumer la chaîne complète, de l’écran à la base de données.',
+    description: 'Produits complets en solo ou en équipe : React en front, Node.js en back, et un goût pour les détails.',
   },
   {
     id: 'next',
     year: 'Aujourd’hui',
-    title: 'La suite',
-    description: 'Le type de produit et d’équipe que je cherche maintenant.',
+    title: 'Master & Freelance',
+    description: 'Master Web/Multimedia Management à l’ISCOD et missions chez Feeder. Je cherche à monter en responsabilité.',
   },
 ];

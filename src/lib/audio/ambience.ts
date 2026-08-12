@@ -1,15 +1,17 @@
 /**
- * Ambiance sonore générée à la volée (bruit filtré modulé) plutôt que chargée.
- * Aucun asset audio à télécharger, aucune licence à gérer, et le ressac ne boucle
- * jamais de façon audible. Le contexte n'est créé qu'après un geste utilisateur, comme
- * l'exigent les navigateurs.
+ * Ambiance sonore : musique de fond + ressac généré + effets procéduraux.
+ * Le contexte n'est créé qu'après un geste utilisateur, comme l'exigent les navigateurs.
  */
 class Ambience {
   private context: AudioContext | null = null;
   private master: GainNode | null = null;
+  private musicGain: GainNode | null = null;
+  private musicBuffer: AudioBuffer | null = null;
+  private musicSource: AudioBufferSourceNode | null = null;
+  private ambientGain: GainNode | null = null;
   private nodes: AudioNode[] = [];
 
-  private ensure() {
+  private async ensure() {
     if (this.context) return this.context;
     const Ctor = window.AudioContext ?? (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
     if (!Ctor) return null;
@@ -18,6 +20,13 @@ class Ambience {
     const master = context.createGain();
     master.gain.value = 0;
     master.connect(context.destination);
+    this.master = master;
+
+    // Groupe ambiant (vagues + vent), moins fort que la musique.
+    const ambientGain = context.createGain();
+    ambientGain.gain.value = 0;
+    ambientGain.connect(master);
+    this.ambientGain = ambientGain;
 
     // Bruit brownien : la base du ressac.
     const seconds = 4;
@@ -59,24 +68,81 @@ class Ambience {
     const windGain = context.createGain();
     windGain.gain.value = 0.05;
 
-    source.connect(surf).connect(swell).connect(master);
-    source.connect(wind).connect(windGain).connect(master);
+    source.connect(surf).connect(swell).connect(ambientGain);
+    source.connect(wind).connect(windGain).connect(ambientGain);
     source.start();
 
     this.nodes.push(source, surf, swell, wind, windGain);
+
+    // Piste de fond.
+    this.musicBuffer = await this.loadMusic(context);
+    const musicGain = context.createGain();
+    musicGain.gain.value = 0;
+    musicGain.connect(master);
+    this.musicGain = musicGain;
+
     this.context = context;
-    this.master = master;
     return context;
   }
 
+  private async loadMusic(context: AudioContext): Promise<AudioBuffer | null> {
+    try {
+      const url = '/models/' + encodeURIComponent('Bateau sur l’équateur.mp3');
+      const res = await fetch(url);
+      if (!res.ok) throw new Error(`audio not found: ${res.status}`);
+      const data = await res.arrayBuffer();
+      return await context.decodeAudioData(data);
+    } catch (e) {
+      console.warn('Could not load music:', e);
+      return null;
+    }
+  }
+
+  private startMusic() {
+    if (!this.context || !this.musicBuffer || !this.musicGain) return;
+    if (this.musicSource) this.musicSource.stop();
+    const src = this.context.createBufferSource();
+    src.buffer = this.musicBuffer;
+    src.loop = true;
+    src.connect(this.musicGain);
+    src.start(0);
+    this.musicSource = src;
+  }
+
+  private stopMusic() {
+    if (this.musicSource) {
+      this.musicSource.stop();
+      this.musicSource.disconnect();
+      this.musicSource = null;
+    }
+  }
+
   async setEnabled(enabled: boolean) {
-    const context = this.ensure();
+    const context = await this.ensure();
     if (!context || !this.master) return;
-    if (enabled && context.state === 'suspended') await context.resume();
+    if (enabled) {
+      if (context.state === 'suspended') await context.resume();
+      if (!this.musicSource) this.startMusic();
+    } else {
+      this.stopMusic();
+    }
     const now = context.currentTime;
+
     this.master.gain.cancelScheduledValues(now);
     this.master.gain.setValueAtTime(this.master.gain.value, now);
-    this.master.gain.linearRampToValueAtTime(enabled ? 0.16 : 0, now + (enabled ? 2.2 : 0.6));
+    this.master.gain.linearRampToValueAtTime(enabled ? 0.42 : 0, now + (enabled ? 2.2 : 0.6));
+
+    if (this.musicGain) {
+      this.musicGain.gain.cancelScheduledValues(now);
+      this.musicGain.gain.setValueAtTime(this.musicGain.gain.value, now);
+      this.musicGain.gain.linearRampToValueAtTime(enabled ? 0.35 : 0, now + (enabled ? 2.5 : 0.4));
+    }
+
+    if (this.ambientGain) {
+      this.ambientGain.gain.cancelScheduledValues(now);
+      this.ambientGain.gain.setValueAtTime(this.ambientGain.gain.value, now);
+      this.ambientGain.gain.linearRampToValueAtTime(enabled ? 0.22 : 0, now + (enabled ? 2.5 : 0.4));
+    }
   }
 
   /** Petit repère sonore : clic, accostage, ouverture. */
@@ -89,7 +155,7 @@ class Ambience {
     oscillator.frequency.value = frequency;
     const now = context.currentTime;
     gain.gain.setValueAtTime(0, now);
-    gain.gain.linearRampToValueAtTime(0.06, now + 0.02);
+    gain.gain.linearRampToValueAtTime(0.05, now + 0.02);
     gain.gain.exponentialRampToValueAtTime(0.0001, now + duration);
     oscillator.connect(gain).connect(this.master);
     oscillator.start(now);

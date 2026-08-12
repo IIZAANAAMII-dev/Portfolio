@@ -112,6 +112,30 @@ export function Boulders({ radius, seed, count = 7 }: { radius: number; seed: nu
   );
 }
 
+/** Rochers mi-sable mi-pierre placés sur la ligne d'eau pour casser le contour. */
+export function Shoreline({ radius, seed, count = 5 }: { radius: number; seed: number; count?: number }) {
+  return (
+    <>
+      <InstancedModel
+        name={MODEL.shoreRockA}
+        count={count}
+        radius={radius * 1.04}
+        innerRadius={radius * 0.88}
+        seed={seed + 301}
+        y={-0.15}
+      />
+      <InstancedModel
+        name={MODEL.shoreRockB}
+        count={Math.max(2, Math.round(count * 0.55))}
+        radius={radius * 1.07}
+        innerRadius={radius * 0.94}
+        seed={seed + 337}
+        y={-0.25}
+      />
+    </>
+  );
+}
+
 /** Objet unique posé sur une île (phare, maison, tonneau…). */
 export function Prop({
   name,

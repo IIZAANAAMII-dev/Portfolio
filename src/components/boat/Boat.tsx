@@ -2,15 +2,51 @@
 
 import { useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
-import { DoubleSide, ExtrudeGeometry, Group, Mesh, MeshStandardMaterial, Shape } from 'three';
+import { DoubleSide, ExtrudeGeometry, Group, Mesh, MeshStandardMaterial, Object3D, PointLight, Shape, InstancedMesh } from 'three';
 import { boatState } from '@/lib/boat-state';
+import { useWorld } from '@/lib/store';
 import { waveHeight } from '@/lib/waves';
-import { damp } from '@/lib/utils/math';
+import { damp, smoothstep } from '@/lib/utils/math';
 import { useBoatNavigation } from '@/hooks/useBoatNavigation';
+import { MAX_SPEED } from '@/hooks/useBoatNavigation';
 import { Wake } from './Wake';
+import { BoatModel } from './BoatModel';
 
 /** Doit rester aligné sur MAX_SPEED de useBoatNavigation. */
-const MAX_VISUAL_SPEED = 9.5;
+const MAX_VISUAL_SPEED = MAX_SPEED;
+
+function ExhaustSmoke() {
+  const mesh = useRef<InstancedMesh>(null);
+  const dummy = useMemo(() => new Object3D(), []);
+  const count = 9;
+
+  useFrame((state) => {
+    if (!mesh.current) return;
+    const strength = Math.min(boatState.speed / MAX_VISUAL_SPEED, 1);
+    mesh.current.visible = strength > 0.08;
+    const t = state.clock.elapsedTime;
+    for (let index = 0; index < count; index++) {
+      const life = (t * (0.34 + strength * 0.18) + index / count) % 1;
+      dummy.position.set(
+        -2.25 - life * (0.7 + strength * 1.3),
+        2.75 + life * 3.1,
+        Math.sin(index * 4.7 + t) * life * 0.45,
+      );
+      const scale = (0.12 + life * 0.62) * (0.5 + strength * 0.7);
+      dummy.scale.setScalar(scale);
+      dummy.updateMatrix();
+      mesh.current.setMatrixAt(index, dummy.matrix);
+    }
+    mesh.current.instanceMatrix.needsUpdate = true;
+  });
+
+  return (
+    <instancedMesh ref={mesh} args={[undefined, undefined, count]} frustumCulled={false}>
+      <dodecahedronGeometry args={[0.65, 0]} />
+      <meshBasicMaterial color="#8c9799" transparent opacity={0.2} depthWrite={false} />
+    </instancedMesh>
+  );
+}
 
 /** Coque de petit chalutier : proue courte, étrave haute, poupe carrée. Proue vers +X. */
 function useHullGeometry() {
@@ -65,6 +101,7 @@ export function Boat() {
   const group = useRef<Group>(null);
   const rocker = useRef<Group>(null);
   const sail = useRef<Mesh>(null);
+  const boatLight = useRef<PointLight>(null);
   const hullGeometry = useHullGeometry();
   const netGeometry = useNetGeometry();
 
@@ -94,33 +131,54 @@ export function Boat() {
     const t = state.clock.elapsedTime;
     const { position, heading, speed } = boatState;
 
+    const { timeOfDay } = useWorld.getState();
+    const angle = (timeOfDay - 0.25) * Math.PI * 2;
+    const sunElevation = Math.sin(angle);
+    const dayNight = 1 - smoothstep(-0.2, 0.15, sunElevation);
+    if (boatLight.current) boatLight.current.intensity = damp(boatLight.current.intensity, dayNight * 18, 2, dt);
+
     if (group.current) {
       const y = waveHeight(position.x, position.z, t);
-      group.current.position.set(position.x, y, position.z);
+      const drift = Math.sin(t * 0.74) * 0.16 + Math.sin(t * 1.3 + 1.1) * 0.07 + Math.sin(t * 2.1 + 2.5) * 0.03;
+      const heave = y + drift + Math.sin(t * 1.35) * Math.min(speed / MAX_VISUAL_SPEED, 1) * 0.055;
+      group.current.position.x = position.x;
+      group.current.position.y = damp(group.current.position.y, heave, 8, dt);
+      group.current.position.z = position.z;
       group.current.rotation.y = -heading;
     }
 
     if (rocker.current) {
+      const sampleDistance = 2.45;
       const ahead = waveHeight(
-        position.x + Math.cos(heading) * 2.8,
-        position.z + Math.sin(heading) * 2.8,
+        position.x + Math.cos(heading) * sampleDistance,
+        position.z + Math.sin(heading) * sampleDistance,
         t,
       );
       const behind = waveHeight(
-        position.x - Math.cos(heading) * 2.8,
-        position.z - Math.sin(heading) * 2.8,
+        position.x - Math.cos(heading) * sampleDistance,
+        position.z - Math.sin(heading) * sampleDistance,
+        t,
+      );
+      const port = waveHeight(
+        position.x - Math.sin(heading) * 1.05,
+        position.z + Math.cos(heading) * 1.05,
+        t,
+      );
+      const starboard = waveHeight(
+        position.x + Math.sin(heading) * 1.05,
+        position.z - Math.cos(heading) * 1.05,
         t,
       );
       const damping = 1 - Math.min(speed / 14, 0.5);
       rocker.current.rotation.z = damp(
         rocker.current.rotation.z,
-        (ahead - behind) * 0.2 * damping,
+        (ahead - behind) * 0.34 * damping,
         4,
         dt,
       );
       rocker.current.rotation.x = damp(
         rocker.current.rotation.x,
-        Math.sin(t * 0.9) * 0.05 * damping,
+        (port - starboard) * 0.52 * damping + boatState.collision * 0.08,
         3,
         dt,
       );
@@ -129,12 +187,25 @@ export function Boat() {
     if (sail.current) {
       const fill = 1 + Math.min(speed / MAX_VISUAL_SPEED, 1) * 0.25;
       sail.current.scale.z = damp(sail.current.scale.z, fill, 3, dt);
+      sail.current.rotation.y = Math.sin(t * 2.1) * 0.09 + Math.min(speed / MAX_VISUAL_SPEED, 1) * 0.08;
+      sail.current.rotation.z = Math.sin(t * 3.4) * 0.025;
     }
   });
 
   return (
+    <>
     <group ref={group}>
       <group ref={rocker}>
+        <pointLight
+          ref={boatLight}
+          position={[0, 2.2, 0]}
+          color="#fff4e6"
+          intensity={0}
+          distance={22}
+          decay={1.8}
+        />
+        <BoatModel />
+        <group visible={false}>
         {/* Coque */}
         <mesh geometry={hullGeometry} material={m.red} castShadow />
         {/* Bande blanche bordé */}
@@ -181,7 +252,7 @@ export function Boat() {
         </mesh>
         {/* Petit drapeau */}
         <mesh ref={sail} position={[0.95, 2.6, 0]} material={m.gold} castShadow>
-          <boxGeometry args={[1.3, 0.7, 0.05]} />
+          <planeGeometry args={[1.3, 0.7, 5, 2]} />
         </mesh>
 
         {/* Filet plié sur bâbord */}
@@ -221,8 +292,11 @@ export function Boat() {
         <mesh position={[-3.0, 1.05, 0]} material={m.redGlow}>
           <sphereGeometry args={[0.07, 8, 6]} />
         </mesh>
+        </group>
+        <ExhaustSmoke />
       </group>
-      <Wake />
     </group>
+    <Wake />
+    </>
   );
 }

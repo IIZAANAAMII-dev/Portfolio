@@ -1,26 +1,21 @@
-// TODO Kyliann : vérifier l'URL LinkedIn, déposer le CV dans /public et confirmer
-// l'intitulé de poste. Tout le contenu textuel du portfolio vit dans src/data/.
-
 export const site = {
   name: 'Kyliann Le Garrec',
   shortName: 'KYLIANN',
-  role: 'Développeur Full Stack',
+  role: 'Développeur Web & UI/UX',
   location: 'Marseille, France',
   intro:
-    "Je conçois et développe des produits web complets, de l'interface à l'API. " +
-    "Ce portfolio est un petit archipel : chaque île est une partie de mon travail.",
+    "Je conçois des interfaces qui convertissent et des applications web qui tiennent la route. " +
+    "De l’idée au déploiement, je travaille sur toute la chaîne pour livrer des produits complets.",
   bio: [
-    "Développeur full stack basé à Marseille, je travaille autant sur l'expérience " +
-      "utilisateur que sur ce qui la fait tourner. Ce qui m'intéresse : les interfaces " +
-      'précises, les bases de code lisibles et les détails que personne ne remarque ' +
-      'consciemment.',
-    "Je viens du design d'interface, ce qui influence ma façon de coder : je pense en " +
-      'états, en transitions et en cas limites avant de penser en fichiers.',
+    "Développeur web et UI/UX basé à Marseille, j'aide les équipes à transformer une idée en produit utilisable. " +
+      "J'interviens sur l'expérience utilisateur comme sur l'architecture technique : React, TypeScript, Node.js, Three.js, design system.",
+    "Ma différence vient du design : je pense l'interface comme un parcours avant de l'écrire, " +
+      'avec un œil sur les transitions, les états et les détails qui rassurent l’utilisateur.',
   ],
   email: 'lgkyliann@gmail.com',
   links: {
     github: 'https://github.com/IIZAANAAMII-dev',
-    linkedin: 'https://www.linkedin.com/in/kyliann-le-garrec',
+    linkedin: 'https://www.linkedin.com/in/kyliann-le-garrec-24401a255',
     cv: '/cv-kyliann-le-garrec.pdf',
   },
   url: 'https://kyliann.dev',
