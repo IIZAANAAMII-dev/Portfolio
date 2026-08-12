@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "skills": {
+    "skill-creator": {
+      "source": "Memento-Teams/Memento-Skills",
+      "sourceType": "github",
+      "skillPath": "builtin/skills/skill-creator/SKILL.md",
+      "computedHash": "9cb8eddd982de61cb34955739624909e0f39f6b6f59aba6ee2d4c0d0b4528c87"
+    }
+  }
+}
