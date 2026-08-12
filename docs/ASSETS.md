@@ -2,14 +2,38 @@
 
 ## État actuel
 
-**Aucun asset externe n'est utilisé pour le moment.** L'intégralité du monde
-(île, bateau, ponton, arbres, rochers, océan) est générée proceduralement avec des
-primitives Three.js dans `src/components/`. Cela garantit que le projet fonctionne sans
-dépendance de licence et qu'aucun développement n'est bloqué par un modèle manquant.
+Le décor s'appuie sur un seul pack externe, le **Kenney Pirate Kit**, en **CC0**.
+Un seul auteur, un seul atlas de couleurs : la cohérence artistique est garantie par
+construction et le coût GPU reste minimal.
 
-| Asset  | Auteur | Source | Licence | Attribution |
-| ------ | ------ | ------ | ------- | ----------- |
-| _(aucun)_ | — | — | — | — |
+Le terrain des îles, l'océan et les objets abstraits de l'île SKILLS restent
+procéduraux. Chaque modèle importé possède un **repli procédural** : si un `.glb`
+manque, la scène perd son habillage mais reste entièrement navigable
+(`src/components/world/AssetBoundary.tsx`).
+
+| Asset                                    | Auteur | Source                            | Licence | Attribution  |
+| ---------------------------------------- | ------ | --------------------------------- | ------- | ------------ |
+| Pirate Kit 2.1 — bateau `ship-small`     | Kenney | https://kenney.nl/assets/pirate-kit | CC0     | Non requise  |
+| Pirate Kit 2.1 — pontons, plateformes    | Kenney | https://kenney.nl/assets/pirate-kit | CC0     | Non requise  |
+| Pirate Kit 2.1 — palmiers, herbe         | Kenney | https://kenney.nl/assets/pirate-kit | CC0     | Non requise  |
+| Pirate Kit 2.1 — rochers                 | Kenney | https://kenney.nl/assets/pirate-kit | CC0     | Non requise  |
+| Pirate Kit 2.1 — tours, maisons, toits   | Kenney | https://kenney.nl/assets/pirate-kit | CC0     | Non requise  |
+| Pirate Kit 2.1 — tonneaux, caisses, drapeaux | Kenney | https://kenney.nl/assets/pirate-kit | CC0 | Non requise  |
+| Atlas `Textures/colormap.png`            | Kenney | https://kenney.nl/assets/pirate-kit | CC0     | Non requise  |
+
+Le crédit n'est pas obligatoire en CC0, mais Kenney est cité dans le README : c'est la
+moindre des choses, et cela évite toute ambiguïté sur la provenance.
+
+La licence d'origine est conservée telle quelle dans
+`public/models/pirate-kit/LICENSE-kenney.txt`.
+
+### Packs évalués et écartés
+
+- **Quaternius Pirate Kit** (CC0) : excellent, mais mélanger deux auteurs sur les mêmes
+  îles produirait deux niveaux de détail différents. À reconsidérer si un objet
+  spécifique manque.
+- **Kenney Nature Kit** (CC0) : arbres tempérés sans texture d'atlas. Introduirait un
+  second matériau et une palette différente de celle du kit principal.
 
 ## Règle de licence
 
@@ -28,14 +52,25 @@ itch.io (licence lue au cas par cas), Sketchfab filtré sur CC0/CC-BY.
 
 ```
 public/models/
-  boat/          bateau principal, barque secondaire
-  environment/   îles, terrain, pontons
-  nature/        arbres, buissons, rochers, herbe
-  buildings/     phare, cabanes, structures projets
-  props/         caisses, bancs, lampadaires, panneaux
+  pirate-kit/            31 modèles .glb du Kenney Pirate Kit
+    Textures/
+      colormap.png       atlas partagé par tous les modèles du kit
+    LICENSE-kenney.txt
 ```
 
-Format : `.glb` uniquement, Draco ou Meshopt si > 500 Ko.
+Les modèles d'un même kit restent **groupés dans un seul dossier** : ils référencent
+l'atlas en chemin relatif (`Textures/colormap.png`), qui n'est donc téléchargé et
+téléversé au GPU qu'une seule fois. Les répartir par catégorie obligerait à dupliquer
+la texture.
+
+Un pack provenant d'un autre auteur aurait son propre dossier
+(`public/models/<nom-du-kit>/`), jamais mélangé.
+
+Format : `.glb` uniquement, Draco ou Meshopt si > 500 Ko. Le kit complet pèse 885 Ko,
+compression inutile à ce stade.
+
+Les noms de fichiers sont exposés via une constante typée, `MODEL` dans
+`src/lib/models.ts` : aucun chemin d'asset n'est écrit en dur dans un composant.
 
 ## Convention d'intégration
 
@@ -54,18 +89,18 @@ Un asset n'est intégré que s'il respecte : low-poly, faces planes (flat shadin
 normales dures), pas de texture photo, palette compatible avec `docs/DESIGN.md`,
 proportions légèrement stylisées. Sinon, il est retravaillé dans Blender ou écarté.
 
-## Remplacement d'un placeholder
+## Intégrer ou remplacer un modèle
 
-Chaque objet procédural est isolé dans son propre composant. Pour passer au modèle réel,
-seul le corps du composant change :
+1. Ajouter le nom du fichier à `MODEL` dans `src/lib/models.ts`.
+2. L'utiliser via `<Prop name={MODEL.x} />` (objet unique) ou via les helpers de
+   `src/components/islands/decor.tsx` (végétation instanciée).
+3. Envelopper le sous-arbre dans `<AssetBoundary fallback={…}>` pour garantir le repli.
 
-```tsx
-// avant
-<mesh geometry={hullGeometry} material={hullMaterial} />
-// après
-const { scene } = useGLTF('/models/boat/boat.glb')
-<primitive object={scene} />
-```
+L'orientation de l'asset est corrigée **à un seul endroit**. Exemple pour le bateau :
+le modèle a sa proue vers +Z, la navigation raisonne en « avant = +X », la rotation d'un
+quart de tour vit dans `BoatModel.tsx` et nulle part ailleurs. Aucun autre composant
+n'a besoin de savoir comment le fichier a été exporté.
 
-La logique (navigation, oscillation, sillage) reste inchangée. Si le chargement échoue,
-le composant retombe sur sa version procédurale via une `ErrorBoundary`.
+Pour un modèle multi-mesh (le bateau et ses voiles), utiliser `useModelScene` et cloner
+la scène ; pour un modèle mono-mesh, `useModelPart` renvoie géométrie et matériau, ce
+qui permet de l'instancier.

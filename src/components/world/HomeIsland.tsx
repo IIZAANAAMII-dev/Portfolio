@@ -1,9 +1,11 @@
 'use client';
 
 import { Dock } from '@/components/islands/Dock';
-import { Scatter } from '@/components/islands/Scatter';
+import { Boulders, Bushes, Palms, Prop } from '@/components/islands/decor';
 import { Terrain } from '@/components/islands/Terrain';
+import { AssetBoundary } from '@/components/world/AssetBoundary';
 import { homeIsland } from '@/data/islands';
+import { MODEL } from '@/lib/models';
 
 /**
  * L'îlot de départ. C'est le seul décor visible pendant l'intro : il doit être dense en
@@ -17,31 +19,15 @@ export function HomeIsland() {
       <Terrain radius={radius} elevation={elevation} ground="#5f8a55" seed={1} />
       <Dock angle={homeIsland.dockAngle} reach={radius} />
 
-      {/* Arbre principal : le point de repère de la première image. */}
-      <group position={[-1.6, 2.4, 1.2]}>
-        <mesh castShadow>
-          <cylinderGeometry args={[0.16, 0.26, 2.2, 6]} />
-          <meshStandardMaterial color="#7a5a3c" roughness={1} flatShading />
-        </mesh>
-        <mesh position={[0, 2.3, 0]} castShadow>
-          <coneGeometry args={[1.5, 3.4, 7]} />
-          <meshStandardMaterial color="#3f6b45" roughness={1} flatShading />
-        </mesh>
-        <mesh position={[0.1, 4.1, 0]} castShadow>
-          <coneGeometry args={[1.05, 2.2, 7]} />
-          <meshStandardMaterial color="#4a7a4e" roughness={1} flatShading />
-        </mesh>
-      </group>
-
-      <Scatter count={7} radius={radius * 0.7} innerRadius={1.5} seed={21} y={1.8} sway={0.05}>
-        <icosahedronGeometry args={[0.55, 0]} />
-        <meshStandardMaterial color="#4f7a4c" roughness={1} flatShading />
-      </Scatter>
-
-      <Scatter count={6} radius={radius * 0.95} innerRadius={radius * 0.5} seed={64} y={0.7}>
-        <dodecahedronGeometry args={[0.6, 0]} />
-        <meshStandardMaterial color="#6b6f76" roughness={1} flatShading />
-      </Scatter>
+      <AssetBoundary>
+        {/* Le palmier central est le point de repère de la toute première image. */}
+        <Prop name={MODEL.palm} position={[-1.5, 2.3, 1.1]} rotation={0.7} scale={1.25} />
+        <Palms radius={radius} seed={21} count={4} />
+        <Bushes radius={radius} seed={21} count={9} />
+        <Boulders radius={radius} seed={64} count={4} />
+        <Prop name={MODEL.crate} position={[2.1, 2.1, -1.4]} rotation={-0.4} />
+        <Prop name={MODEL.barrel} position={[2.9, 2.05, -0.3]} rotation={0.9} scale={0.9} />
+      </AssetBoundary>
 
       {/* Petite lanterne au bout du ponton : c'est elle qui accroche l'œil dans le noir. */}
       <group rotation-y={-homeIsland.dockAngle}>

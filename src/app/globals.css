@@ -2,7 +2,7 @@
 
 /* Tokens : voir docs/DESIGN.md. Aucune couleur ne doit être écrite en dur ailleurs. */
 :root {
-  --abyss: #05080f;
+  --abyss: #08121c;
   --deep: #0b1a2b;
   --shallow: #1d5f74;
   --foam: #dff3f5;
@@ -199,6 +199,48 @@ body.is-quick-view {
 
 .animate-breathe {
   animation: breathe 3.2s ease-in-out infinite;
+}
+
+/* --- Intro ----------------------------------------------------------------- */
+
+.intro-vignette {
+  background: radial-gradient(circle at 52% 38%, transparent 0%, color-mix(in srgb, var(--abyss) 72%, transparent) 70%);
+  pointer-events: auto;
+}
+
+.intro-vignette::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at 55% 45%, transparent 12%, color-mix(in srgb, var(--abyss) 88%, transparent) 62%);
+}
+
+.intro-prompt {
+  background: linear-gradient(180deg, color-mix(in srgb, var(--abyss) 28%, transparent), color-mix(in srgb, var(--abyss) 52%, transparent));
+  border: 1px solid color-mix(in srgb, var(--paper) 25%, transparent);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.2), 0 18px 50px rgba(0, 0, 0, 0.5);
+  transition: transform 300ms ease, box-shadow 300ms ease;
+}
+
+.intro-prompt:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.2), 0 24px 70px rgba(0, 0, 0, 0.55), 0 0 24px color-mix(in srgb, var(--dawn) 30%, transparent);
+}
+
+.intro-arrow {
+  animation: arrow-wag 3.6s ease-in-out infinite;
+  transform-origin: 100% 100%;
+  opacity: 0.85;
+}
+
+@keyframes arrow-wag {
+  0%,
+  100% {
+    transform: rotate(-4deg) translateY(0);
+  }
+  50% {
+    transform: rotate(3deg) translateY(-4px);
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

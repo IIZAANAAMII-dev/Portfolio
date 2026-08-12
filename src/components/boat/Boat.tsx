@@ -12,47 +12,51 @@ import { Wake } from './Wake';
 /** Doit rester aligné sur MAX_SPEED de useBoatNavigation. */
 const MAX_VISUAL_SPEED = 9.5;
 
-/** Coque : silhouette vue de dessus, extrudée verticalement. Proue vers +X. */
+/** Coque de petit chalutier : proue courte, étrave haute, poupe carrée. Proue vers +X. */
 function useHullGeometry() {
   return useMemo(() => {
     const shape = new Shape();
-    shape.moveTo(1.85, 0);
-    shape.lineTo(1.15, 0.6);
-    shape.lineTo(0.1, 0.72);
-    shape.lineTo(-1.25, 0.64);
-    shape.lineTo(-1.6, 0.46);
-    shape.lineTo(-1.6, -0.46);
-    shape.lineTo(-1.25, -0.64);
-    shape.lineTo(0.1, -0.72);
-    shape.lineTo(1.15, -0.6);
+    shape.moveTo(3.2, 0);
+    shape.lineTo(2.2, 1.12);
+    shape.lineTo(0.8, 1.42);
+    shape.lineTo(-1.6, 1.34);
+    shape.lineTo(-2.9, 1.05);
+    shape.lineTo(-3.2, 0.55);
+    shape.lineTo(-3.2, -0.55);
+    shape.lineTo(-2.9, -1.05);
+    shape.lineTo(-1.6, -1.34);
+    shape.lineTo(0.8, -1.42);
+    shape.lineTo(2.2, -1.12);
     shape.closePath();
 
     const geometry = new ExtrudeGeometry(shape, {
-      depth: 0.5,
+      depth: 1.05,
       bevelEnabled: true,
-      bevelThickness: 0.12,
-      bevelSize: 0.1,
-      bevelSegments: 2,
+      bevelThickness: 0.08,
+      bevelSize: 0.06,
+      bevelSegments: 1,
       steps: 1,
     });
     geometry.rotateX(-Math.PI / 2);
-    geometry.translate(0, -0.18, 0);
+    geometry.translate(0, -0.32, 0);
     return geometry;
   }, []);
 }
 
-function useSailGeometry() {
+/** Filet replié le long du bastingage arrière. */
+function useNetGeometry() {
   return useMemo(() => {
     const shape = new Shape();
     shape.moveTo(0, 0);
-    shape.lineTo(0, 2.05);
-    shape.quadraticCurveTo(0.7, 1.0, 1.15, 0);
+    shape.lineTo(2.4, 0);
+    shape.quadraticCurveTo(2.2, 0.85, 0.2, 0.85);
     shape.closePath();
     const geometry = new ExtrudeGeometry(shape, {
-      depth: 0.05,
+      depth: 0.1,
       bevelEnabled: false,
     });
-    geometry.rotateY(Math.PI / 2);
+    geometry.rotateX(-Math.PI / 2);
+    geometry.translate(-2.2, 0.58, 0.8);
     return geometry;
   }, []);
 }
@@ -62,14 +66,24 @@ export function Boat() {
   const rocker = useRef<Group>(null);
   const sail = useRef<Mesh>(null);
   const hullGeometry = useHullGeometry();
-  const sailGeometry = useSailGeometry();
+  const netGeometry = useNetGeometry();
 
-  const wood = useMemo(
-    () => new MeshStandardMaterial({ color: '#9a6a44', roughness: 0.85, flatShading: true }),
-    [],
-  );
-  const deck = useMemo(
-    () => new MeshStandardMaterial({ color: '#e6d9c0', roughness: 0.9, flatShading: true }),
+  const m = useMemo(
+    () => ({
+      red: new MeshStandardMaterial({ color: '#c44a3a', roughness: 0.75, flatShading: true }),
+      white: new MeshStandardMaterial({ color: '#eef2f3', roughness: 0.8, flatShading: true }),
+      blue: new MeshStandardMaterial({ color: '#2a5d85', roughness: 0.85, flatShading: true }),
+      wood: new MeshStandardMaterial({ color: '#a67c52', roughness: 0.9, flatShading: true }),
+      deck: new MeshStandardMaterial({ color: '#cfa676', roughness: 0.95, flatShading: true }),
+      metal: new MeshStandardMaterial({ color: '#95a0a6', roughness: 0.45, metalness: 0.3, flatShading: true }),
+      glass: new MeshStandardMaterial({ color: '#8fd1e6', roughness: 0.25, flatShading: true }),
+      net: new MeshStandardMaterial({ color: '#e3dccd', roughness: 1, side: DoubleSide, flatShading: true }),
+      gold: new MeshStandardMaterial({ color: '#ffcf8a', roughness: 0.95, side: DoubleSide, flatShading: true }),
+      dark: new MeshStandardMaterial({ color: '#6b6f76', roughness: 0.6, metalness: 0.4, flatShading: true }),
+      barrel: new MeshStandardMaterial({ color: '#8a6b4d', roughness: 1, flatShading: true }),
+      warmGlow: new MeshStandardMaterial({ color: '#ffd9a0', emissive: '#ffd9a0', emissiveIntensity: 3 }),
+      redGlow: new MeshStandardMaterial({ color: '#ff5a4a', emissive: '#ff5a4a', emissiveIntensity: 2 }),
+    }),
     [],
   );
 
@@ -87,22 +101,20 @@ export function Boat() {
     }
 
     if (rocker.current) {
-      // Roulis/tangage lus sur la pente réelle de la houle, atténués à vitesse élevée
-      // (un bateau lancé « perce » la vague au lieu de la suivre).
       const ahead = waveHeight(
-        position.x + Math.cos(heading) * 1.6,
-        position.z + Math.sin(heading) * 1.6,
+        position.x + Math.cos(heading) * 2.8,
+        position.z + Math.sin(heading) * 2.8,
         t,
       );
       const behind = waveHeight(
-        position.x - Math.cos(heading) * 1.6,
-        position.z - Math.sin(heading) * 1.6,
+        position.x - Math.cos(heading) * 2.8,
+        position.z - Math.sin(heading) * 2.8,
         t,
       );
       const damping = 1 - Math.min(speed / 14, 0.5);
       rocker.current.rotation.z = damp(
         rocker.current.rotation.z,
-        (ahead - behind) * 0.22 * damping,
+        (ahead - behind) * 0.2 * damping,
         4,
         dt,
       );
@@ -115,8 +127,7 @@ export function Boat() {
     }
 
     if (sail.current) {
-      // La voile se gonfle avec la vitesse.
-      const fill = 1 + Math.min(speed / MAX_VISUAL_SPEED, 1) * 0.35;
+      const fill = 1 + Math.min(speed / MAX_VISUAL_SPEED, 1) * 0.25;
       sail.current.scale.z = damp(sail.current.scale.z, fill, 3, dt);
     }
   });
@@ -124,22 +135,91 @@ export function Boat() {
   return (
     <group ref={group}>
       <group ref={rocker}>
-        <mesh geometry={hullGeometry} material={wood} castShadow />
-        <mesh position={[-0.2, 0.16, 0]} material={deck} castShadow>
-          <boxGeometry args={[2.2, 0.08, 1.15]} />
+        {/* Coque */}
+        <mesh geometry={hullGeometry} material={m.red} castShadow />
+        {/* Bande blanche bordé */}
+        <mesh position={[0, 0.34, 0]} material={m.white} castShadow>
+          <boxGeometry args={[6.0, 0.18, 2.5]} />
         </mesh>
-        <mesh position={[-1.05, 0.42, 0]} material={wood} castShadow>
-          <boxGeometry args={[0.7, 0.44, 0.9]} />
+        {/* Ligne bleue stylisée */}
+        <mesh position={[0.1, 0.38, 0]} material={m.blue} castShadow>
+          <boxGeometry args={[5.4, 0.05, 2.42]} />
         </mesh>
-        <mesh position={[0.25, 1.35, 0]} material={wood} castShadow>
-          <cylinderGeometry args={[0.055, 0.07, 2.4, 6]} />
+
+        {/* Pont */}
+        <mesh position={[-0.2, 0.46, 0]} material={m.deck} castShadow>
+          <boxGeometry args={[5.6, 0.12, 2.15]} />
         </mesh>
-        <mesh ref={sail} geometry={sailGeometry} position={[0.28, 0.35, 0]} castShadow>
-          <meshStandardMaterial color="#f4f1ea" roughness={0.95} side={DoubleSide} flatShading />
+
+        {/* Cabine de timonerie */}
+        <mesh position={[-1.8, 1.25, 0]} material={m.white} castShadow>
+          <boxGeometry args={[1.9, 1.5, 1.65]} />
         </mesh>
-        <mesh position={[0.25, 2.62, 0]}>
-          <sphereGeometry args={[0.09, 8, 6]} />
-          <meshStandardMaterial color="#f0b27a" emissive="#f0b27a" emissiveIntensity={0.6} />
+        {/* Toit cabine */}
+        <mesh position={[-1.7, 2.15, 0]} material={m.red} castShadow>
+          <boxGeometry args={[2.0, 0.12, 1.7]} />
+        </mesh>
+        {/* Fenêtres */}
+        {[-0.88, -1.8].map((x) =>
+          [0.82, -0.82].map((z) => (
+            <mesh key={`${x}-${z}`} position={[x, 1.35, z]} material={m.glass}>
+              <boxGeometry args={[0.6, 0.55, 0.08]} />
+            </mesh>
+          )),
+        )}
+
+        {/* Mât */}
+        <mesh position={[-0.4, 2.2, 0]} material={m.wood} castShadow>
+          <cylinderGeometry args={[0.09, 0.12, 4.2, 6]} />
+        </mesh>
+        {/* Balcon / portique de pêche */}
+        <mesh position={[0.9, 2.45, 0]} material={m.wood} castShadow>
+          <cylinderGeometry args={[0.08, 0.08, 3.0, 5]} rotation-z={Math.PI / 2} />
+        </mesh>
+        <mesh position={[0.9, 2.0, 0]} material={m.wood} castShadow>
+          <cylinderGeometry args={[0.05, 0.05, 2.6, 5]} rotation-z={Math.PI / 2} />
+        </mesh>
+        {/* Petit drapeau */}
+        <mesh ref={sail} position={[0.95, 2.6, 0]} material={m.gold} castShadow>
+          <boxGeometry args={[1.3, 0.7, 0.05]} />
+        </mesh>
+
+        {/* Filet plié sur bâbord */}
+        <mesh geometry={netGeometry} material={m.net} castShadow />
+
+        {/* Hublot / radar */}
+        <mesh position={[-1.5, 2.4, 0]} material={m.metal} castShadow>
+          <cylinderGeometry args={[0.16, 0.16, 0.35, 8]} />
+        </mesh>
+
+        {/* Caisse et tonneau sur le pont */}
+        <mesh position={[1.0, 0.58, 0.65]} material={m.deck} castShadow>
+          <boxGeometry args={[0.9, 0.55, 0.55]} />
+        </mesh>
+        <mesh position={[1.05, 0.92, 0.65]} material={m.white} castShadow>
+          <boxGeometry args={[0.6, 0.3, 0.35]} />
+        </mesh>
+        <mesh position={[1.6, 0.55, -0.5]} material={m.barrel} castShadow>
+          <cylinderGeometry args={[0.28, 0.28, 0.62, 10]} />
+        </mesh>
+
+        {/* Ancre sur l'étrave */}
+        <mesh position={[2.65, 0.18, 0.65]} material={m.dark} castShadow>
+          <torusGeometry args={[0.22, 0.07, 5, 10]} />
+        </mesh>
+        <mesh position={[2.65, 0.18, 0.65]} material={m.dark} rotation={[0, 0, Math.PI / 2]}>
+          <cylinderGeometry args={[0.05, 0.05, 0.55, 5]} />
+        </mesh>
+
+        {/* Fanal de proue : le point lumineux qui accroche l'œil pendant l'intro. */}
+        <mesh position={[3.05, 0.75, 0]} material={m.warmGlow}>
+          <sphereGeometry args={[0.12, 8, 6]} />
+        </mesh>
+        <pointLight position={[3.05, 0.75, 0]} color="#ffcf8a" intensity={8} distance={14} decay={2} />
+
+        {/* Lumière de poupe */}
+        <mesh position={[-3.0, 1.05, 0]} material={m.redGlow}>
+          <sphereGeometry args={[0.07, 8, 6]} />
         </mesh>
       </group>
       <Wake />

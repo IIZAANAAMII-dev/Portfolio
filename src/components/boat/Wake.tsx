@@ -63,7 +63,7 @@ export function Wake() {
 
   // Le groupe parent porte déjà la rotation du bateau : le sillage part vers -X local.
   return (
-    <mesh ref={mesh} rotation={[-Math.PI / 2, 0, Math.PI / 2]} position={[-5.6, 0.06, 0]}>
+    <mesh ref={mesh} rotation={[-Math.PI / 2, 0, Math.PI / 2]} position={[-3.9, 0.05, 0]}>
       <planeGeometry args={[5, 8]} />
       <shaderMaterial
         ref={material}

@@ -8,9 +8,9 @@ import { boatState } from '@/lib/boat-state';
 import { useWorld } from '@/lib/store';
 import { damp, smoothstep } from '@/lib/utils/math';
 
-/** Cadrage d'ouverture : proche, bas, presque intime. */
-const INTRO_POSITION = new Vector3(12.4, 4.2, -15.6);
-const INTRO_TARGET = new Vector3(3.4, 2.2, -4.6);
+/** Cadrage d'ouverture : 3/4, plus haut, façon diorama éclairé. */
+const INTRO_POSITION = new Vector3(12, 7.5, -11.2);
+const INTRO_TARGET = new Vector3(2.0, 1.9, -0.8);
 
 /** Plan large final de la révélation. */
 const OVERVIEW_POSITION = new Vector3(6, 112, 138);

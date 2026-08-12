@@ -68,7 +68,7 @@ export function Experience() {
           toneMapping: ACESFilmicToneMapping,
           toneMappingExposure: 1.05,
         }}
-        camera={{ fov: 42, near: 0.5, far: 620, position: [12.4, 4.2, -15.6] }}
+        camera={{ fov: 42, near: 0.5, far: 620, position: [12, 7.5, -11.2] }}
         onCreated={({ gl }) => {
           gl.domElement.addEventListener('webglcontextlost', failWebgl);
         }}
