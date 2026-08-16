@@ -142,7 +142,7 @@ export function Terrain({ radius, elevation, ground, seed }: TerrainProps) {
         seed: seed + 13.8,
       },
     ];
-  }, [radius, elevation, ground, groundColors, seed]);
+  }, [radius, elevation, groundColors, seed]);
 
   const geometries = useMemo(() => layers.map(makeIslandLayer), [layers]);
   const reefs = useMemo(

@@ -8,7 +8,7 @@ import type { IslandConfig, IslandId } from '@/types';
 export const islands: IslandConfig[] = [
   {
     id: 'about',
-    label: 'About',
+    label: 'À propos',
     tagline: 'qui je suis',
     position: [-56, -30],
     radius: 15,
@@ -21,7 +21,7 @@ export const islands: IslandConfig[] = [
   },
   {
     id: 'skills',
-    label: 'Skills',
+    label: 'Compétences',
     tagline: 'mes outils',
     position: [52, -46],
     radius: 14,
@@ -34,7 +34,7 @@ export const islands: IslandConfig[] = [
   },
   {
     id: 'projects',
-    label: 'Projects',
+    label: 'Projets',
     tagline: 'ce que je construis',
     position: [70, 26],
     radius: 19,
@@ -47,7 +47,7 @@ export const islands: IslandConfig[] = [
   },
   {
     id: 'experience',
-    label: 'Experience',
+    label: 'Expériences',
     tagline: 'où j’ai travaillé',
     position: [-22, 66],
     radius: 16,
@@ -60,7 +60,7 @@ export const islands: IslandConfig[] = [
   },
   {
     id: 'journey',
-    label: 'Journey',
+    label: 'Parcours',
     tagline: 'le chemin parcouru',
     position: [-72, 30],
     radius: 17,

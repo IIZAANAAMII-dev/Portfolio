@@ -61,7 +61,7 @@ export function Experience() {
       <Canvas
         className="fixed inset-0"
         shadows={!mobile}
-        dpr={[1, mobile ? 1.5 : 2]}
+        dpr={[1, 1.5]}
         gl={{
           antialias: !mobile,
           powerPreference: 'high-performance',

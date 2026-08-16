@@ -8,9 +8,9 @@ import { homeIsland } from '@/data/islands';
  */
 export const boatState = {
   position: new Vector3(
-    homeIsland.position[0] + Math.cos(homeIsland.dockAngle) * (homeIsland.radius + 2.6),
+    homeIsland.position[0] + Math.cos(homeIsland.dockAngle) * (homeIsland.radius + 5.8),
     0,
-    homeIsland.position[1] + Math.sin(homeIsland.dockAngle) * (homeIsland.radius + 2.6),
+    homeIsland.position[1] + Math.sin(homeIsland.dockAngle) * (homeIsland.radius + 5.8),
   ),
   /** Cap en radians autour de Y. 0 = face à +X. */
   heading: homeIsland.dockAngle + Math.PI / 2,
@@ -22,9 +22,9 @@ export const boatState = {
 
 export function resetBoat() {
   boatState.position.set(
-    homeIsland.position[0] + Math.cos(homeIsland.dockAngle) * (homeIsland.radius + 2.6),
+    homeIsland.position[0] + Math.cos(homeIsland.dockAngle) * (homeIsland.radius + 5.8),
     0,
-    homeIsland.position[1] + Math.sin(homeIsland.dockAngle) * (homeIsland.radius + 2.6),
+    homeIsland.position[1] + Math.sin(homeIsland.dockAngle) * (homeIsland.radius + 5.8),
   );
   boatState.heading = homeIsland.dockAngle + Math.PI / 2;
   boatState.speed = 0;

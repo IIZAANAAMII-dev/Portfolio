@@ -2,7 +2,11 @@
 
 import { create } from 'zustand';
 import { islandById } from '@/data/islands';
+import { boatState } from '@/lib/boat-state';
+import { INTRO_RADIUS_START, introGlowFromGameTransition, introRadiusFromGameTransition } from '@/lib/cinematic';
+import { isNightTime } from '@/lib/sky';
 import type { IslandId, Vec2, WorldPhase } from '@/types';
+import type { QualityLevel } from '@/lib/quality';
 
 /** Point d'accostage d'une île, calculé depuis son dockAngle. */
 export function dockPosition(id: IslandId): Vec2 {
@@ -27,19 +31,31 @@ interface WorldState {
   reveal: number;
   /** Progression de l'unique transition intro → caméra de jeu. */
   gameTransition: number;
+  /** Centre (xz) du cercle de révélation intro. */
+  introCenter: Vec2;
+  /** Rayon world-space du cercle révélateur. */
+  introRadius: number;
+  /** Intensité du halo lumineux au bord du cercle. */
+  introGlow: number;
   soundOn: boolean;
   quickView: boolean;
   reducedMotion: boolean;
   webglFailed: boolean;
-  isNight: boolean;
-  /** Heure du cycle : 0 = minuit, 0.25 = lever, 0.5 = midi, 0.75 = coucher. */
+  /**
+   * Heure du cycle : 0 = minuit, 0.25 = lever, 0.5 = midi, 0.75 = coucher.
+   * SOURCE UNIQUE DE VÉRITÉ du jour/nuit — tout en dérive (voir lib/sky.ts).
+   */
   timeOfDay: number;
+  /** Niveau graphique interne, piloté automatiquement par la moyenne des FPS. */
+  quality: QualityLevel;
 
   ready: () => void;
   start: () => void;
   setReveal: (value: number) => void;
   setGameTransition: (value: number) => void;
+  setCinematicProgress: (gameTransition: number, reveal: number) => void;
   setTimeOfDay: (value: number) => void;
+  setQuality: (quality: QualityLevel) => void;
   revealComplete: () => void;
   sailTo: (id: IslandId) => void;
   sailToPoint: (point: Vec2) => void;
@@ -62,22 +78,38 @@ export const useWorld = create<WorldState>((set, get) => ({
   destination: null,
   freeTarget: null,
   hovered: null,
-  reveal: 1,
+  reveal: 0,
   gameTransition: 0,
+  introCenter: [boatState.position.x, boatState.position.z] as Vec2,
+  introRadius: INTRO_RADIUS_START,
+  introGlow: 0.9,
   soundOn: false,
   quickView: false,
   reducedMotion: false,
   webglFailed: false,
-  isNight: false,
   timeOfDay: 0.45,
+  quality: 'high',
 
   ready: () =>
     set((s) => (s.phase === 'loading' ? { phase: 'intro', sceneReady: true } : { sceneReady: true })),
   start: () => set((s) => (s.phase === 'intro' ? { phase: 'transitioning', gameTransition: 0, soundOn: true } : {})),
   setReveal: (value) => set({ reveal: value }),
   setGameTransition: (value) => set({ gameTransition: value }),
+  setCinematicProgress: (gameTransition, reveal) => set({
+    gameTransition,
+    reveal,
+    introRadius: introRadiusFromGameTransition(gameTransition),
+    introGlow: introGlowFromGameTransition(gameTransition),
+  }),
   setTimeOfDay: (value) => set({ timeOfDay: value - Math.floor(value) }),
-  revealComplete: () => set({ phase: 'playing', reveal: 1, gameTransition: 1 }),
+  setQuality: (quality) => set((state) => (state.quality === quality ? state : { quality })),
+  revealComplete: () => set({
+    phase: 'playing',
+    reveal: 1,
+    gameTransition: 1,
+    introRadius: 240,
+    introGlow: 0,
+  }),
 
   sailTo: (id) => {
     if (get().phase !== 'playing' && get().phase !== 'docked') return;
@@ -100,7 +132,9 @@ export const useWorld = create<WorldState>((set, get) => ({
   setQuickView: (value) => set({ quickView: value }),
   setReducedMotion: (value) => set({ reducedMotion: value }),
   failWebgl: () => set({ webglFailed: true, quickView: true }),
-  toggleDayNight: () => set((s) => ({ isNight: !s.isNight, timeOfDay: s.isNight ? 0.3 : 0.8 })),
+  // Le bouton lit l'état RÉEL du cycle : si le monde est en nuit (même parce que le
+  // cycle automatique y est arrivé tout seul), un clic ramène au matin, et inversement.
+  toggleDayNight: () => set((s) => ({ timeOfDay: isNightTime(s.timeOfDay) ? 0.32 : 0.82 })),
 
   jumpTo: (id) =>
     set({

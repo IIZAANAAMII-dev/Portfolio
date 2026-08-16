@@ -9,6 +9,13 @@ class Ambience {
   private musicBuffer: AudioBuffer | null = null;
   private musicSource: AudioBufferSourceNode | null = null;
   private ambientGain: GainNode | null = null;
+  private stormGain: GainNode | null = null;
+  private stormBuffer: AudioBuffer | null = null;
+  private thunderBuffer: AudioBuffer | null = null;
+  private stormSource: AudioBufferSourceNode | null = null;
+  private enabled = false;
+  private boundaryIntensity = 0;
+  private boundaryHush = 0;
   private nodes: AudioNode[] = [];
 
   private async ensure() {
@@ -17,6 +24,10 @@ class Ambience {
     if (!Ctor) return null;
 
     const context = new Ctor();
+    // Publier le contexte immédiatement : Intro et Experience peuvent demander
+    // l'activation dans le même geste. Sans ce garde-fou, le chargement asynchrone
+    // de la musique permettait de créer deux AudioContext concurrents.
+    this.context = context;
     const master = context.createGain();
     master.gain.value = 0;
     master.connect(context.destination);
@@ -27,6 +38,13 @@ class Ambience {
     ambientGain.gain.value = 0;
     ambientGain.connect(master);
     this.ambientGain = ambientGain;
+
+    // Bus météo séparé : la tempête peut remplacer progressivement l'ambiance
+    // tropicale sans créer/détruire de sources à chaque franchissement de limite.
+    const stormGain = context.createGain();
+    stormGain.gain.value = 0;
+    stormGain.connect(master);
+    this.stormGain = stormGain;
 
     // Bruit brownien : la base du ressac.
     const seconds = 4;
@@ -81,8 +99,31 @@ class Ambience {
     musicGain.connect(master);
     this.musicGain = musicGain;
 
-    this.context = context;
+    // Les bruitages restent locaux au site. Leur chargement ne bloque ni la musique,
+    // ni la première interaction du visiteur.
+    void this.loadWeather(context);
+
     return context;
+  }
+
+  private async loadBuffer(context: AudioContext, url: string) {
+    const response = await fetch(url);
+    if (!response.ok) throw new Error(`audio not found: ${response.status}`);
+    return context.decodeAudioData(await response.arrayBuffer());
+  }
+
+  private async loadWeather(context: AudioContext) {
+    try {
+      const [storm, thunder] = await Promise.all([
+        this.loadBuffer(context, '/audio/living-ocean/rain-pack/1.mp3'),
+        this.loadBuffer(context, '/audio/living-ocean/thunderclap.ogg'),
+      ]);
+      this.stormBuffer = storm;
+      this.thunderBuffer = thunder;
+      if (this.enabled || this.boundaryIntensity > 0.01) this.startStorm();
+    } catch (error) {
+      console.warn('Could not load boundary weather:', error);
+    }
   }
 
   private async loadMusic(context: AudioContext): Promise<AudioBuffer | null> {
@@ -117,12 +158,28 @@ class Ambience {
     }
   }
 
+  private startStorm() {
+    if (!this.context || !this.stormBuffer || !this.stormGain || this.stormSource) return;
+    const source = this.context.createBufferSource();
+    source.buffer = this.stormBuffer;
+    source.loop = true;
+    source.connect(this.stormGain);
+    source.start();
+    this.stormSource = source;
+  }
+
   async setEnabled(enabled: boolean) {
+    this.enabled = enabled;
+    // L'état initial est silencieux. Ne pas créer d'AudioContext tant que le visiteur
+    // n'a pas réellement demandé le son, sinon les navigateurs déclenchent leur garde
+    // autoplay avant tout geste utilisateur.
+    if (!enabled && !this.context) return;
     const context = await this.ensure();
     if (!context || !this.master) return;
     if (enabled) {
       if (context.state === 'suspended') await context.resume();
       if (!this.musicSource) this.startMusic();
+      this.startStorm();
     } else {
       this.stopMusic();
     }
@@ -135,7 +192,10 @@ class Ambience {
     if (this.musicGain) {
       this.musicGain.gain.cancelScheduledValues(now);
       this.musicGain.gain.setValueAtTime(this.musicGain.gain.value, now);
-      this.musicGain.gain.linearRampToValueAtTime(enabled ? 0.35 : 0, now + (enabled ? 2.5 : 0.4));
+      const musicTarget = enabled
+        ? 0.35 * (1 - this.boundaryIntensity * 0.78) * (1 - this.boundaryHush * 0.9)
+        : 0;
+      this.musicGain.gain.linearRampToValueAtTime(musicTarget, now + (enabled ? 2.5 : 0.4));
     }
 
     if (this.ambientGain) {
@@ -143,6 +203,65 @@ class Ambience {
       this.ambientGain.gain.setValueAtTime(this.ambientGain.gain.value, now);
       this.ambientGain.gain.linearRampToValueAtTime(enabled ? 0.22 : 0, now + (enabled ? 2.5 : 0.4));
     }
+
+    if (this.stormGain) {
+      this.stormGain.gain.cancelScheduledValues(now);
+      this.stormGain.gain.setValueAtTime(this.stormGain.gain.value, now);
+      this.stormGain.gain.linearRampToValueAtTime(
+        enabled ? this.boundaryIntensity * 0.48 * (1 - this.boundaryHush * 0.62) : 0,
+        now + (enabled ? 1.2 : 0.35),
+      );
+    }
+  }
+
+  /** Mix continu de la mer interdite. Appelé à cadence réduite par BoundaryStorm. */
+  setBoundaryIntensity(intensity: number, hush = 0) {
+    this.boundaryIntensity = Math.max(0, Math.min(1, intensity));
+    this.boundaryHush = Math.max(0, Math.min(1, hush));
+    const context = this.context;
+    if (!context || !this.master || !this.stormGain) return;
+    this.startStorm();
+    const now = context.currentTime;
+    const audible = this.enabled && this.master.gain.value > 0.001;
+
+    this.stormGain.gain.cancelScheduledValues(now);
+    this.stormGain.gain.setValueAtTime(this.stormGain.gain.value, now);
+    this.stormGain.gain.linearRampToValueAtTime(
+      audible ? this.boundaryIntensity * 0.48 * (1 - this.boundaryHush * 0.62) : 0,
+      now + 0.45,
+    );
+
+    if (this.musicGain) {
+      this.musicGain.gain.cancelScheduledValues(now);
+      this.musicGain.gain.setValueAtTime(this.musicGain.gain.value, now);
+      this.musicGain.gain.linearRampToValueAtTime(
+        audible
+          ? 0.35 * (1 - this.boundaryIntensity * 0.78) * (1 - this.boundaryHush * 0.9)
+          : 0,
+        now + 0.65,
+      );
+    }
+  }
+
+  /** Coup de tonnerre réutilisant un seul buffer, sans nouvelle requête réseau. */
+  thunder(strength = 1) {
+    const context = this.context;
+    if (!context || !this.master || !this.thunderBuffer || !this.enabled) return;
+    const source = context.createBufferSource();
+    const gain = context.createGain();
+    const now = context.currentTime;
+    source.buffer = this.thunderBuffer;
+    source.playbackRate.value = 0.88 + Math.random() * 0.18;
+    gain.gain.setValueAtTime(0.0001, now);
+    gain.gain.exponentialRampToValueAtTime(0.22 * Math.max(0.25, strength), now + 0.035);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + 4.8);
+    source.connect(gain).connect(this.master);
+    source.start(now, Math.random() * Math.max(0, this.thunderBuffer.duration - 5.2));
+    source.stop(now + 5.25);
+    source.addEventListener('ended', () => {
+      source.disconnect();
+      gain.disconnect();
+    }, { once: true });
   }
 
   /** Petit repère sonore : clic, accostage, ouverture. */

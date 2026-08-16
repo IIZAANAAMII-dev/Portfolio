@@ -3,8 +3,7 @@
 import { useEffect } from 'react';
 import gsap from 'gsap';
 import { useWorld } from '@/lib/store';
-
-const TRANSITION_DURATION = 0.85;
+import { INTRO_DURATION, worldRevealProgress } from '@/lib/cinematic';
 
 /**
  * La révélation du monde. Une seule valeur (`reveal`, 0 -> 1) pilote le brouillard,
@@ -16,10 +15,10 @@ export function useWorldReveal() {
 
   useEffect(() => {
     if (phase !== 'transitioning') return;
-    const { setGameTransition, revealComplete, reducedMotion } = useWorld.getState();
+    const { setCinematicProgress, revealComplete, reducedMotion } = useWorld.getState();
 
     if (reducedMotion) {
-      setGameTransition(1);
+      setCinematicProgress(1, 1);
       revealComplete();
       return;
     }
@@ -27,9 +26,9 @@ export function useWorldReveal() {
     const progress = { value: 0 };
     const tween = gsap.to(progress, {
       value: 1,
-      duration: TRANSITION_DURATION,
-      ease: 'power3.inOut',
-      onUpdate: () => setGameTransition(progress.value),
+      duration: INTRO_DURATION,
+      ease: 'none',
+      onUpdate: () => setCinematicProgress(progress.value, worldRevealProgress(progress.value)),
       onComplete: revealComplete,
     });
 

@@ -5,6 +5,7 @@ import { islands } from '@/data/islands';
 import { site } from '@/data/site';
 import { boatState } from '@/lib/boat-state';
 import { dockPosition, useWorld } from '@/lib/store';
+import { isNightTime } from '@/lib/sky';
 
 const RAD2DEG = 180 / Math.PI;
 
@@ -85,7 +86,7 @@ export function Hud() {
   const activeIsland = useWorld((s) => s.activeIsland);
   const destination = useWorld((s) => s.destination);
   const soundOn = useWorld((s) => s.soundOn);
-  const isNight = useWorld((s) => s.isNight);
+  const isNight = isNightTime(useWorld((s) => s.timeOfDay));
   const toggleSound = useWorld((s) => s.toggleSound);
   const toggleDayNight = useWorld((s) => s.toggleDayNight);
   const setQuickView = useWorld((s) => s.setQuickView);
@@ -109,7 +110,7 @@ export function Hud() {
             aria-pressed={soundOn}
             onClick={toggleSound}
           >
-            {soundOn ? 'Sound on' : 'Sound off'}
+            {soundOn ? 'Son' : 'Silence'}
           </button>
           <button
             type="button"
@@ -120,7 +121,7 @@ export function Hud() {
             {isNight ? 'Nuit' : 'Jour'}
           </button>
           <button type="button" className="ghost-button" onClick={() => setQuickView(true)}>
-            Quick view
+            Aperçu
           </button>
         </div>
       </header>

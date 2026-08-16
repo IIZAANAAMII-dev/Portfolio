@@ -1,6 +1,7 @@
 'use client';
 
 import { useGLTF } from '@react-three/drei';
+import { useMemo } from 'react';
 import type { BufferGeometry, Material, Mesh, Object3D } from 'three';
 
 /**
@@ -61,13 +62,30 @@ export function useModelPart(name: ModelName): {
   material: Material;
 } {
   const { scene } = useGLTF(url(name));
-  let mesh: Mesh | null = null;
-  scene.traverse((child) => {
-    if (!mesh && isMesh(child)) mesh = child;
-  });
+  // grass-plant porte le même atlas que le reste du kit et sert de matériau canonique.
+  // useGLTF met cette scène en cache : tous les composants reçoivent donc le même objet.
+  const { scene: atlasScene } = useGLTF(url(MODEL.grass));
+  const mesh = useMemo(() => {
+    let result: Mesh | null = null;
+    scene.traverse((child) => {
+      if (!result && isMesh(child)) result = child;
+    });
+    return result;
+  }, [scene]);
+  const atlasMesh = useMemo(() => {
+    let result: Mesh | null = null;
+    atlasScene.traverse((child) => {
+      if (!result && isMesh(child)) result = child;
+    });
+    return result;
+  }, [atlasScene]);
   if (!mesh) throw new Error(`Aucun mesh dans ${name}.glb`);
+  if (!atlasMesh) throw new Error(`Aucun matériau partagé dans ${MODEL.grass}.glb`);
   const found = mesh as Mesh;
-  return { geometry: found.geometry, material: found.material as Material };
+  const atlas = atlasMesh as Mesh;
+  // Les fichiers Kenney utilisent tous le même atlas. Réutiliser réellement le premier
+  // matériau empêche chaque GLB d'envoyer une copie identique de la texture au GPU.
+  return { geometry: found.geometry, material: atlas.material as Material };
 }
 
 /** Scène complète, pour les modèles multi-mesh (le bateau et ses voiles). */

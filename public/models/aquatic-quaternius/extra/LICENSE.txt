@@ -1,0 +1,13 @@
+Manta ray and Dolphin by Quaternius
+Downloaded from Poly Pizza on 2026-08-16:
+https://poly.pizza/m/yzD8b7ZHZm
+https://poly.pizza/m/3LzFgI3GLO
+
+License: CC0 1.0 Universal (Public Domain Dedication)
+https://creativecommons.org/publicdomain/zero/1.0/
+
+Audit at integration time:
+- manta-ray.glb: 101,788 bytes; 1,432 vertices; 696 triangles; 1 swim animation
+- dolphin.glb: 60,412 bytes; 865 vertices; 440 triangles; 1 swim animation
+
+No attribution is required. Voluntary credit: Quaternius (quaternius.com).

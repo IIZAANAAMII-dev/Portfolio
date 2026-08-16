@@ -1,11 +1,12 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useEffect, useMemo } from 'react';
 import { useFrame } from '@react-three/fiber';
 import type { Object3D } from 'three';
 import { MODEL, useModelScene } from '@/lib/models';
 import { boatState } from '@/lib/boat-state';
 import { MAX_SPEED } from '@/hooks/useBoatNavigation';
+import { useWorld } from '@/lib/store';
 
 /** Bateau pirate Kenney — CC0. La navigation considère que l'avant est +X. */
 const FORWARD_FIX = Math.PI / 2;
@@ -13,12 +14,13 @@ const SCALE = 0.76;
 
 export function BoatModel() {
   const scene = useModelScene(MODEL.ship);
+  const quality = useWorld((state) => state.quality);
   const { model, animatedParts } = useMemo(() => {
     const clone = scene.clone(true);
     const parts: Object3D[] = [];
     clone.traverse((child) => {
       child.castShadow = true;
-      child.receiveShadow = true;
+      child.receiveShadow = false;
       if (child.name.startsWith('sail-') || child.name.startsWith('flag-')) {
         child.userData.baseRotationZ = child.rotation.z;
         child.userData.baseRotationY = child.rotation.y;
@@ -29,6 +31,12 @@ export function BoatModel() {
     });
     return { model: clone, animatedParts: parts };
   }, [scene]);
+
+  useEffect(() => {
+    model.traverse((child) => {
+      child.castShadow = quality !== 'low';
+    });
+  }, [model, quality]);
 
   useFrame((state) => {
     const time = state.clock.elapsedTime;

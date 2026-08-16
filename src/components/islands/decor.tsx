@@ -1,6 +1,8 @@
 'use client';
 
 import { MODEL, useModelPart, type ModelName } from '@/lib/models';
+import { QUALITY_LEVELS } from '@/lib/quality';
+import { useWorld } from '@/lib/store';
 import { Scatter } from './Scatter';
 
 /**
@@ -27,14 +29,18 @@ function InstancedModel({
   sway?: number;
 }) {
   const { geometry, material } = useModelPart(name);
+  const quality = useWorld((state) => state.quality);
+  const actualCount = Math.max(1, Math.round(count * QUALITY_LEVELS[quality].vegetationDensity));
+  const animatedSway = quality === 'low' ? 0 : sway;
   return (
     <Scatter
-      count={count}
+      count={actualCount}
       radius={radius}
       innerRadius={innerRadius}
       seed={seed}
       y={y}
-      sway={sway}
+      sway={animatedSway}
+      castShadow={(quality === 'high' && sway > 0) || (quality !== 'low' && sway === 0)}
     >
       <primitive object={geometry} attach="geometry" />
       <primitive object={material} attach="material" />
@@ -149,6 +155,7 @@ export function Prop({
   scale?: number;
 }) {
   const { geometry, material } = useModelPart(name);
+  const quality = useWorld((state) => state.quality);
   return (
     <mesh
       geometry={geometry}
@@ -156,7 +163,7 @@ export function Prop({
       position={position}
       rotation-y={rotation}
       scale={scale}
-      castShadow
+      castShadow={quality !== 'low'}
       receiveShadow
     />
   );

@@ -37,14 +37,14 @@ export default function Home() {
         <p>{site.intro}</p>
 
         <section id="about">
-          <h2>About</h2>
+          <h2>À propos</h2>
           {site.bio.map((paragraph) => (
             <p key={paragraph.slice(0, 24)}>{paragraph}</p>
           ))}
         </section>
 
         <section id="skills">
-          <h2>Skills</h2>
+          <h2>Compétences</h2>
           {skillGroups.map((group) => (
             <div key={group.id}>
               <h3>{group.label}</h3>
@@ -59,7 +59,7 @@ export default function Home() {
         </section>
 
         <section id="projects">
-          <h2>Projects</h2>
+          <h2>Projets</h2>
           {projects.map((project) => (
             <article key={project.id}>
               <h3>{project.title}</h3>
@@ -72,7 +72,7 @@ export default function Home() {
         </section>
 
         <section id="experience">
-          <h2>Experience</h2>
+          <h2>Expériences</h2>
           {experiences.map((entry) => (
             <article key={entry.id}>
               <h3>
@@ -89,7 +89,7 @@ export default function Home() {
         </section>
 
         <section id="journey">
-          <h2>Journey</h2>
+          <h2>Parcours</h2>
           {journey.map((step) => (
             <div key={step.id}>
               <h3>

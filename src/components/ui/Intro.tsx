@@ -4,51 +4,47 @@ import { ambience } from '@/lib/audio/ambience';
 import { useWorld } from '@/lib/store';
 
 export function Intro() {
-  const phase = useWorld((s) => s.phase);
-  const start = useWorld((s) => s.start);
-  const visible = phase === 'intro';
+  const phase = useWorld((state) => state.phase);
+  const start = useWorld((state) => state.start);
+  const interactive = phase === 'intro';
+  const mounted = phase === 'intro' || phase === 'transitioning';
 
   const onStart = () => {
+    if (!interactive) return;
     void ambience.setEnabled(true);
     start();
   };
 
+  if (!mounted) return null;
+
   return (
     <div
-      className="intro-vignette fixed inset-0 z-30 transition-opacity duration-300"
-      style={{ opacity: visible ? 1 : 0, pointerEvents: visible ? 'auto' : 'none' }}
-      onClick={visible ? onStart : undefined}
+      className={`intro-vignette fixed inset-0 z-30 ${phase === 'transitioning' ? 'is-leaving' : ''}`}
+      style={{ pointerEvents: interactive ? 'auto' : 'none' }}
+      onClick={onStart}
+      role="button"
+      aria-label="Commencer l’expérience"
     >
-      <div className="intro-compass" aria-hidden="true">
-        <span>N</span><i /><span>S</span><b>✦</b>
+      <div className="intro-copy">
+        <span className="intro-eyebrow">Carnet de navigation · Méditerranée</span>
+        <h1>Kyliann</h1>
+        <p>Un portfolio à parcourir au fil de l’eau.</p>
       </div>
 
-      <div className="absolute inset-x-0 top-[8vh] flex justify-center px-5 text-center md:top-[9vh]">
-        <div className="intro-title animate-rise">
-          <span className="intro-eyebrow">Carnet de navigation · Méditerranée</span>
-          <h1>Kyliann</h1>
-          <p>Un portfolio à parcourir au fil de l’eau.</p>
-        </div>
+      <div className="click-to-start" aria-hidden="true">
+        <span>Cliquez</span>
+        <span>pour commencer</span>
+        <svg viewBox="0 0 120 60" className="click-to-start__arrow" aria-hidden="true">
+          <path
+            d="M15,12 Q45,45 90,38"
+            fill="none"
+            stroke="white"
+            strokeWidth="2.4"
+            strokeLinecap="round"
+          />
+          <polygon points="90,38 82,24 98,24" fill="white" />
+        </svg>
       </div>
-
-      <div className="absolute inset-x-0 bottom-[7vh] flex justify-center px-5 md:bottom-[9vh]">
-        <button
-          type="button"
-          onClick={onStart}
-          className="intro-chart-button group"
-          aria-label="Commencer l’expérience"
-        >
-          <span className="intro-chart-button__icon" aria-hidden="true">⚓</span>
-          <span>
-            <small>Prendre la barre</small>
-            <strong>Explorer l’archipel</strong>
-          </span>
-          <span className="intro-chart-button__arrow" aria-hidden="true">→</span>
-        </button>
-      </div>
-
-      <span className="intro-coordinate intro-coordinate--left">43°18′ N</span>
-      <span className="intro-coordinate intro-coordinate--right">05°22′ E</span>
     </div>
   );
 }
