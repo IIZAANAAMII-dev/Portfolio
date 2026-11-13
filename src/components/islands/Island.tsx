@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useEffect, useRef, useState } from 'react';
+import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { Html } from '@react-three/drei';
 import { useFrame, type ThreeEvent } from '@react-three/fiber';
 import { Group } from 'three';
@@ -9,12 +9,22 @@ import { damp, smoothstep } from '@/lib/utils/math';
 import { Dock } from './Dock';
 import { Silhouette } from './Silhouette';
 import { Terrain } from './Terrain';
-import { Shoreline } from './decor';
+import { createHeightSampler, terrainFeatures, type HeightSampler, type TerrainShape } from './terrain-shape';
 import { NightLights } from './NightLights';
 import { IslandLife } from './IslandLife';
 import type { IslandConfig } from '@/types';
 
-function DeferredDecor({ island, index }: { island: IslandConfig; index: number }) {
+function DeferredDecor({
+  island,
+  index,
+  sampler,
+  shape,
+}: {
+  island: IslandConfig;
+  index: number;
+  sampler: HeightSampler;
+  shape: TerrainShape;
+}) {
   const sceneReady = useWorld((state) => state.sceneReady);
   const [enabled, setEnabled] = useState(false);
 
@@ -24,9 +34,10 @@ function DeferredDecor({ island, index }: { island: IslandConfig; index: number 
     return () => clearTimeout(id);
   }, [index, sceneReady]);
 
+  const features = useMemo(() => terrainFeatures(shape), [shape]);
   return enabled ? (
     <Suspense fallback={null}>
-      <Silhouette island={island} />
+      <Silhouette island={island} sampler={sampler} features={features} seed={index * 31 + 5} />
     </Suspense>
   ) : null;
 }
@@ -38,6 +49,11 @@ export function Island({ island, index }: { island: IslandConfig; index: number 
   const isHovered = useWorld((s) => s.hovered === island.id);
   const isActive = useWorld((s) => s.activeIsland === island.id);
   const reveal = useWorld((s) => s.reveal);
+  const shape = useMemo<TerrainShape>(
+    () => ({ radius: island.radius, elevation: island.elevation, seed: index * 17 + 3 }),
+    [index, island.elevation, island.radius],
+  );
+  const sampler = useMemo(() => createHeightSampler(shape), [shape]);
 
   // Les îles n'apparaissent pas toutes en même temps pendant la révélation :
   // elles émergent une à une (voir useWorldReveal).
@@ -83,14 +99,8 @@ export function Island({ island, index }: { island: IslandConfig; index: number 
       onPointerOver={onOver}
       onPointerOut={onOut}
     >
-      <Terrain
-        radius={island.radius}
-        elevation={island.elevation}
-        ground={island.ground}
-        seed={index * 17 + 3}
-      />
-      <Shoreline radius={island.radius} seed={index * 29 + 11} count={island.radius > 17 ? 10 : 7} />
-      <DeferredDecor island={island} index={index} />
+      <Terrain shape={shape} sampler={sampler} cliff={island.terrain.cliff} top={island.terrain.top} />
+      <DeferredDecor island={island} index={index} sampler={sampler} shape={shape} />
       <Dock angle={island.dockAngle} reach={island.radius} />
       <NightLights island={island} />
       <IslandLife island={island} index={index} />

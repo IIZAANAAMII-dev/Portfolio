@@ -37,6 +37,12 @@ function isMesh(object: Object3D): object is Mesh {
 
 const paintCache = new Map<string, MeshStandardMaterial>();
 
+/**
+ * Matériaux qui s'allument la nuit (vitres, lampes, écrans) : intensité émissive de jour
+ * et de nuit. Un seul composant (NightGlow) les met à jour depuis le cycle du ciel.
+ */
+export const nightGlow = new Map<MeshStandardMaterial, { day: number; night: number }>();
+
 function paintMaterial(spec: Extract<SlotSpec, { paint: string }>) {
   const key = JSON.stringify(spec);
   let material = paintCache.get(key);
@@ -53,6 +59,7 @@ function paintMaterial(spec: Extract<SlotSpec, { paint: string }>) {
     });
     material.name = `paint:${spec.paint}`;
     paintCache.set(key, material);
+    if (spec.night !== undefined) nightGlow.set(material, { day: spec.emissiveIntensity ?? 0, night: spec.night });
   }
   return material;
 }

@@ -17,6 +17,8 @@ export type SlotSpec =
       metalness?: number;
       emissive?: string;
       emissiveIntensity?: number;
+      /** Intensité émissive atteinte en pleine nuit (vitres, lampes) : s'allume avec le cycle. */
+      night?: number;
       transparent?: boolean;
       opacity?: number;
       double?: boolean;
@@ -44,9 +46,9 @@ export type SubstanceModelName =
 
 /** Palette commune, reprise de docs/DESIGN.md et de l'univers Bell Island. */
 export const PAINT = {
-  hull: '#245b78',
-  antifouling: '#a8402f',
-  waterline: '#efe6d2',
+  hull: '#b8432f',
+  antifouling: '#22384a',
+  waterline: '#f1e8d4',
   cabin: '#efe7d6',
   rope: '#c9a66b',
   bronze: '#b5894d',
@@ -68,7 +70,7 @@ export const PAINT = {
 const rope: SlotSpec = { substance: 'driftwood', options: { recolor: PAINT.rope, recolorAmount: 0.85, normalStrength: 0.6 } };
 const iron: SlotSpec = { substance: 'iron_steam_pipe', options: { recolor: PAINT.ironDark, recolorAmount: 0.55 } };
 const bronze: SlotSpec = { substance: 'iron_steam_pipe', options: { recolor: PAINT.bronze, recolorAmount: 0.85, metalness: 0.9, roughness: 0.38 } };
-const lamp: SlotSpec = { paint: '#ffe2ad', emissive: '#ffc773', emissiveIntensity: 0.25, roughness: 0.3 };
+const lamp: SlotSpec = { paint: '#ffe2ad', emissive: '#ffc773', emissiveIntensity: 0.15, night: 3.2, roughness: 0.3 };
 
 export const MODEL_MATERIALS: Record<SubstanceModelName, Record<string, SlotSpec>> = {
   'fishing-boat': {
@@ -77,8 +79,8 @@ export const MODEL_MATERIALS: Record<SubstanceModelName, Record<string, SlotSpec
       options: {
         recolor: PAINT.hull,
         recolorAmount: 0.82,
-        band: { color: PAINT.antifouling, below: 0.74, softness: 0.012 },
-        stripe: { color: PAINT.waterline, at: 0.79, width: 0.07 },
+        band: { color: PAINT.antifouling, below: 0.62, softness: 0.012 },
+        stripe: { color: PAINT.waterline, at: 0.68, width: 0.07 },
       },
     },
     floor: { substance: 'wood_flooring', options: { normalStrength: 0.8 } },
@@ -91,17 +93,17 @@ export const MODEL_MATERIALS: Record<SubstanceModelName, Record<string, SlotSpec
     transformers: iron,
     radar: { paint: '#eeeae0', roughness: 0.45 },
     rope,
-    window_transparency: { paint: PAINT.glass, roughness: 0.06, metalness: 0.4, emissive: '#ffcf8a', emissiveIntensity: 0 },
-    display: { paint: '#1a1410', emissive: '#ff9a3c', emissiveIntensity: 0.6 },
+    window_transparency: { paint: PAINT.glass, roughness: 0.06, metalness: 0.4, emissive: '#ffcf8a', emissiveIntensity: 0, night: 1.6 },
+    display: { paint: '#1a1410', emissive: '#ff9a3c', emissiveIntensity: 0.5, night: 1.4 },
     light: lamp,
   },
   'house-mound': {
-    mound: { substance: 'earth_and_grass', options: { projection: 'triplanar', space: 'object', top: 'wild_grass', topThreshold: 0.35 } },
+    mound: { substance: 'earth_and_grass', options: { projection: 'triplanar', space: 'world', top: 'wild_grass', topThreshold: 0.35 } },
     wall_plaster: { substance: 'mossy_brick_wall' },
-    bottom_platform: { substance: 'blocky_stone_cliff', options: { projection: 'triplanar', space: 'object' } },
+    bottom_platform: { substance: 'blocky_stone_cliff', options: { projection: 'triplanar', space: 'world' } },
     light_wood: { substance: 'wood_barrier' },
     window_wood: { substance: 'wood_flooring', options: { recolor: PAINT.flagTeal, recolorAmount: 0.55 } },
-    window_pieces: { paint: PAINT.glass, roughness: 0.08, metalness: 0.3, emissive: '#ffcf8a', emissiveIntensity: 0 },
+    window_pieces: { paint: PAINT.glass, roughness: 0.08, metalness: 0.3, emissive: '#ffcf8a', emissiveIntensity: 0, night: 2.2 },
   },
   'bell-tower': {
     main_bell: bronze,
@@ -120,7 +122,7 @@ export const MODEL_MATERIALS: Record<SubstanceModelName, Record<string, SlotSpec
   staircase: { stairs: { substance: 'wood_beam' } },
   'chimney-curved': { chimney_top: iron, chimney_bottom: iron },
   'chimney-straight': { stylized_straight_pipe_chimney: iron },
-  cavern: { stylized_large_cavern: { substance: 'mossy_island_cliff', options: { projection: 'triplanar', space: 'object', top: 'wild_grass' } } },
+  cavern: { stylized_large_cavern: { substance: 'mossy_island_cliff', options: { projection: 'triplanar', space: 'world', top: 'wild_grass' } } },
   porch: { plank: { substance: 'wood_flooring' } },
   'flags-multi': {
     flag: { paint: PAINT.flagRed, roughness: 0.9, double: true },
@@ -134,7 +136,7 @@ export const MODEL_MATERIALS: Record<SubstanceModelName, Record<string, SlotSpec
     pole: { substance: 'wood_beam' },
   },
   'sea-dock': {
-    wood: { substance: 'ocean_spray_swept_wood_planks' },
+    wood: { substance: 'ocean_spray_swept_wood_planks', options: { recolor: '#9b7550', recolorAmount: 0.6 } },
     docking: { substance: 'driftwood' },
     line: rope,
     screw: iron,
@@ -174,5 +176,5 @@ export const MODEL_MATERIALS: Record<SubstanceModelName, Record<string, SlotSpec
     inner_petal: { paint: PAINT.petalInner, roughness: 0.75, double: true },
     outer_petal: { paint: PAINT.petal, roughness: 0.75, double: true },
   },
-  starfish: { stylized_sea_starfish: { substance: 'coast_cliff_rock_overgrown', options: { recolor: PAINT.coral, recolorAmount: 0.9, projection: 'triplanar', space: 'object', scale: 0.12 } } },
+  starfish: { stylized_sea_starfish: { substance: 'coast_cliff_rock_overgrown', options: { recolor: PAINT.coral, recolorAmount: 0.9, projection: 'triplanar', space: 'world', scale: 0.12 } } },
 };

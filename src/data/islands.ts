@@ -18,6 +18,7 @@ export const islands: IslandConfig[] = [
     dockAngle: 0.5,
     cameraAngle: 0.5,
     silhouette: 'nature',
+    terrain: { cliff: 'island_cliff', top: 'wild_grass' },
   },
   {
     id: 'skills',
@@ -31,6 +32,7 @@ export const islands: IslandConfig[] = [
     dockAngle: 2.41,
     cameraAngle: 2.41,
     silhouette: 'grid',
+    terrain: { cliff: 'blocky_stone_cliff', top: 'earth_and_grass' },
   },
   {
     id: 'projects',
@@ -44,6 +46,7 @@ export const islands: IslandConfig[] = [
     dockAngle: -2.8,
     cameraAngle: -2.8,
     silhouette: 'monoliths',
+    terrain: { cliff: 'island_cliff', top: 'wild_grass' },
   },
   {
     id: 'experience',
@@ -57,6 +60,7 @@ export const islands: IslandConfig[] = [
     dockAngle: -1.27,
     cameraAngle: -1.27,
     silhouette: 'towers',
+    terrain: { cliff: 'mossy_island_cliff', top: 'earth_and_grass' },
   },
   {
     id: 'journey',
@@ -70,6 +74,7 @@ export const islands: IslandConfig[] = [
     dockAngle: -0.4,
     cameraAngle: -0.4,
     silhouette: 'path',
+    terrain: { cliff: 'mossy_island_cliff', top: 'wild_grass' },
   },
   {
     id: 'contact',
@@ -83,6 +88,7 @@ export const islands: IslandConfig[] = [
     dockAngle: 1.76,
     cameraAngle: 1.76,
     silhouette: 'beacon',
+    terrain: { cliff: 'blocky_stone_cliff', top: 'wild_grass' },
   },
 ];
 
@@ -96,4 +102,5 @@ export const homeIsland = {
   radius: 7,
   elevation: 2.6,
   dockAngle: -0.9,
+  terrain: { cliff: 'island_cliff', top: 'wild_grass' } as IslandConfig['terrain'],
 };

@@ -136,10 +136,15 @@ export const useWorld = create<WorldState>((set, get) => ({
   // cycle automatique y est arrivé tout seul), un clic ramène au matin, et inversement.
   toggleDayNight: () => set((s) => ({ timeOfDay: isNightTime(s.timeOfDay) ? 0.32 : 0.82 })),
 
+  // Le monde doit être entièrement révélé : sans cela le cercle d'intro garde les îles
+  // à l'échelle zéro (elles n'apparaissent qu'à son passage).
   jumpTo: (id) =>
     set({
       phase: 'docked',
       reveal: 1,
+      gameTransition: 1,
+      introRadius: 240,
+      introGlow: 0,
       activeIsland: id,
       destination: null,
       freeTarget: null,

@@ -29,13 +29,23 @@ class ModelErrorBoundary extends Component<
 export function AssetBoundary({
   children,
   fallback = null,
+  loading,
+  blocking = false,
 }: {
   children: ReactNode;
+  /** Rendu si le modèle échoue (et pendant le chargement, sauf `loading`). */
   fallback?: ReactNode;
+  /** Rendu pendant le chargement, si différent du repli d'erreur. */
+  loading?: ReactNode;
+  /**
+   * Le chargement remonte au Suspense parent au lieu d'afficher un repli : la première
+   * image attend le modèle (le bateau, sujet de l'intro). Seule l'erreur est interceptée.
+   */
+  blocking?: boolean;
 }) {
   return (
     <ModelErrorBoundary fallback={fallback}>
-      <Suspense fallback={fallback}>{children}</Suspense>
+      {blocking ? children : <Suspense fallback={loading === undefined ? fallback : loading}>{children}</Suspense>}
     </ModelErrorBoundary>
   );
 }

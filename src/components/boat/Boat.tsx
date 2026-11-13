@@ -11,7 +11,7 @@ import { waveHeight } from '@/lib/waves';
 import { damp } from '@/lib/utils/math';
 import { MAX_SPEED, useBoatNavigation } from '@/hooks/useBoatNavigation';
 import { Wake } from './Wake';
-import { BoatModel } from './BoatModel';
+import { BOAT_FRAME, BoatModel } from './BoatModel';
 
 const MAX_VISUAL_SPEED = MAX_SPEED;
 
@@ -26,14 +26,16 @@ function ExhaustSmoke() {
     mesh.current.visible = strength > 0.08 && useWorld.getState().quality !== 'low';
     if (!mesh.current.visible) return;
     const time = state.clock.elapsedTime;
+    const [ex, ey, ez] = BOAT_FRAME.exhaust;
     for (let index = 0; index < count; index++) {
       const life = (time * (0.34 + strength * 0.18) + index / count) % 1;
+      // La fumée sort de la cheminée de la timonerie et file vers l'arrière avec la vitesse.
       dummy.position.set(
-        -2.25 - life * (0.7 + strength * 1.3),
-        2.75 + life * 3.1,
-        Math.sin(index * 4.7 + time) * life * 0.45,
+        ex - life * (0.5 + strength * 2.2),
+        ey + life * (1.6 + (1 - strength) * 1.2),
+        ez + Math.sin(index * 4.7 + time) * life * 0.4,
       );
-      const scale = (0.12 + life * 0.62) * (0.5 + strength * 0.7);
+      const scale = (0.08 + life * 0.5) * (0.5 + strength * 0.6);
       dummy.scale.setScalar(scale);
       dummy.updateMatrix();
       mesh.current.setMatrixAt(index, dummy.matrix);
@@ -62,7 +64,12 @@ function HullFoam() {
     for (let index = 0; index < count; index++) {
       const life = (time * (0.55 + strength * 0.65) + index / count) % 1;
       const side = index % 2 === 0 ? -1 : 1;
-      dummy.position.set(1.25 - life * 3.15, -0.34 + Math.sin(time * 2 + index) * 0.04, side * (1.05 + life * 0.36));
+      // L'étrave fend l'eau : l'écume naît à l'avant et glisse le long des flancs.
+      dummy.position.set(
+        BOAT_FRAME.bow * 0.82 - life * (BOAT_FRAME.bow + BOAT_FRAME.stern) * 0.78,
+        0.04 + Math.sin(time * 2 + index) * 0.04,
+        side * (BOAT_FRAME.halfBeam * (0.55 + Math.min(life * 3, 1) * 0.45) + life * 0.4),
+      );
       const scalar = (0.08 + life * 0.19) * (0.45 + strength);
       dummy.scale.set(scalar * 1.8, scalar * 0.35, scalar);
       dummy.updateMatrix();

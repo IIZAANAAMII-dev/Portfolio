@@ -7,6 +7,7 @@ import { boatState } from '@/lib/boat-state';
 import { ecologyState } from '@/lib/ecology';
 import { waveHeight } from '@/lib/waves';
 import { damp } from '@/lib/utils/math';
+import { BOAT_FRAME } from './BoatModel';
 
 const SEGMENTS = 34;
 const SAMPLE_DISTANCE = 0.38;
@@ -101,9 +102,9 @@ export function Wake() {
     material.current.uniforms.uStorm.value = ecologyState.stormWaves;
 
     stern.set(
-      boatState.position.x - Math.cos(boatState.heading) * 2.05,
+      boatState.position.x - Math.cos(boatState.heading) * BOAT_FRAME.stern * 0.92,
       0,
-      boatState.position.z - Math.sin(boatState.heading) * 2.05,
+      boatState.position.z - Math.sin(boatState.heading) * BOAT_FRAME.stern * 0.92,
     );
     if (!Number.isFinite(lastSample.current.x) || lastSample.current.distanceTo(stern) >= SAMPLE_DISTANCE) {
       trail.current.unshift({ position: stern.clone(), heading: boatState.heading });

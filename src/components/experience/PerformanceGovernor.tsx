@@ -14,19 +14,28 @@ const UPGRADE_SECONDS = 20;
  * Régulation volontairement lente : une moyenne sur plusieurs secondes, puis un long
  * cooldown. La qualité ne peut donc pas osciller à chaque variation ponctuelle de FPS.
  */
+/** `?quality=high|medium|low` fige le niveau (captures, démonstrations, tests). */
+function forcedQuality(): QualityLevel | null {
+  if (typeof window === 'undefined') return null;
+  const value = new URLSearchParams(window.location.search).get('quality');
+  return value === 'high' || value === 'medium' || value === 'low' ? value : null;
+}
+
 export function PerformanceGovernor({ mobile }: { mobile: boolean }) {
   const setDpr = useThree((state) => state.setDpr);
   const elapsed = useRef(0);
   const frames = useRef(0);
   const cooldown = useRef(COOLDOWN_SECONDS);
   const upgradeTime = useRef(0);
+  const forced = useRef(forcedQuality());
 
   useEffect(() => {
-    const initial: QualityLevel = mobile ? 'low' : 'high';
+    const initial: QualityLevel = forced.current ?? (mobile ? 'low' : 'high');
     useWorld.getState().setQuality(initial);
   }, [mobile]);
 
   useFrame((_, delta) => {
+    if (forced.current) return;
     const dt = Math.min(delta, 0.25);
     elapsed.current += dt;
     frames.current += 1;

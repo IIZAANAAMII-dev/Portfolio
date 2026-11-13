@@ -2,6 +2,7 @@ import {
   Color,
   DoubleSide,
   FrontSide,
+  Matrix4,
   MeshStandardMaterial,
   NoColorSpace,
   RepeatWrapping,
@@ -52,6 +53,12 @@ export interface SubstanceOptions {
   topThreshold?: number;
   topSoftness?: number;
   topAmount?: number;
+  /** Matériau posé sous une altitude (sable de plage sous la falaise), projection verticale. */
+  low?: SubstanceId;
+  /** Altitude (dans l'espace de projection) sous laquelle `low` apparaît. */
+  lowBelow?: number;
+  lowSoftness?: number;
+  lowAmount?: number;
   /** Peinture sous une hauteur, en espace objet (avant mise à l'échelle). */
   band?: { color: string; below: number; softness?: number };
   /** Liseré horizontal, en espace objet. */
@@ -82,6 +89,9 @@ const VERTEX_PARS = /* glsl */ `
 varying vec3 vSubPos;
 varying vec3 vSubNormal;
 varying float vSubObjY;
+#if defined( SUB_BAND ) || defined( SUB_STRIPE )
+  uniform mat4 uSubRoot;
+#endif
 `;
 
 const VERTEX_MAIN = /* glsl */ `
@@ -98,7 +108,13 @@ const VERTEX_MAIN = /* glsl */ `
   #endif
   vSubPos = subPosition.xyz;
   vSubNormal = subNormalIn;
-  vSubObjY = transformed.y;
+  // Hauteur dans le repère du modèle (mètres, avant mise à l'échelle) : les fichiers sont
+  // quantifiés, \`transformed\` n'est donc pas en mètres. uSubRoot = inverse du monde de la racine.
+  #if defined( SUB_BAND ) || defined( SUB_STRIPE )
+    vSubObjY = ( uSubRoot * modelMatrix * vec4( transformed, 1.0 ) ).y;
+  #else
+    vSubObjY = 0.0;
+  #endif
 }
 `;
 
@@ -106,6 +122,10 @@ const FRAGMENT_PARS = /* glsl */ `
 varying vec3 vSubPos;
 varying vec3 vSubNormal;
 varying float vSubObjY;
+#if defined( TRI_NORMAL ) && ! defined( SUB_WORLD )
+  // Uniforme du vertex shader, redéclarée ici : three.js la renseigne pour tout le programme.
+  uniform mat3 normalMatrix;
+#endif
 uniform vec3 uSubShade;
 uniform vec3 uSubBase;
 uniform vec3 uSubLight;
@@ -129,6 +149,15 @@ uniform float uSubAo;
   uniform vec4 uTopParams;
   #ifdef TOP_MAP
     uniform sampler2D uTopMap;
+  #endif
+#endif
+#ifdef SUB_LOW
+  uniform vec3 uLowShade;
+  uniform vec3 uLowBase;
+  uniform vec3 uLowLight;
+  uniform vec4 uLowParams;
+  #ifdef LOW_MAP
+    uniform sampler2D uLowMap;
   #endif
 #endif
 #ifdef SUB_RECOLOR
@@ -203,6 +232,9 @@ float subVar = subFbm( vSubPos * uSubNoise );
   #endif
   diffuseColor.rgb *= subColor;
 #endif
+// Part de la surface couverte par un matériau « plat » (herbe, sable) : le relief de la
+// roche y est atténué plus bas, dans les normales et la rugosité.
+float subFlat = 0.0;
 #ifdef SUB_TOP
   float subTopMask = smoothstep(
     uTopParams.x - uTopParams.y,
@@ -215,6 +247,21 @@ float subVar = subFbm( vSubPos * uSubNoise );
     vec3 subTopColor = subPalette( uTopShade, uTopBase, uTopLight, subFbm( vSubPos * uSubNoise * 1.6 + 11.0 ) );
   #endif
   diffuseColor.rgb = mix( diffuseColor.rgb, subTopColor, subTopMask );
+  subFlat = subTopMask;
+#endif
+#ifdef SUB_LOW
+  float subLowMask = ( 1.0 - smoothstep(
+    uLowParams.x - uLowParams.y,
+    uLowParams.x + uLowParams.y,
+    vSubPos.y + ( subVar - 0.5 ) * 0.35
+  ) ) * uLowParams.z;
+  #ifdef LOW_MAP
+    vec3 subLowColor = texture2D( uLowMap, vSubPos.xz * uLowParams.w ).rgb;
+  #else
+    vec3 subLowColor = subPalette( uLowShade, uLowBase, uLowLight, subFbm( vSubPos * uSubNoise * 2.1 + 23.0 ) );
+  #endif
+  diffuseColor.rgb = mix( diffuseColor.rgb, subLowColor, subLowMask );
+  subFlat = max( subFlat, subLowMask );
 #endif
 #ifdef SUB_RECOLOR
   float subLuma = dot( diffuseColor.rgb, vec3( 0.2126, 0.7152, 0.0722 ) );
@@ -242,6 +289,7 @@ const FRAGMENT_ROUGHNESS = /* glsl */ `
 #else
   #include <roughnessmap_fragment>
 #endif
+roughnessFactor = mix( roughnessFactor, 0.95, subFlat );
 `;
 
 const FRAGMENT_METALNESS = /* glsl */ `
@@ -259,9 +307,10 @@ const FRAGMENT_NORMAL = /* glsl */ `
   vec3 subTnX = texture2D( uTriNormal, subP.zy ).xyz * 2.0 - 1.0;
   vec3 subTnY = texture2D( uTriNormal, subP.xz ).xyz * 2.0 - 1.0;
   vec3 subTnZ = texture2D( uTriNormal, subP.xy ).xyz * 2.0 - 1.0;
-  subTnX.xy *= uSubNormalScale;
-  subTnY.xy *= uSubNormalScale;
-  subTnZ.xy *= uSubNormalScale;
+  float subRelief = uSubNormalScale * ( 1.0 - subFlat * 0.8 );
+  subTnX.xy *= subRelief;
+  subTnY.xy *= subRelief;
+  subTnZ.xy *= subRelief;
   subTnX = vec3( subTnX.xy + subN.zy, abs( subTnX.z ) * subN.x );
   subTnY = vec3( subTnY.xy + subN.xz, abs( subTnY.z ) * subN.y );
   subTnZ = vec3( subTnZ.xy + subN.xy, abs( subTnZ.z ) * subN.z );
@@ -360,6 +409,25 @@ function repeated(texture: Texture, repeat: number) {
 
 type Uniforms = Record<string, { value: unknown }>;
 
+/** Chargements de cartes en cours : l'écran de chargement peut les attendre. */
+const pendingTextures = new Set<Promise<unknown>>();
+
+function track(promise: Promise<unknown>) {
+  pendingTextures.add(promise);
+  void promise.finally(() => pendingTextures.delete(promise));
+}
+
+/**
+ * Résout quand les cartes des matériaux déjà créés sont arrivées (ou après `timeout` ms) :
+ * la première image ne montre pas le repli procédural se changer en texture.
+ */
+export function substanceTexturesSettled(timeout = 2500) {
+  return Promise.race([
+    Promise.allSettled([...pendingTextures]),
+    new Promise((resolve) => setTimeout(resolve, timeout)),
+  ]);
+}
+
 const materialCache = new Map<string, MeshStandardMaterial>();
 
 /** Matériau partagé : deux appels avec les mêmes options renvoient la même instance. */
@@ -383,7 +451,7 @@ export function createSubstanceMaterial(id: SubstanceId, options: SubstanceOptio
   const material = new MeshStandardMaterial({
     color: options.tint ?? '#ffffff',
     roughness: options.roughness ?? definition.roughness,
-    metalness: options.metalness ?? ('metalness' in definition ? definition.metalness : 0),
+    metalness: options.metalness ?? definition.metalness ?? 0,
     side: options.side === 'double' ? DoubleSide : FrontSide,
     transparent: options.transparent ?? false,
     alphaTest: options.alphaTest ?? 0,
@@ -394,6 +462,7 @@ export function createSubstanceMaterial(id: SubstanceId, options: SubstanceOptio
   material.name = `substance:${id}`;
 
   const top = options.top ? SUBSTANCES[options.top] : null;
+  const low = options.low ? SUBSTANCES[options.low] : null;
   const uniforms: Uniforms = {
     uSubShade: { value: new Color(definition.shade) },
     uSubBase: { value: new Color(definition.base) },
@@ -417,6 +486,18 @@ export function createSubstanceMaterial(id: SubstanceId, options: SubstanceOptio
       ),
     },
     uTopMap: { value: null },
+    uLowShade: { value: new Color(low?.shade ?? '#000000') },
+    uLowBase: { value: new Color(low?.base ?? '#000000') },
+    uLowLight: { value: new Color(low?.light ?? '#000000') },
+    uLowParams: {
+      value: new Vector4(
+        options.lowBelow ?? 0.8,
+        options.lowSoftness ?? 0.18,
+        options.lowAmount ?? 1,
+        low ? 1 / low.tile : 1,
+      ),
+    },
+    uLowMap: { value: null },
     uRecolor: {
       value: (() => {
         const color = new Color(options.recolor ?? '#ffffff');
@@ -437,6 +518,8 @@ export function createSubstanceMaterial(id: SubstanceId, options: SubstanceOptio
       })(),
     },
     uStripeWidth: { value: options.stripe?.width ?? 0 },
+    /** Inverse de la matrice monde de la racine du modèle (bandes peintes, voir bindSubstanceRoot). */
+    uSubRoot: { value: new Matrix4() },
   };
 
   const defines: Record<string, string> = {};
@@ -444,6 +527,7 @@ export function createSubstanceMaterial(id: SubstanceId, options: SubstanceOptio
   if (definition.kind === 'wood') defines.SUB_KIND_WOOD = '';
   if (definition.kind === 'rock') defines.SUB_KIND_ROCK = '';
   if (options.top) defines.SUB_TOP = '';
+  if (options.low) defines.SUB_LOW = '';
   if (options.recolor) defines.SUB_RECOLOR = '';
   if (options.band) defines.SUB_BAND = '';
   if (options.stripe) defines.SUB_STRIPE = '';
@@ -456,9 +540,20 @@ export function createSubstanceMaterial(id: SubstanceId, options: SubstanceOptio
   };
   material.customProgramCacheKey = () => 'substance-v1';
 
-  void attachTextures(material, id, options, projection, tile, uniforms);
-  if (options.top) void attachTopTexture(material, options.top, uniforms);
+  track(attachTextures(material, id, options, projection, tile, uniforms));
+  if (options.top) track(attachBlendTexture(material, options.top, uniforms.uTopMap, 'TOP_MAP'));
+  if (options.low) track(attachBlendTexture(material, options.low, uniforms.uLowMap, 'LOW_MAP'));
   return material;
+}
+
+/**
+ * Les bandes peintes (ligne de flottaison) sont définies dans le repère du modèle. Le
+ * composant qui anime le modèle appelle cette fonction à chaque image avec sa racine.
+ */
+export function bindSubstanceRoot(material: MeshStandardMaterial, root: { matrixWorld: Matrix4 }) {
+  const uniforms = material.userData.substance?.uniforms as Uniforms | undefined;
+  const target = uniforms?.uSubRoot.value as Matrix4 | undefined;
+  target?.copy(root.matrixWorld).invert();
 }
 
 function enable(material: MeshStandardMaterial, define: string) {
@@ -516,10 +611,15 @@ async function attachTextures(
   material.needsUpdate = true;
 }
 
-async function attachTopTexture(material: MeshStandardMaterial, top: SubstanceId, uniforms: Uniforms) {
-  const basecolor = await loadMap(top, 'basecolor');
+async function attachBlendTexture(
+  material: MeshStandardMaterial,
+  id: SubstanceId,
+  uniform: { value: unknown },
+  define: string,
+) {
+  const basecolor = await loadMap(id, 'basecolor');
   if (!basecolor) return;
-  uniforms.uTopMap.value = basecolor;
-  enable(material, 'TOP_MAP');
+  uniform.value = basecolor;
+  enable(material, define);
   material.needsUpdate = true;
 }

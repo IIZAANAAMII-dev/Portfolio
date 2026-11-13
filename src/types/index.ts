@@ -1,3 +1,5 @@
+import type { SubstanceId } from '@/lib/materials/substances';
+
 export type IslandId =
   | 'about'
   | 'skills'
@@ -32,6 +34,8 @@ export interface IslandConfig {
   cameraAngle: number;
   /** Silhouette : ce qui pousse ou se construit sur l'île. */
   silhouette: 'nature' | 'grid' | 'monoliths' | 'towers' | 'path' | 'beacon';
+  /** Matériaux Substance du relief : roche des falaises et couvert des plateaux. */
+  terrain: { cliff: SubstanceId; top: SubstanceId };
 }
 
 export interface Project {

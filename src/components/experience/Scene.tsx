@@ -15,6 +15,8 @@ import { Ocean } from '@/components/world/Ocean';
 import { HomeIsland } from '@/components/world/HomeIsland';
 import { Birds } from '@/components/world/Birds';
 import { BoundaryStorm } from '@/components/world/BoundaryStorm';
+import { NightGlow } from '@/components/world/NightGlow';
+import { substanceTexturesSettled } from '@/lib/materials/substance-material';
 import { useWorldReveal } from '@/hooks/useWorldReveal';
 import { useWorld } from '@/lib/store';
 import { QUALITY_LEVELS } from '@/lib/quality';
@@ -92,10 +94,17 @@ export function Scene({ mobile }: { mobile: boolean }) {
 
   const clearColor = useRef(new Color('#08121c'));
 
-  // La première frame rendue est le vrai signal de « prêt ».
+  // La première frame rendue, textures comprises, est le vrai signal de « prêt ».
   useEffect(() => {
-    const id = requestAnimationFrame(() => ready());
-    return () => cancelAnimationFrame(id);
+    let frame = 0;
+    let cancelled = false;
+    void substanceTexturesSettled().then(() => {
+      if (!cancelled) frame = requestAnimationFrame(() => ready());
+    });
+    return () => {
+      cancelled = true;
+      cancelAnimationFrame(frame);
+    };
   }, [ready]);
 
   useFrame(() => {
@@ -116,6 +125,7 @@ export function Scene({ mobile }: { mobile: boolean }) {
       {process.env.NODE_ENV !== 'production' && <PerformanceDebug />}
       <Atmosphere />
       <Lighting shadows={!mobile} />
+      <NightGlow />
       <Ocean />
       <BoundaryStorm />
       <HomeIsland />

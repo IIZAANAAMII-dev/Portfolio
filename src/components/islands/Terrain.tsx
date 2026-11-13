@@ -1,58 +1,18 @@
 'use client';
 
 import { useMemo } from 'react';
-import { Color, CylinderGeometry, RingGeometry } from 'three';
-import { hash } from '@/lib/utils/math';
+import { RingGeometry } from 'three';
+import { getSubstanceMaterial } from '@/lib/materials/substance-material';
+import type { SubstanceId } from '@/lib/materials/substances';
+import { BEACH_HEIGHT, buildTerrainGeometry, type HeightSampler, type TerrainShape } from './terrain-shape';
 
 interface TerrainProps {
-  radius: number;
-  elevation: number;
-  ground: string;
-  seed: number;
-}
-
-type Layer = {
-  radius: number;
-  height: number;
-  color: string;
-  segments: number;
-  y: number;
-  offsetX: number;
-  offsetZ: number;
-  seed: number;
-};
-
-function makeIslandLayer(layer: Layer) {
-  const geometry = new CylinderGeometry(
-    layer.radius * 0.84,
-    layer.radius,
-    layer.height,
-    layer.segments,
-    2,
-    false,
-  );
-  const positions = geometry.attributes.position;
-
-  for (let index = 0; index < positions.count; index++) {
-    const x = positions.getX(index);
-    const y = positions.getY(index);
-    const z = positions.getZ(index);
-    const distance = Math.hypot(x, z);
-    if (distance < 0.001) continue;
-
-    const angle = Math.atan2(z, x);
-    const coast =
-      1 +
-      Math.sin(angle * 3 + layer.seed * 1.7) * 0.075 +
-      Math.sin(angle * 7 - layer.seed * 0.9) * 0.045 +
-      Math.sin(angle * 11 + layer.seed * 0.31) * 0.018;
-    const terrace = y > 0 ? 0.97 : 1.03;
-    positions.setXYZ(index, x * coast * terrace, y, z * coast * terrace);
-  }
-
-  positions.needsUpdate = true;
-  geometry.computeVertexNormals();
-  return geometry;
+  shape: TerrainShape;
+  sampler: HeightSampler;
+  /** Roche des falaises. */
+  cliff?: SubstanceId;
+  /** Couvert des plateaux. */
+  top?: SubstanceId;
 }
 
 function makeReef(radius: number, seed: number, inner: number, outer: number) {
@@ -74,124 +34,36 @@ function makeReef(radius: number, seed: number, inner: number, outer: number) {
   return geometry;
 }
 
-/** Falaises facettées irrégulières et plateaux légèrement décentrés. */
-export function Terrain({ radius, elevation, ground, seed }: TerrainProps) {
-  const groundColors = useMemo(() => {
-    const base = new Color(ground);
-    return {
-      low: `#${base.clone().offsetHSL(-0.01, 0.02, -0.055).getHexString()}`,
-      mid: `#${base.clone().offsetHSL(0.01, 0.035, 0.015).getHexString()}`,
-      crown: `#${base.clone().offsetHSL(0.015, 0.055, 0.075).getHexString()}`,
-    };
-  }, [ground]);
-  const layers = useMemo<Layer[]>(() => {
-    const sandHeight = 1.25;
-    const lowHeight = Math.max(1.7, elevation * 0.34);
-    const midHeight = Math.max(1.4, elevation * 0.28);
-    const crownHeight = Math.max(0.9, elevation * 0.18);
-
-    return [
-      {
-        radius: radius * 1.03,
-        height: 1.05,
-        color: '#cfba8f',
-        segments: 18,
-        y: -1.35,
-        offsetX: 0,
-        offsetZ: 0,
-        seed: seed + 0.3,
-      },
-      {
-        radius,
-        height: sandHeight,
-        color: '#ead8ad',
-        segments: 18,
-        y: -0.42,
-        offsetX: 0,
-        offsetZ: 0,
-        seed: seed + 1.7,
-      },
-      {
-        radius: radius * 0.83,
-        height: lowHeight,
-        color: groundColors.low,
-        segments: 17,
-        y: 0.55 + lowHeight * 0.5,
-        offsetX: (hash(seed * 2.1) - 0.5) * radius * 0.08,
-        offsetZ: (hash(seed * 3.7) - 0.5) * radius * 0.08,
-        seed: seed + 4.2,
-      },
-      {
-        radius: radius * 0.57,
-        height: midHeight,
-        color: groundColors.mid,
-        segments: 15,
-        y: 0.55 + lowHeight * 0.82 + midHeight * 0.5,
-        offsetX: (hash(seed * 5.3) - 0.5) * radius * 0.2,
-        offsetZ: (hash(seed * 7.9) - 0.5) * radius * 0.2,
-        seed: seed + 8.4,
-      },
-      {
-        radius: radius * 0.31,
-        height: crownHeight,
-        color: groundColors.crown,
-        segments: 13,
-        y: 0.55 + lowHeight * 0.82 + midHeight * 0.76 + crownHeight * 0.5,
-        offsetX: (hash(seed * 11.1) - 0.5) * radius * 0.22,
-        offsetZ: (hash(seed * 13.7) - 0.5) * radius * 0.22,
-        seed: seed + 13.8,
-      },
-    ];
-  }, [radius, elevation, groundColors, seed]);
-
-  const geometries = useMemo(() => layers.map(makeIslandLayer), [layers]);
-  const reefs = useMemo(
-    () => [makeReef(radius, seed + 2.4, 1.03, 1.28), makeReef(radius, seed + 8.1, 1.18, 1.48)],
-    [radius, seed],
+/**
+ * Le relief d'une île, en un seul maillage. Le matériau Substance choisit la texture
+ * selon la forme : roche sur les pentes, herbe sur les plateaux, sable sous la ligne de
+ * plage (projection triplanaire, sans UV ni couture).
+ */
+export function Terrain({ shape, sampler, cliff = 'island_cliff', top = 'wild_grass' }: TerrainProps) {
+  const geometry = useMemo(() => buildTerrainGeometry(shape, sampler), [shape, sampler]);
+  const material = useMemo(
+    () =>
+      getSubstanceMaterial(cliff, {
+        projection: 'triplanar',
+        // Géométrie procédurale en mètres : l'espace objet suit l'île pendant sa révélation.
+        space: 'object',
+        top,
+        topThreshold: 0.78,
+        topSoftness: 0.09,
+        low: 'fine_sand_beach',
+        lowBelow: BEACH_HEIGHT,
+        lowSoftness: 0.2,
+      }),
+    [cliff, top],
   );
+  const reef = useMemo(() => makeReef(shape.radius, shape.seed + 8.1, 1.22, 1.5), [shape.radius, shape.seed]);
 
   return (
     <group>
-      <mesh geometry={reefs[1]} rotation-x={-Math.PI / 2} position-y={-1.55} receiveShadow>
-        <meshStandardMaterial color="#68c7b0" roughness={1} transparent opacity={0.34} depthWrite={false} />
+      <mesh geometry={reef} rotation-x={-Math.PI / 2} position-y={-1.7} receiveShadow>
+        <meshStandardMaterial color="#68c7b0" roughness={1} transparent opacity={0.28} depthWrite={false} />
       </mesh>
-      <mesh geometry={reefs[0]} rotation-x={-Math.PI / 2} position-y={-1.05} receiveShadow>
-        <meshStandardMaterial color="#d9d29b" roughness={1} transparent opacity={0.58} depthWrite={false} />
-      </mesh>
-      {layers.map((layer, index) => (
-        <mesh
-          key={index}
-          geometry={geometries[index]}
-          position={[layer.offsetX, layer.y, layer.offsetZ]}
-          rotation-y={hash(seed + index * 7.13) * Math.PI}
-          castShadow={index > 0}
-          receiveShadow
-        >
-          <meshStandardMaterial
-            color={layer.color}
-            roughness={index < 2 ? 0.92 : 1}
-            flatShading
-          />
-        </mesh>
-      ))}
-      {/* Deux bancs de sable décalés prolongent la silhouette sous l'eau. */}
-      {[0, 1, 2].map((bank) => {
-        const angle = hash(seed * 17.3 + bank * 5.2) * Math.PI * 2;
-        const reach = radius * (0.76 + bank * 0.12);
-        const size = radius * (0.24 - bank * 0.025);
-        return (
-          <mesh
-            key={`bank-${bank}`}
-            position={[Math.cos(angle) * reach, -0.7 - bank * 0.13, Math.sin(angle) * reach]}
-            rotation={[-Math.PI / 2, 0, angle]}
-            scale={[1.45 + hash(seed + bank) * 0.55, 0.62 + hash(seed * 2 + bank) * 0.24, 1]}
-            receiveShadow
-          >
-            <circleGeometry args={[size, 13]} />
-            <meshStandardMaterial color={bank === 0 ? '#ead7a5' : '#c5cf99'} roughness={1} />
-          </mesh>
-        );
-      })}
+      <mesh geometry={geometry} material={material} castShadow receiveShadow />
     </group>
   );
 }
