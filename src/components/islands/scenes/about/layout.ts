@@ -169,18 +169,3 @@ export const LIGHTHOUSE = {
   spurY: 2.45,
   spurHalf: 1.7,
 };
-
-/** Maison du gardien, sur la pointe, au pied du phare. */
-export const KEEPER: HousePlan = {
-  id: 'gardien',
-  kind: 'gardien',
-  angle: LIGHTHOUSE.angle + 0.1,
-  radius: 13.4,
-  turn: Math.PI / 2,
-  width: 3.4,
-  depth: 2.5,
-  wall: 2.0,
-  white: true,
-  paint: '#c8463a',
-  chimneys: ['right'],
-};

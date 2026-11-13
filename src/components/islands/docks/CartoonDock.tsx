@@ -49,9 +49,16 @@ const ROPE = '#e4c88f';
 const IRON = '#36444e';
 const BEAM = '#5f3d29';
 
-/** Position de la lanterne, dans le repère du ponton. */
+/** Position de la lanterne (centre de la vitre), dans le repère du ponton. */
 function lanternSpot(end: number): [number, number, number] {
-  return [end - 0.17, DECK + 1.62, -(HALF + 0.07)];
+  return [end - 0.18, DECK + 1.62, -(HALF + 0.03)];
+}
+
+/** Pieu : algues sous l'eau, bois mouillé à la flottaison, bois clair au-dessus. */
+function pilePainter(_x: number, y: number, _z: number, _ny: number, out: Color) {
+  if (y < -0.32) out.copy(ALGAE);
+  else if (y < 0.16) out.copy(WET);
+  else out.copy(POST).multiplyScalar(0.95 + Math.min(1, (y - 0.16) * 0.6) * 0.12);
 }
 
 function dockGeometry(start: number, end: number) {
@@ -107,6 +114,8 @@ function dockGeometry(start: number, end: number) {
     const px = start + 0.5 + (bent / (bents - 1)) * (span - 0.68);
     postXs.push(px);
     for (const side of [-1, 1]) {
+      // Le dernier pieu côté gauche porte la lanterne (voir plus bas).
+      if (bent === bents - 1 && side < 0) continue;
       const k = bent * 2 + (side > 0 ? 1 : 0);
       const radius = 0.15 + r(k + 5.1) * 0.045;
       const top = DECK + 0.2 + r(k + 5.7) * 0.32;
@@ -114,12 +123,7 @@ function dockGeometry(start: number, end: number) {
       const pz = side * (HALF + 0.03);
       const tilt: [number, number, number] = [(r(k + 6.3) - 0.5) * 0.07, r(k + 6.9) * Math.PI, (r(k + 7.5) - 0.5) * 0.07];
       const shaft = pose([px, (top + bottom) / 2, pz], tilt);
-      wood.add(new CylinderGeometry(radius * 0.93, radius, top - bottom, 7, 4), (_x, y, _z, _ny, out) => {
-        // Algues sous l'eau, bois mouillé à la ligne de flottaison, bois clair au-dessus.
-        if (y < -0.32) out.copy(ALGAE);
-        else if (y < 0.16) out.copy(WET);
-        else out.copy(POST).multiplyScalar(0.95 + Math.min(1, (y - 0.16) * 0.6) * 0.12);
-      }, shaft);
+      wood.add(new CylinderGeometry(radius * 0.93, radius, top - bottom, 7, 4), pilePainter, shaft);
       // Tête arrondie.
       const cap = pose([0, (top - bottom) / 2, 0]);
       wood.add(new SphereGeometry(radius * 0.97, 7, 3, 0, Math.PI * 2, 0, Math.PI / 2), POST_TOP, shaft.clone().multiply(cap));
@@ -180,10 +184,14 @@ function dockGeometry(start: number, end: number) {
     wood.add(new BoxGeometry(0.05, 0.04, 0.54), '#7c5639', pose([end + 0.07, DECK - 0.22 - rung * 0.3, 0]), 0.12);
   }
 
-  // Poteau de la lanterne (bois carré), lanterne en fer et petit toit rouge.
+  // Grand pieu de la lanterne, lanterne en fer et petit toit rouge.
   const [lx, ly, lz] = lanternSpot(end);
-  const postHeight = ly - 0.17 - (DECK - 0.45);
-  wood.add(bevelBox(0.15, postHeight, 0.15, 0.02), '#5d3c28', pose([lx, DECK - 0.45 + postHeight / 2, lz]), 0.18);
+  const lanternTop = ly - 0.24;
+  wood.add(new CylinderGeometry(0.15, 0.19, lanternTop + 1.95, 7, 5), pilePainter, pose([lx, (lanternTop - 1.95) / 2, lz], [0, 0.4, 0]));
+  wood.add(bevelBox(0.26, 0.08, 0.26, 0.03), POST_TOP, pose([lx, lanternTop + 0.03, lz]), 0.15);
+  for (const drop of [0.5, 0.6]) {
+    wood.add(new TorusGeometry(0.17, 0.034, 4, 10), ROPE, pose([lx, lanternTop - drop, lz], [Math.PI / 2, 0, 0]));
+  }
   wood.add(new BoxGeometry(0.34, 0.05, 0.34), IRON, pose([lx, ly - 0.17, lz]), 0.1);
   for (const cx of [-1, 1]) {
     for (const cz of [-1, 1]) {
@@ -226,25 +234,20 @@ const POOL = new ShaderMaterial({
   depthWrite: false,
   blending: AdditiveBlending,
 });
-let halo: SpriteMaterial | null = null;
-function haloMaterial() {
-  halo ??= new SpriteMaterial({
-    map: glowTexture(),
-    color: '#ffc27a',
-    transparent: true,
-    depthWrite: false,
-    blending: AdditiveBlending,
-    opacity: 0,
-  });
-  return halo;
-}
+const HALO = new SpriteMaterial({
+  map: glowTexture(),
+  color: '#ffc27a',
+  transparent: true,
+  depthWrite: false,
+  blending: AdditiveBlending,
+  opacity: 0,
+});
 
 let lastFrame = -1;
 
 export function CartoonDock({ angle, reach, end = reach + 0.9 }: { angle: number; reach: number; end?: number }) {
   const start = reach * 0.74;
   const geometry = useMemo(() => dockGeometry(start, end), [start, end]);
-  const haloShared = useMemo(() => haloMaterial(), []);
   const pool = useRef<Mesh>(null);
   const glow = useRef<Sprite>(null);
   const [lx, ly, lz] = lanternSpot(end);
@@ -259,7 +262,7 @@ export function CartoonDock({ angle, reach, end = reach + 0.9 }: { angle: number
       const flicker = 1 + Math.sin(state.clock.elapsedTime * 7.3) * 0.03 + Math.sin(state.clock.elapsedTime * 13.1) * 0.02;
       GLASS.emissiveIntensity = (0.28 + night * 2.9) * flicker;
       POOL.uniforms.uStrength.value = night * 0.42 * flicker;
-      if (halo) halo.opacity = night * 0.85 * flicker;
+      HALO.opacity = night * 0.85 * flicker;
     }
     const lit = night > 0.04;
     if (pool.current) pool.current.visible = lit;
@@ -279,7 +282,7 @@ export function CartoonDock({ angle, reach, end = reach + 0.9 }: { angle: number
         renderOrder={4}
         raycast={() => null}
       />
-      <sprite ref={glow} material={haloShared} position={[lx, ly, lz]} scale={1.5} visible={false} raycast={() => null} />
+      <sprite ref={glow} material={HALO} position={[lx, ly, lz]} scale={1.5} visible={false} raycast={() => null} />
     </group>
   );
 }
