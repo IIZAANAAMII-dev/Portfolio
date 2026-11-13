@@ -20,6 +20,7 @@ import { DestinationMarker } from '@/components/world/DestinationMarker';
 import { Flotsam } from '@/components/world/Flotsam';
 import { GoldenStars } from '@/components/world/GoldenStars';
 import { MessageBottle } from '@/components/world/MessageBottle';
+import { ReefFish } from '@/components/world/ReefFish';
 import { SeaLife } from '@/components/world/SeaLife';
 import { SeaNotes } from '@/components/world/SeaNotes';
 import { BoundaryStorm } from '@/components/world/BoundaryStorm';
@@ -150,6 +151,7 @@ export function Scene({ mobile }: { mobile: boolean }) {
       <DestinationMarker />
       <MessageBottle />
       <SeaLife />
+      <ReefFish />
       <GoldenStars />
       <SeaNotes />
       <Celebration />

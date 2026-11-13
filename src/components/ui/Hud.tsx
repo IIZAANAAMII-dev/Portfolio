@@ -79,6 +79,25 @@ function Compass() {
 }
 
 /**
+ * Cadran du cycle : le soleil glisse sur un arc d'horizon pendant la journée, la lune
+ * prend le relais la nuit. Lu depuis l'heure du monde (mise à jour quatre fois par seconde).
+ */
+function DayDial({ timeOfDay }: { timeOfDay: number }) {
+  const angle = (timeOfDay - 0.25) * Math.PI * 2;
+  const day = Math.sin(angle) >= 0;
+  const shown = day ? angle : angle + Math.PI;
+  const x = 13 - Math.cos(shown) * 10;
+  const y = 14 - Math.sin(shown) * 10;
+  return (
+    <svg className="day-dial" viewBox="0 0 26 16" aria-hidden="true">
+      <path d="M3 14 A10 10 0 0 1 23 14" fill="none" stroke="currentColor" strokeOpacity="0.35" strokeWidth="1.2" strokeDasharray="1.6 2" />
+      <line x1="1" y1="14.5" x2="25" y2="14.5" stroke="currentColor" strokeOpacity="0.5" strokeWidth="1" />
+      <circle cx={x} cy={y} r={day ? 2.6 : 2.2} fill={day ? '#ffd27a' : '#e8eef8'} />
+    </svg>
+  );
+}
+
+/**
  * L'interface permanente. Trois éléments seulement, tous dans les marges : le monde
  * garde le centre de l'écran.
  */
@@ -87,7 +106,8 @@ export function Hud() {
   const activeIsland = useWorld((s) => s.activeIsland);
   const destination = useWorld((s) => s.destination);
   const soundOn = useWorld((s) => s.soundOn);
-  const isNight = isNightTime(useWorld((s) => s.timeOfDay));
+  const timeOfDay = useWorld((s) => s.timeOfDay);
+  const isNight = isNightTime(timeOfDay);
   const toggleSound = useWorld((s) => s.toggleSound);
   const toggleDayNight = useWorld((s) => s.toggleDayNight);
   const setQuickView = useWorld((s) => s.setQuickView);
@@ -118,7 +138,9 @@ export function Hud() {
             className="ghost-button"
             aria-pressed={isNight}
             onClick={toggleDayNight}
+            aria-label={isNight ? 'Nuit : passer au jour' : 'Jour : passer à la nuit'}
           >
+            <DayDial timeOfDay={timeOfDay} />
             {isNight ? 'Nuit' : 'Jour'}
           </button>
           <LogbookButton />
