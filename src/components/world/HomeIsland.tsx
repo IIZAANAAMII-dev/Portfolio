@@ -3,7 +3,7 @@
 import { useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { Group } from 'three';
-import { Dock } from '@/components/islands/Dock';
+import { Dock } from '@/components/islands/docks';
 import { SubstanceProp, SubstanceScatter } from '@/components/islands/bell-island';
 import { CLEARING_ROOT, ClearingContext, ClearingStore } from '@/components/islands/clearings';
 import { Grass } from '@/components/islands/Grass';

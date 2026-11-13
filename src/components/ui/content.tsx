@@ -243,28 +243,35 @@ export function ProjectsContent() {
 
 /* --------------------------------------------------------------- EXPÉRIENCES */
 
+function ExperienceItem({ entry }: { entry: (typeof experiences)[number] }) {
+  const { ref } = useFocusScroll('experience', entry.id);
+  return (
+    <li ref={ref as React.RefObject<HTMLLIElement>} className="focus-target border-l border-ink/15 pl-4">
+      <p className="eyebrow text-ink">
+        {entry.period}
+        {entry.contract ? ` · ${entry.contract}` : ''}
+      </p>
+      <h3 className="text-base font-medium">
+        {entry.role} · <span className="text-ink/60">{entry.company}</span>
+      </h3>
+      {entry.location && <p className="text-xs text-ink/50">{entry.location}</p>}
+      <ul className="mt-2 space-y-1 text-sm text-ink/70">
+        {entry.missions.map((mission) => (
+          <li key={mission}>{mission}</li>
+        ))}
+      </ul>
+      <div className="mt-3">
+        <Stack items={entry.stack} />
+      </div>
+    </li>
+  );
+}
+
 export function ExperienceContent() {
   return (
     <ol className="space-y-6">
       {experiences.map((entry) => (
-        <li key={entry.id} className="border-l border-ink/15 pl-4">
-          <p className="eyebrow text-ink">
-            {entry.period}
-            {entry.contract ? ` · ${entry.contract}` : ''}
-          </p>
-          <h3 className="text-base font-medium">
-            {entry.role} · <span className="text-ink/60">{entry.company}</span>
-          </h3>
-          {entry.location && <p className="text-xs text-ink/50">{entry.location}</p>}
-          <ul className="mt-2 space-y-1 text-sm text-ink/70">
-            {entry.missions.map((mission) => (
-              <li key={mission}>{mission}</li>
-            ))}
-          </ul>
-          <div className="mt-3">
-            <Stack items={entry.stack} />
-          </div>
-        </li>
+        <ExperienceItem key={entry.id} entry={entry} />
       ))}
     </ol>
   );

@@ -6,7 +6,7 @@ import { useFrame, type ThreeEvent } from '@react-three/fiber';
 import { Group } from 'three';
 import { useWorld } from '@/lib/store';
 import { damp, smoothstep } from '@/lib/utils/math';
-import { Dock } from './Dock';
+import { Dock } from './docks';
 import { Silhouette } from './Silhouette';
 import { Terrain } from './Terrain';
 import { createHeightSampler, terrainFeatures, type HeightSampler, type TerrainShape } from './terrain-shape';
