@@ -252,8 +252,9 @@ export function Flotsam() {
   useFrame((state, delta) => {
     const dt = Math.min(delta, 1 / 30);
     const time = state.clock.elapsedTime;
-    const { phase, introRadius } = useWorld.getState();
-    const visible = phase === 'playing' || phase === 'docked' || (phase === 'transitioning' && introRadius > 30);
+    // Absents de la cinématique d'intro : la chute du bateau reste le seul sujet.
+    const { phase } = useWorld.getState();
+    const visible = phase === 'playing' || phase === 'docked';
     for (const mesh of [balls.current, buoys.current, buoyTops.current, lamps.current, crates.current]) {
       if (mesh) mesh.visible = visible;
     }

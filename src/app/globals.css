@@ -487,6 +487,8 @@ body.is-quick-view {
   pointer-events: auto;
 }
 .stamp-toast.is-star { padding-left: 1rem; }
+.stamp-toast.is-welcome { padding: 0.9rem 1.4rem 0.95rem 1.1rem; border-radius: 22px; max-width: min(92vw, 30rem); }
+.stamp-toast.is-welcome strong { font-size: 1.35rem; line-height: 1.1; }
 .stamp-toast__star { color: #e0a321; font-size: 2rem; line-height: 1; text-shadow: 0 0 18px rgba(255, 196, 80, 0.8); animation: stamp-hit 0.5s cubic-bezier(0.2, 1.4, 0.4, 1) 0.1s backwards; }
 @keyframes toast-in { from { opacity: 0; transform: translate(-50%, 18px); } to { opacity: 1; transform: translate(-50%, 0); } }
 @keyframes stamp-hit {

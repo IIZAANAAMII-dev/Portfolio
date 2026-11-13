@@ -159,3 +159,62 @@ export function StampToast() {
   }
   return null;
 }
+
+/**
+ * Mot d'accueil : quelques secondes après le dévoilement, une seule fois par visite et
+ * seulement pour un carnet presque vide, il présente le jeu du carnet de bord.
+ */
+export function WelcomeHint() {
+  const phase = useWorld((state) => state.phase);
+  const stamps = useLogbook((state) => state.stamps);
+  const setOpen = useLogbook((state) => state.setOpen);
+  const [shown, setShown] = useState(false);
+  const [gone, setGone] = useState(false);
+
+  useEffect(() => {
+    if (phase !== 'playing' || shown) return;
+    let seen = false;
+    try {
+      seen = window.sessionStorage.getItem('kyliann-welcome') === '1';
+    } catch {
+      seen = false;
+    }
+    if (seen || useLogbook.getState().stamps.length > 2) return;
+    const show = window.setTimeout(() => {
+      setShown(true);
+      try {
+        window.sessionStorage.setItem('kyliann-welcome', '1');
+      } catch {
+        // Sans stockage, le mot reviendra à la prochaine visite : sans gravité.
+      }
+    }, 2600);
+    return () => window.clearTimeout(show);
+  }, [phase, shown]);
+
+  useEffect(() => {
+    if (!shown) return;
+    const hide = window.setTimeout(() => setGone(true), 9000);
+    return () => window.clearTimeout(hide);
+  }, [shown]);
+
+  if (!shown || gone || stamps.length > 3) return null;
+  return (
+    <div className="stamp-toast is-welcome" role="status">
+      <span className="stamp-toast__star" aria-hidden="true">✦</span>
+      <div className="stamp-toast__text">
+        <span className="intro-eyebrow">Ton carnet de bord t’attend</span>
+        <strong>{STAMPS.length} tampons, {STAR_COUNT} étoiles d’or et la carte de ton voyage</strong>
+        <button
+          type="button"
+          className="stamp-toast__cta"
+          onClick={() => {
+            setGone(true);
+            setOpen(true);
+          }}
+        >
+          Ouvrir le carnet
+        </button>
+      </div>
+    </div>
+  );
+}
