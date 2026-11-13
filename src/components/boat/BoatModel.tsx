@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
-import { Box3, Group, Vector3, type Mesh, type MeshStandardMaterial, type Object3D } from 'three';
+import { Box3, Group, MeshBasicMaterial, Vector3, type Mesh, type MeshStandardMaterial, type Object3D } from 'three';
 import { AssetBoundary } from '@/components/world/AssetBoundary';
 import { MODEL, useModelScene } from '@/lib/models';
 import { bindSubstanceRoot } from '@/lib/materials/substance-material';
@@ -40,6 +40,16 @@ function isMesh(object: Object3D): object is Mesh {
   return (object as Mesh).isMesh === true;
 }
 
+/**
+ * Le pont arrière n'est qu'à une trentaine de centimètres au-dessus de la flottaison : les
+ * vagues traverseraient la coque. Un masque invisible (profondeur seule), dessiné après les
+ * objets opaques mais avant l'océan, empêche l'eau d'apparaître à l'intérieur du bateau.
+ */
+const WATER_MASK = new MeshBasicMaterial({ colorWrite: false, depthWrite: true, transparent: true });
+WATER_MASK.name = 'boat-water-mask';
+/** Hauteur du masque au-dessus du pont (mètres, repère du fichier) : sous le plat-bord. */
+const MASK_LIFT = 0.45;
+
 function FishingBoat() {
   const model = useSubstanceModel('fishing-boat');
   const chimney = useSubstanceModel('chimney-straight');
@@ -49,14 +59,16 @@ function FishingBoat() {
   const steer = useRef(0);
 
   // Le gouvernail (un seul mesh avec l'hélice) pivote autour de sa mèche, à l'avant du safran.
-  const { rudder, pivot, hull } = useMemo(() => {
+  const { rudder, pivot, hull, deck } = useMemo(() => {
     let rudderMesh: Object3D | null = null;
     let hullMaterial: MeshStandardMaterial | null = null;
+    let deckMesh: Mesh | null = null;
     model.traverse((child) => {
       if (child.name === 'direction_propellor_mesh') rudderMesh = child;
       if (isMesh(child)) {
         const material = child.material as MeshStandardMaterial;
         if (material.userData.substance?.options?.band) hullMaterial = material;
+        if (child.name.startsWith('floor')) deckMesh = child;
       }
     });
     let pivotPoint = new Vector3();
@@ -65,7 +77,12 @@ function FishingBoat() {
       const box = new Box3().setFromObject(rudderMesh);
       pivotPoint = new Vector3((box.min.x + box.max.x) / 2, 0, box.max.z - 0.12);
     }
-    return { rudder: rudderMesh as Object3D | null, pivot: pivotPoint, hull: hullMaterial as MeshStandardMaterial | null };
+    return {
+      rudder: rudderMesh as Object3D | null,
+      pivot: pivotPoint,
+      hull: hullMaterial as MeshStandardMaterial | null,
+      deck: deckMesh as Mesh | null,
+    };
   }, [model]);
 
   useEffect(() => {
@@ -108,6 +125,17 @@ function FishingBoat() {
   return (
     <group rotation-y={FORWARD_FIX} scale={BOAT_SCALE} position-y={-WATERLINE * BOAT_SCALE}>
       <primitive object={model} />
+      {deck && (
+        <group position-y={MASK_LIFT}>
+          <mesh
+            geometry={deck.geometry}
+            material={WATER_MASK}
+            matrix={deck.matrix}
+            matrixAutoUpdate={false}
+            renderOrder={1}
+          />
+        </group>
+      )}
       <group ref={rudderPivot} position={[pivot.x, 0, pivot.z]} />
       <primitive object={chimney} position={CHIMNEY_POSITION} scale={CHIMNEY_SCALE} />
     </group>

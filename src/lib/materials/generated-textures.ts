@@ -106,12 +106,12 @@ export const SUBSTANCE_TEXTURES: Partial<Record<SubstanceId, SubstanceTextureSet
     "version": "1c3ec753"
   },
   "ocean_spray_swept_wood_planks": {
-    "size": 512,
+    "size": 1024,
     "basecolor": true,
     "normal": true,
     "orm": true,
     "alpha": false,
-    "version": "6dbaaa88"
+    "version": "73b6068b"
   },
   "wild_grass": {
     "size": 512,

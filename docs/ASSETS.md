@@ -107,3 +107,54 @@ n'a besoin de savoir comment le fichier a été exporté.
 Pour un modèle multi-mesh (le bateau et ses voiles), utiliser `useModelScene` et cloner
 la scène ; pour un modèle mono-mesh, `useModelPart` renvoie géométrie et matériau, ce
 qui permet de l'instancier.
+
+## Collection Adobe Substance 3D Assets — « Bell Island »
+
+Modèles et matériaux téléchargés depuis [Substance 3D Assets](https://substance3d.adobe.com/assets)
+(licence Adobe Substance 3D Assets : utilisation dans le site autorisée, **redistribution des
+fichiers bruts interdite** — le dépôt doit rester privé pour versionner `assets-src/` et
+`public/models/bell-island/`).
+
+### Chaîne de production
+
+| Étape | Commande | Entrée → sortie |
+| ----- | -------- | --------------- |
+| Modèles | `npm run assets:models` | `assets-src/substance/models/*.fbx\|glb` → `public/models/bell-island/*.glb` (meshopt) |
+| Import des exports | `npm run assets:import -- <dossier>` | exports Sampler / `sbsrender` → `assets-src/substance/textures/<id>/` |
+| Textures | `npm run assets:textures` | exports (prioritaires) ou générateur procédural → `public/textures/substance/<id>/*.webp` |
+
+Les cartes branchées dans le moteur : **Base Color** (+ Opacity en alpha), **Normal** (OpenGL,
+une carte DirectX est détectée grâce à la hauteur et retournée), **Ambient Occlusion /
+Roughness / Metallic** regroupées en une texture ORM. L'échelle du grain vient de la taille
+physique du `.sbsar` et de la densité UV mesurée sur chaque modèle.
+
+### Surface → asset Adobe
+
+Les correspondances vivent dans `src/lib/materials/model-materials.ts` (modèles) et
+`src/data/islands.ts` (relief).
+
+| Surface | Asset Substance 3D |
+| ------- | ------------------ |
+| Bateau — coque (peinte rouge, liseré, carène) | Stylized Ocean Spray Swept Wood |
+| Bateau — pont | Stylized Ocean Spray Swept Wood Planks |
+| Bateau — timonerie (blanchie) | Stylized Wood Barrier |
+| Bateau — panneau de cale, intérieur | Stylized Wood Beam |
+| Bateau — rambardes, mât, supports | Stylized Iron Steam Pipe |
+| Bateau — cordages | Stylized Driftwood (recoloré) |
+| Bateau — cheminée | Stylized Straight Pipe Chimney + Stylized Iron Steam Pipe |
+| Falaises — À propos, Projets, îlot de départ | Stylized Island Cliff |
+| Falaises — Compétences, Contact | Stylized Blocky Stone Cliff |
+| Falaises — Expériences, Parcours | Stylized Mossy Island Cliff |
+| Plateaux | Stylized Wild Grass / Stylized Earth And Grass |
+| Plages | Stylized Fine Sand Beach |
+| Rochers de rivage | Stylized Small Rocks Set + Stylized Barnacle Covered Rock |
+| Gros rochers | Stylized Edged Rocks Set + Stylized Island Cliff |
+| Pontons | Stylized Old Sea Dock + Stylized Ocean Spray Swept Wood Planks |
+| Maison (À propos) | Stylized Bell Island House Mound + Earth And Grass, Mossy Brick Wall, Blocky Stone Cliff, Wood Barrier, Wood Flooring |
+| Clocher (Contact) | Stylized Bell Tower + Iron Steam Pipe, Wood Beam, Wood Barrier, Wood Flooring |
+| Cymbale, kiosque, terrasses, escalier, clôtures, drapeaux | Stylized Standing Cymbal, Wood Kiosk, Large Wood Porch, Bifurcated Wood Staircase, Regular Fence Set, Multi / Rectangle Flags Pole + bois et fonte ci-dessus |
+| Fleurs, étoiles de mer | Stylized Flower Clump, Stylized Sea Starfish |
+
+Matériaux encore absents de la collection (remplacés par une recoloration ou une peinture
+unie) : un vrai **cordage**, un **bois peint** pour la coque et la timonerie, un **tissu**
+pour les drapeaux et le kiosque.

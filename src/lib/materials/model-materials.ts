@@ -74,6 +74,7 @@ const lamp: SlotSpec = { paint: '#ffe2ad', emissive: '#ffc773', emissiveIntensit
 
 export const MODEL_MATERIALS: Record<SubstanceModelName, Record<string, SlotSpec>> = {
   'fishing-boat': {
+    // Coque : bois battu par les embruns, peint (rouge, liseré, carène) en conservant son grain.
     boat_body: {
       substance: 'ocean_spray_swept_wood',
       options: {
@@ -83,7 +84,8 @@ export const MODEL_MATERIALS: Record<SubstanceModelName, Record<string, SlotSpec
         stripe: { color: PAINT.waterline, at: 0.68, width: 0.07 },
       },
     },
-    floor: { substance: 'wood_flooring', options: { normalStrength: 0.8 } },
+    // Pont : bois marin patiné par les embruns, sans peinture.
+    floor: { substance: 'ocean_spray_swept_wood_planks', options: { normalStrength: 0.9 } },
     cabin: { substance: 'wood_barrier', options: { recolor: PAINT.cabin, recolorAmount: 0.88 } },
     bunker: { substance: 'wood_beam' },
     cabin_interior: { substance: 'wood_beam', options: { tint: '#8a7464' } },

@@ -41,7 +41,7 @@ const GENERATORS = { wood, stone, grass, sand, plaster, iron };
 const RECIPES = {
   ocean_spray_swept_wood: { generator: 'wood', out: 1024, options: { rows: 7, splits: 1, lines: 4, weathering: 0.45, cracks: 0.45, secondary: { color: '#6b4a2e', chance: 0.35, amount: 0.3 }, seed: 6 } },
   wood_flooring: { generator: 'wood', out: 1024, options: { rows: 5, splits: 2, lines: 4, carve: 0.1, knots: 3, secondary: { color: '#4e6d6e', chance: 0.3, amount: 0.4 }, seed: 2 } },
-  ocean_spray_swept_wood_planks: { generator: 'wood', out: 512, options: { rows: 6, splits: 2, lines: 5, weathering: 0.6, cracks: 0.55, seed: 4 } },
+  ocean_spray_swept_wood_planks: { generator: 'wood', out: 1024, options: { rows: 6, splits: 2, lines: 5, weathering: 0.6, cracks: 0.55, seed: 4 } },
   wood_barrier: { generator: 'wood', out: 512, options: { rows: 4, splits: 2, lines: 3, carve: 0.14, knots: 4, seed: 8 } },
   wood_beam: { generator: 'wood', out: 512, options: { seams: false, rows: 2, lines: 7, carve: 0.12, knots: 2, seed: 10 } },
   driftwood: { generator: 'wood', out: 512, options: { seams: false, rows: 3, lines: 6, carve: 0.16, cracks: 0.8, weathering: 0.8, seed: 12 } },
@@ -101,6 +101,25 @@ async function fromExport(id, files, size) {
   const normal = files.normal
     ? await sharp(files.normal).resize(size, size, { fit: 'fill' }).removeAlpha().raw().toBuffer()
     : null;
+  // Substance exporte en DirectX par défaut (vert inversé) : la carte de hauteur permet de
+  // le détecter. En OpenGL, le vert suit l'opposé de la pente verticale de la hauteur.
+  let convention = 'OpenGL (supposé)';
+  if (normal && files.height) {
+    const height = await grey(files.height, size);
+    let correlation = 0;
+    for (let y = 1; y < size - 1; y++) {
+      for (let x = 0; x < size; x++) {
+        const slope = height[(y - 1) * size + x] - height[(y + 1) * size + x];
+        correlation += (normal[(y * size + x) * 3 + 1] - 128) * -slope;
+      }
+    }
+    if (correlation < 0) {
+      for (let i = 0; i < size * size; i++) normal[i * 3 + 1] = 255 - normal[i * 3 + 1];
+      convention = 'DirectX → retourné';
+    } else {
+      convention = 'OpenGL';
+    }
+  }
   const [ao, rough, metal] = await Promise.all([grey(files.ao, size), grey(files.roughness, size), grey(files.metallic, size)]);
   const orm = Buffer.alloc(size * size * 3);
   for (let i = 0; i < size * size; i++) {
@@ -108,7 +127,7 @@ async function fromExport(id, files, size) {
     orm[i * 3 + 1] = rough ? rough[i] : Math.round(CATALOGUE[id].roughness * 255);
     orm[i * 3 + 2] = metal ? metal[i] : 0;
   }
-  return { rgba, alpha: Boolean(opacity), normal, orm, source: 'export' };
+  return { rgba, alpha: Boolean(opacity), normal, orm, source: `export Substance, normales ${convention}` };
 }
 
 /* ------------------------------------------------------------------------------------ */
@@ -158,6 +177,7 @@ async function writeWebp(file, buffer, size, channels, quality) {
 async function bake(id, recipe) {
   const size = recipe.out;
   const exported = findExport(id);
+  if (!exported && !recipe.generator) throw new Error(`${id} : ni export Substance ni recette procédurale`);
   const maps = exported ? await fromExport(id, exported, size) : await generate(id, recipe);
   const dir = path.join(OUT, id);
   mkdirSync(dir, { recursive: true });
@@ -215,18 +235,19 @@ export const SUBSTANCE_TEXTURES: Partial<Record<SubstanceId, SubstanceTextureSet
 
 async function main() {
   const only = process.argv.slice(2);
-  const ids = Object.keys(RECIPES).filter((id) => only.length === 0 || only.includes(id));
+  const exported = existsSync(EXPORTS) ? readdirSync(EXPORTS).filter((id) => id in CATALOGUE) : [];
+  const ids = [...new Set([...Object.keys(RECIPES), ...exported])].filter((id) => only.length === 0 || only.includes(id));
   const manifest = readManifest();
   let total = 0;
   for (const id of ids) {
     const started = Date.now();
-    const entry = await bake(id, RECIPES[id]);
+    const entry = await bake(id, RECIPES[id] ?? { generator: null, out: 512, options: {} });
     const { source, ...rest } = entry;
     manifest[id] = rest;
     const dir = path.join(OUT, id);
     const kb = readdirSync(dir).reduce((sum, file) => sum + readFileSync(path.join(dir, file)).length, 0) / 1024;
     total += kb;
-    console.log(`${id.padEnd(32)} ${source.padEnd(11)} ${entry.size}px  ${kb.toFixed(0).padStart(5)} Ko  ${((Date.now() - started) / 1000).toFixed(1)} s`);
+    console.log(`${id.padEnd(32)} ${entry.size}px  ${kb.toFixed(0).padStart(5)} Ko  ${((Date.now() - started) / 1000).toFixed(1)} s  ${source}`);
   }
   writeManifest(manifest);
   console.log(`\n${ids.length} matériaux, ${total.toFixed(0)} Ko.`);

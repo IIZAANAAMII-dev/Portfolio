@@ -50,7 +50,8 @@ export function HomeIsland() {
     <group ref={group} position={[homeIsland.position[0], 0, homeIsland.position[1]]} scale={1}>
       <Terrain shape={shape} sampler={sampler} cliff={homeIsland.terrain.cliff} top={homeIsland.terrain.top} />
       <AssetBoundary blocking>
-        <Dock angle={dockAngle} reach={radius} />
+        {/* Au départ, le bateau est amarré de flanc (rayon + 5,8 m) : le ponton s'arrête contre sa coque. */}
+        <Dock angle={dockAngle} reach={radius} end={radius + 4.35} />
         <SubstanceProp
           name="kiosk"
           position={[kioskX, groundAt(sampler, kioskX, kioskZ, 1.1) - 0.05, kioskZ]}
@@ -101,7 +102,7 @@ export function HomeIsland() {
 
       {/* Petite lanterne au bout du ponton : c'est elle qui accroche l'œil dans le noir. */}
       <group rotation-y={-dockAngle}>
-        <group position={[radius + 4.9, 0.78, 0.62]}>
+        <group position={[radius + 4.05, 0.78, 0.62]}>
           <mesh castShadow position={[0, 0.7, 0]}>
             <cylinderGeometry args={[0.05, 0.06, 1.4, 6]} />
             <meshStandardMaterial color="#4a3b2c" roughness={1} />

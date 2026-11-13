@@ -34,15 +34,17 @@ const DECK_TOP = 0.81;
 const DECK_HEIGHT = 0.78;
 
 /**
- * Ponton : segments du vieux ponton Bell Island alignés de la plage jusqu'au point
- * d'accostage (rayon + 4,5 m, voir dockPosition). Le groupe est tourné pour que le ponton
- * parte dans la direction `angle`, dans la même convention que le cap du bateau.
+ * Ponton : segments du vieux ponton Bell Island, de la plage jusqu'à `end`. Le bateau
+ * accoste proue vers l'île (son centre à rayon + 4,5 m, voir dockPosition) : par défaut
+ * le ponton s'arrête juste devant sa proue. Le groupe est tourné pour que le ponton parte
+ * dans la direction `angle`, dans la même convention que le cap du bateau.
  */
-export function Dock({ angle, reach }: { angle: number; reach: number }) {
+export function Dock({ angle, reach, end = reach + 0.9 }: { angle: number; reach: number; end?: number }) {
   const start = reach * 0.74;
-  const end = reach + 5.6;
-  const count = Math.ceil((end - start) / SEGMENT);
-  const segments = Array.from({ length: count }, (_, index) => start + SEGMENT * (index + 0.5));
+  const count = Math.max(1, Math.ceil((end - start) / SEGMENT));
+  // Posés depuis l'extrémité : le dernier segment finit exactement en `end`, le premier
+  // s'enfonce sous la plage si besoin.
+  const segments = Array.from({ length: count }, (_, index) => end - SEGMENT * (index + 0.5));
 
   return (
     <group rotation-y={-angle}>

@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "eslint",
     "assets:models": "node scripts/assets/build-models.mjs",
-    "assets:textures": "node scripts/assets/bake-textures.mjs"
+    "assets:textures": "node scripts/assets/bake-textures.mjs",
+    "assets:import": "node scripts/assets/import-textures.mjs"
   },
   "dependencies": {
     "@react-three/drei": "^10.7.8",
