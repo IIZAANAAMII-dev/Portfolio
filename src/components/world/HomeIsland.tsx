@@ -5,6 +5,9 @@ import { useFrame } from '@react-three/fiber';
 import { Group } from 'three';
 import { Dock } from '@/components/islands/Dock';
 import { SubstanceProp, SubstanceScatter } from '@/components/islands/bell-island';
+import { CLEARING_ROOT, ClearingContext, ClearingStore } from '@/components/islands/clearings';
+import { Grass } from '@/components/islands/Grass';
+import { Trees } from '@/components/islands/Trees';
 import { Terrain } from '@/components/islands/Terrain';
 import { createHeightSampler, groundAt, terrainFeatures, type TerrainShape } from '@/components/islands/terrain-shape';
 import { AssetBoundary } from '@/components/world/AssetBoundary';
@@ -24,6 +27,7 @@ export function HomeIsland() {
   const shape = useMemo<TerrainShape>(() => ({ radius, elevation, seed: 1 }), [radius, elevation]);
   const sampler = useMemo(() => createHeightSampler(shape), [shape]);
   const features = useMemo(() => terrainFeatures(shape), [shape]);
+  const clearings = useMemo(() => new ClearingStore(), []);
 
   // Le kiosque du port attend le visiteur à la racine du ponton.
   const kioskAngle = dockAngle + 0.62;
@@ -35,10 +39,12 @@ export function HomeIsland() {
 
   useFrame((_, delta) => {
     if (!group.current) return;
-    const { introRadius } = useWorld.getState();
-    // L'îlot de départ est visible dès le départ dans le cercle d'intro.
-    const target = smoothstep(0.0, 1.0, introRadius);
-    const scale = damp(group.current.scale.x, target, 6, Math.min(delta, 1 / 30));
+    const { introCenter, introRadius } = useWorld.getState();
+    // L'îlot de départ surgit au passage de l'onde, juste après l'éclaboussure.
+    const d = Math.hypot(homeIsland.position[0] - introCenter[0], homeIsland.position[1] - introCenter[1]);
+    const raw = smoothstep(d - 4.5, d, introRadius);
+    const target = raw * (1 + 0.09 * Math.sin(raw * Math.PI) * (1 - raw));
+    const scale = damp(group.current.scale.x, target, 7.5, Math.min(delta, 1 / 30));
     group.current.scale.setScalar(scale);
     group.current.visible = scale > 0.006;
   });
@@ -46,8 +52,17 @@ export function HomeIsland() {
   const avoid = { avoidAngle: dockAngle, avoidWidth: 0.55 };
 
   return (
-    <group ref={group} position={[homeIsland.position[0], 0, homeIsland.position[1]]} scale={1}>
+    <group
+      ref={group}
+      position={[homeIsland.position[0], 0, homeIsland.position[1]]}
+      scale={0}
+      visible={false}
+      userData={CLEARING_ROOT}
+    >
+      <ClearingContext.Provider value={clearings}>
       <Terrain shape={shape} sampler={sampler} cliff={homeIsland.terrain.cliff} top={homeIsland.terrain.top} />
+      <Grass sampler={sampler} radius={radius} plateau={features.plateau} avoidAngle={dockAngle} seed={3} />
+      <Trees sampler={sampler} radius={radius} plateau={features.plateau} avoidAngle={dockAngle} seed={5} flame="#e2553f" count={2} />
       <AssetBoundary blocking>
         {/* Au départ, le bateau est amarré de flanc (rayon + 5,8 m) : le ponton s'arrête contre sa coque. */}
         <Dock angle={dockAngle} reach={radius} end={radius + 4.35} />
@@ -113,6 +128,7 @@ export function HomeIsland() {
           )}
         </group>
       </group>
+      </ClearingContext.Provider>
     </group>
   );
 }

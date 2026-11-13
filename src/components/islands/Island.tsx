@@ -10,9 +10,15 @@ import { Dock } from './Dock';
 import { Silhouette } from './Silhouette';
 import { Terrain } from './Terrain';
 import { createHeightSampler, terrainFeatures, type HeightSampler, type TerrainShape } from './terrain-shape';
+import { CLEARING_ROOT, ClearingContext, ClearingStore } from './clearings';
+import { Grass } from './Grass';
+import { Trees } from './Trees';
 import { NightLights } from './NightLights';
 import { IslandLife } from './IslandLife';
 import type { IslandConfig } from '@/types';
+
+/** Couleur des flamboyants, une par île : corail, mandarine, rose, vermillon, ambre, fuchsia. */
+const FLAMES = ['#e2553f', '#ec7f3a', '#e8668c', '#d9483f', '#efa23c', '#d2609e'];
 
 function DeferredDecor({
   island,
@@ -54,6 +60,8 @@ export function Island({ island, index }: { island: IslandConfig; index: number 
     [index, island.elevation, island.radius],
   );
   const sampler = useMemo(() => createHeightSampler(shape), [shape]);
+  const features = useMemo(() => terrainFeatures(shape), [shape]);
+  const clearings = useMemo(() => new ClearingStore(), []);
 
   // Les îles n'apparaissent pas toutes en même temps pendant la révélation :
   // elles émergent une à une (voir useWorldReveal).
@@ -95,15 +103,28 @@ export function Island({ island, index }: { island: IslandConfig; index: number 
       ref={group}
       position={[island.position[0], 0, island.position[1]]}
       scale={0}
+      userData={CLEARING_ROOT}
       onClick={onClick}
       onPointerOver={onOver}
       onPointerOut={onOut}
     >
-      <Terrain shape={shape} sampler={sampler} cliff={island.terrain.cliff} top={island.terrain.top} />
-      <DeferredDecor island={island} index={index} sampler={sampler} shape={shape} />
-      <Dock angle={island.dockAngle} reach={island.radius} />
-      <NightLights island={island} />
-      <IslandLife island={island} index={index} />
+      <ClearingContext.Provider value={clearings}>
+        <Terrain shape={shape} sampler={sampler} cliff={island.terrain.cliff} top={island.terrain.top} />
+        <Grass sampler={sampler} radius={island.radius} plateau={features.plateau} avoidAngle={island.dockAngle} seed={index * 41 + 7} />
+        <Trees
+          sampler={sampler}
+          radius={island.radius}
+          plateau={features.plateau}
+          avoidAngle={island.dockAngle}
+          seed={index * 29 + 11}
+          flame={FLAMES[index % FLAMES.length]}
+          count={2 + Math.round(island.radius / 5)}
+        />
+        <DeferredDecor island={island} index={index} sampler={sampler} shape={shape} />
+        <Dock angle={island.dockAngle} reach={island.radius} />
+        <NightLights island={island} />
+        <IslandLife island={island} index={index} />
+      </ClearingContext.Provider>
 
       {/* Volume de sélection : garantit une cible cliquable généreuse et stable. */}
       <mesh position={[0, island.elevation * 0.5, 0]} visible={false}>

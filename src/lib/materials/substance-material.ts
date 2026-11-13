@@ -7,6 +7,7 @@ import {
   NoColorSpace,
   RepeatWrapping,
   SRGBColorSpace,
+  ShaderChunk,
   Texture,
   TextureLoader,
   Vector4,
@@ -79,6 +80,21 @@ export interface SubstanceOptions {
   emissiveIntensity?: number;
 }
 
+/**
+ * Direction artistique « jouet peint » : les cartes Substance gardent leurs grandes
+ * variations (planches, galets, touffes) mais leur grain fin est adouci, et leur relief
+ * réduit. Sous la rampe cel-shading, une surface propre se lit mieux qu'un bruit fin.
+ *
+ * `detail` : part du grain fin conservée (0 = surfaces lissées, 1 = carte brute).
+ * `blur` : biais de mip (en niveaux) de la version adoucie ; relatif au mip choisi par le
+ * GPU, il reste anticrénelé de loin. `relief` : facteur global sur les normal maps.
+ */
+export const SUBSTANCE_STYLE = { detail: 0.42, blur: 3.2, relief: 0.62 };
+const styleUniforms = {
+  uSubDetail: { value: SUBSTANCE_STYLE.detail },
+  uSubBlur: { value: SUBSTANCE_STYLE.blur },
+};
+
 const NOISE_FREQUENCY: Record<SubstanceKind, number> = {
   wood: 2.4,
   rock: 0.9,
@@ -138,6 +154,8 @@ uniform float uSubScale;
 uniform float uSubNoise;
 uniform float uSubNormalScale;
 uniform float uSubAo;
+uniform float uSubDetail;
+uniform float uSubBlur;
 #ifdef TRI_MAP
   uniform sampler2D uTriMap;
 #endif
@@ -208,6 +226,16 @@ vec4 subTri( sampler2D tex, vec3 p, vec3 w ) {
   return texture2D( tex, p.zy ) * w.x + texture2D( tex, p.xz ) * w.y + texture2D( tex, p.xy ) * w.z;
 }
 
+// Couleur « peinte » : la carte floutée (biais de mip) porte les grandes masses, une part
+// seulement du grain fin est conservée.
+vec4 subSoft( sampler2D tex, vec2 uv ) {
+  return mix( texture2D( tex, uv, uSubBlur ), texture2D( tex, uv ), uSubDetail );
+}
+
+vec4 subTriSoft( sampler2D tex, vec3 p, vec3 w ) {
+  return subSoft( tex, p.zy ) * w.x + subSoft( tex, p.xz ) * w.y + subSoft( tex, p.xy ) * w.z;
+}
+
 vec3 subPalette( vec3 shade, vec3 base, vec3 light, float n ) {
   return n < 0.5
     ? mix( shade, base, smoothstep( 0.0, 0.5, n ) )
@@ -221,9 +249,9 @@ vec3 subW = subWeights( subN );
 vec3 subP = vSubPos * uSubScale;
 float subVar = subFbm( vSubPos * uSubNoise );
 #ifdef TRI_MAP
-  diffuseColor *= subTri( uTriMap, subP, subW );
+  diffuseColor *= subTriSoft( uTriMap, subP, subW );
 #elif defined( USE_MAP )
-  #include <map_fragment>
+  diffuseColor *= subSoft( map, vMapUv );
 #else
   float subTone = clamp( subVar * 1.25 - 0.12, 0.0, 1.0 );
   #ifdef SUB_KIND_WOOD
@@ -247,7 +275,7 @@ float subFlat = 0.0;
     subN.y + ( subVar - 0.5 ) * 0.45
   ) * uTopParams.z;
   #ifdef TOP_MAP
-    vec3 subTopColor = texture2D( uTopMap, vSubPos.xz * uTopParams.w ).rgb;
+    vec3 subTopColor = subSoft( uTopMap, vSubPos.xz * uTopParams.w ).rgb;
   #else
     vec3 subTopColor = subPalette( uTopShade, uTopBase, uTopLight, subFbm( vSubPos * uSubNoise * 1.6 + 11.0 ) );
   #endif
@@ -261,7 +289,7 @@ float subFlat = 0.0;
     vSubPos.y + ( subVar - 0.5 ) * 0.35
   ) ) * uLowParams.z;
   #ifdef LOW_MAP
-    vec3 subLowColor = texture2D( uLowMap, vSubPos.xz * uLowParams.w ).rgb;
+    vec3 subLowColor = subSoft( uLowMap, vSubPos.xz * uLowParams.w ).rgb;
   #else
     vec3 subLowColor = subPalette( uLowShade, uLowBase, uLowLight, subFbm( vSubPos * uSubNoise * 2.1 + 23.0 ) );
   #endif
@@ -305,13 +333,19 @@ const FRAGMENT_METALNESS = /* glsl */ `
 #endif
 `;
 
+/** Chunk three.js des normal maps UV, avec le même biais de mip que les couleurs. */
+const SOFT_NORMAL_MAPS = ShaderChunk.normal_fragment_maps.replaceAll(
+  'texture2D( normalMap, vNormalMapUv )',
+  'texture2D( normalMap, vNormalMapUv, uSubBlur * 0.5 )',
+);
+
 const FRAGMENT_NORMAL = /* glsl */ `
 #ifdef TRI_NORMAL
   // Mélange « whiteout » (B. Golus) des trois normales tangentes, réorientées en espace
   // de projection, puis ramenées en espace vue pour l'éclairage.
-  vec3 subTnX = texture2D( uTriNormal, subP.zy ).xyz * 2.0 - 1.0;
-  vec3 subTnY = texture2D( uTriNormal, subP.xz ).xyz * 2.0 - 1.0;
-  vec3 subTnZ = texture2D( uTriNormal, subP.xy ).xyz * 2.0 - 1.0;
+  vec3 subTnX = texture2D( uTriNormal, subP.zy, uSubBlur * 0.5 ).xyz * 2.0 - 1.0;
+  vec3 subTnY = texture2D( uTriNormal, subP.xz, uSubBlur * 0.5 ).xyz * 2.0 - 1.0;
+  vec3 subTnZ = texture2D( uTriNormal, subP.xy, uSubBlur * 0.5 ).xyz * 2.0 - 1.0;
   float subRelief = uSubNormalScale * ( 1.0 - subFlat * 0.8 );
   subTnX.xy *= subRelief;
   subTnY.xy *= subRelief;
@@ -329,7 +363,7 @@ const FRAGMENT_NORMAL = /* glsl */ `
     normal *= faceDirection;
   #endif
 #else
-  #include <normal_fragment_maps>
+  ${SOFT_NORMAL_MAPS}
 #endif
 `;
 
@@ -502,7 +536,7 @@ export function createSubstanceMaterial(id: SubstanceId, options: SubstanceOptio
     uSubLight: { value: new Color(definition.light) },
     uSubScale: { value: 1 / tile },
     uSubNoise: { value: NOISE_FREQUENCY[definition.kind] / scale },
-    uSubNormalScale: { value: options.normalStrength ?? 1 },
+    uSubNormalScale: { value: (options.normalStrength ?? 1) * SUBSTANCE_STYLE.relief },
     uSubAo: { value: 1 },
     uTriMap: { value: null },
     uTriNormal: { value: null },
@@ -553,6 +587,7 @@ export function createSubstanceMaterial(id: SubstanceId, options: SubstanceOptio
     uStripeWidth: { value: options.stripe?.width ?? 0 },
     /** Inverse de la matrice monde de la racine du modèle (bandes peintes, voir bindSubstanceRoot). */
     uSubRoot: { value: new Matrix4() },
+    ...styleUniforms,
   };
 
   const defines: Record<string, string> = {};
@@ -571,7 +606,7 @@ export function createSubstanceMaterial(id: SubstanceId, options: SubstanceOptio
     Object.assign(shader.uniforms, uniforms);
     patch(shader);
   };
-  material.customProgramCacheKey = () => 'substance-v1';
+  material.customProgramCacheKey = () => 'substance-v2';
 
   track(attachTextures(material, id, options, projection, tile, uniforms));
   if (options.top) track(attachBlendTexture(material, options.top, uniforms.uTopMap, 'TOP_MAP'));
@@ -629,7 +664,7 @@ async function attachTextures(
     if (basecolor) material.map = repeated(basecolor, repeat, rotation);
     if (normal) {
       material.normalMap = repeated(normal, repeat, rotation);
-      const strength = options.normalStrength ?? 1;
+      const strength = (options.normalStrength ?? 1) * SUBSTANCE_STYLE.relief;
       material.normalScale.set(strength, strength);
     }
     if (orm) {

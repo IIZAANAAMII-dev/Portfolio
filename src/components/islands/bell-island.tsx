@@ -1,12 +1,13 @@
 'use client';
 
-import { useLayoutEffect, useMemo, useRef } from 'react';
-import { InstancedMesh, Object3D } from 'three';
+import { useContext, useLayoutEffect, useMemo, useRef } from 'react';
+import { Group, InstancedMesh, Object3D } from 'three';
 import type { SubstanceModelName } from '@/lib/materials/model-materials';
 import { QUALITY_LEVELS } from '@/lib/quality';
 import { useWorld } from '@/lib/store';
 import { useSubstanceModel, useSubstancePieces, type SubstancePiece } from '@/lib/substance-models';
 import { hash } from '@/lib/utils/math';
+import { ClearingContext, clearingFor } from './clearings';
 import type { HeightSampler } from './terrain-shape';
 
 /**
@@ -32,9 +33,19 @@ export function SubstanceProp({
   children?: React.ReactNode;
 }) {
   const model = useSubstanceModel(name);
-  if (!children) return <primitive object={model} position={position} rotation-y={rotation} scale={scale} />;
+  const holder = useRef<Group>(null);
+  const clearings = useContext(ClearingContext);
+  const [px, py, pz] = position;
+
+  // L'emprise du bâtiment devient une clairière : l'herbe de l'île n'y pousse pas.
+  useLayoutEffect(() => {
+    if (!clearings || !holder.current) return;
+    const clearing = clearingFor(holder.current, model);
+    return clearing ? clearings.add(clearing) : undefined;
+  }, [clearings, model, px, py, pz, rotation, scale]);
+
   return (
-    <group position={position} rotation-y={rotation} scale={scale}>
+    <group ref={holder} position={position} rotation-y={rotation} scale={scale}>
       <primitive object={model} />
       {children}
     </group>

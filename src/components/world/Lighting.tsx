@@ -11,15 +11,22 @@ import { QUALITY_LEVELS } from '@/lib/quality';
 import { useWorld } from '@/lib/store';
 import { damp, smoothstep } from '@/lib/utils/math';
 
-const DAY_SUN_COLOR = new Color('#fff0d8');
-const GOLDEN_SUN_COLOR = new Color('#ffb066');
+/*
+ * Étalonnage « jouet peint » : lumière directe chaude, lumière du ciel lavande (les ombres
+ * virent au violet au lieu de griser), rebond turquoise de la mer sous les objets. À
+ * l'heure dorée, le soleil passe au corail et le ciel au mauve.
+ */
+const DAY_SUN_COLOR = new Color('#ffe8c6');
+const GOLDEN_SUN_COLOR = new Color('#ff9466');
 const NIGHT_SUN_COLOR = new Color('#a8c8dd');
-const DAY_SKY_COLOR = new Color('#e1f2ff');
-const NIGHT_SKY_COLOR = new Color('#1f2f3d');
-const DAY_GROUND_COLOR = new Color('#3a4a52');
-const NIGHT_GROUND_COLOR = new Color('#1a2a32');
-const DAY_AMBIENT = new Color('#a0c4d4');
-const NIGHT_AMBIENT = new Color('#2a3a4a');
+const DAY_SKY_COLOR = new Color('#c9cfff');
+const GOLDEN_SKY_COLOR = new Color('#d3b1ec');
+const NIGHT_SKY_COLOR = new Color('#2a2f52');
+const DAY_GROUND_COLOR = new Color('#3f7276');
+const NIGHT_GROUND_COLOR = new Color('#1a2a3a');
+const DAY_AMBIENT = new Color('#a3a6e4');
+const GOLDEN_AMBIENT = new Color('#b59ad8');
+const NIGHT_AMBIENT = new Color('#2c3155');
 
 /**
  * Une seule lumière projette des ombres. Le reste est de l'éclairage d'ambiance :
@@ -67,7 +74,7 @@ export function Lighting({ shadows }: { shadows: boolean }) {
         .lerp(NIGHT_SUN_COLOR, dayNight);
       sun.current.intensity = damp(
         sun.current.intensity,
-        (0.2 + dayLight * 2.45 + stillIntro * 0.45) * (1 - dayNight * 0.75) * (1 - storm * 0.78),
+        (0.2 + dayLight * 2.3 + stillIntro * 0.45) * (1 - dayNight * 0.75) * (1 - storm * 0.78),
         1.6,
         dt,
       );
@@ -79,20 +86,20 @@ export function Lighting({ shadows }: { shadows: boolean }) {
       sun.current.target.updateMatrixWorld();
     }
     if (sky.current) {
-      sky.current.color.copy(DAY_SKY_COLOR).lerp(NIGHT_SKY_COLOR, dayNight);
+      sky.current.color.copy(DAY_SKY_COLOR).lerp(GOLDEN_SKY_COLOR, golden * 0.7).lerp(NIGHT_SKY_COLOR, dayNight);
       sky.current.groundColor.copy(DAY_GROUND_COLOR).lerp(NIGHT_GROUND_COLOR, dayNight);
       sky.current.intensity = damp(
         sky.current.intensity,
-        (0.18 + dayLight * 0.97 + stillIntro * 1.05) * (1 - dayNight * 0.5) * (1 - storm * 0.58),
+        (0.18 + dayLight * 1.22 + stillIntro * 1.05) * (1 - dayNight * 0.5) * (1 - storm * 0.58),
         1.6,
         dt,
       );
     }
     if (ambient.current) {
-      ambient.current.color.copy(DAY_AMBIENT).lerp(NIGHT_AMBIENT, dayNight);
+      ambient.current.color.copy(DAY_AMBIENT).lerp(GOLDEN_AMBIENT, golden * 0.6).lerp(NIGHT_AMBIENT, dayNight);
       ambient.current.intensity = damp(
         ambient.current.intensity,
-        (0.22 + dayLight * 0.22 + stillIntro * 1.15) * (1 - storm * 0.44),
+        (0.22 + dayLight * 0.3 + stillIntro * 1.15) * (1 - storm * 0.44),
         1.6,
         dt,
       );

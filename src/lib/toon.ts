@@ -30,6 +30,32 @@ const TOON_DIRECT_LIGHT = `float dotNL = saturate( dot( geometryNormal, directLi
 	toonRim = smoothstep( 0.7, 0.76, toonRim ) * smoothstep( 0.1, 0.3, dotNL );
 	reflectedLight.directDiffuse += directLight.color * BRDF_Lambert( material.diffuseContribution ) * toonRim * 0.22;`;
 
+/**
+ * Ombres colorées. Multiplier un vert par une lumière bleue ne donne qu'un vert-bleu : pour
+ * des ombres franchement violettes, la part non éclairée par le soleil voit sa teinte
+ * remplacée (luminance conservée) par un violet pervenche. Le rapport lumière directe /
+ * lumière d'ambiance ne dépend pas de l'albédo : le masque est le même pour toutes les
+ * matières. Les pools de lumière des lanternes, directes, restent chaudes.
+ */
+const SHADOW_TINT = /* glsl */ `
+#if defined( STANDARD )
+{
+  const vec3 toonLuma = vec3( 0.2126, 0.7152, 0.0722 );
+  // Violet pervenche (#8f7fd6) ramené à une luminance de 1 ; les ombres sont légèrement
+  // relevées (× 1,18) : contraste doux de dessin animé plutôt que noirs bouchés.
+  const vec3 toonShadowTint = vec3( 1.063, 0.82, 2.599 );
+  float toonDirectLum = dot( reflectedLight.directDiffuse, toonLuma );
+  float toonIndirectLum = dot( reflectedLight.indirectDiffuse, toonLuma );
+  float toonShade = 1.0 - smoothstep( 0.2, 0.9, toonDirectLum / max( toonIndirectLum, 1e-5 ) );
+  reflectedLight.indirectDiffuse = mix(
+    reflectedLight.indirectDiffuse,
+    toonIndirectLum * toonShadowTint * 1.18,
+    toonShade * 0.42
+  );
+}
+#endif
+`;
+
 let applied = false;
 
 export function applyToonShading() {
@@ -39,6 +65,8 @@ export function applyToonShading() {
     console.warn('[toon] chunk three.js inattendu : cel-shading non appliqué');
     return;
   }
-  (ShaderChunk as Record<string, string>).lights_physical_pars_fragment = source.replace(DIRECT_LIGHT, TOON_DIRECT_LIGHT);
+  const chunks = ShaderChunk as Record<string, string>;
+  chunks.lights_physical_pars_fragment = source.replace(DIRECT_LIGHT, TOON_DIRECT_LIGHT);
+  chunks.lights_fragment_end = `${ShaderChunk.lights_fragment_end}\n${SHADOW_TINT}`;
   applied = true;
 }
