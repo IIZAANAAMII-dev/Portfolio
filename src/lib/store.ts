@@ -4,6 +4,7 @@ import { create } from 'zustand';
 import { islandById } from '@/data/islands';
 import { boatState } from '@/lib/boat-state';
 import { INTRO_RADIUS_START, introGlowFromGameTransition, introRadiusFromGameTransition } from '@/lib/cinematic';
+import { logbook } from '@/lib/logbook';
 import { isNightTime } from '@/lib/sky';
 import type { IslandId, Vec2, WorldPhase } from '@/types';
 import type { QualityLevel } from '@/lib/quality';
@@ -124,6 +125,7 @@ export const useWorld = create<WorldState>((set, get) => ({
     const { destination } = get();
     if (!destination) return set({ freeTarget: null });
     set({ phase: 'docked', activeIsland: destination, destination: null });
+    logbook.stamp(`island:${destination}`);
   },
   close: () => set({ phase: 'playing', activeIsland: null }),
 

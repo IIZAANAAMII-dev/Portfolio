@@ -4,7 +4,7 @@ import { Suspense, useEffect, useRef, useState } from 'react';
 import dynamic from 'next/dynamic';
 import { useFrame, useThree } from '@react-three/fiber';
 import { Color } from 'three';
-import { EffectComposer, Bloom } from '@react-three/postprocessing';
+import { EffectComposer, Bloom, Vignette } from '@react-three/postprocessing';
 import { skyState } from '@/lib/sky';
 import { ecologyState } from '@/lib/ecology';
 import { Boat } from '@/components/boat/Boat';
@@ -15,6 +15,10 @@ import { Ocean } from '@/components/world/Ocean';
 import { HomeIsland } from '@/components/world/HomeIsland';
 import { Birds } from '@/components/world/Birds';
 import { WindTrails } from '@/components/world/WindTrails';
+import { Celebration } from '@/components/world/Celebration';
+import { Flotsam } from '@/components/world/Flotsam';
+import { GoldenStars } from '@/components/world/GoldenStars';
+import { SeaNotes } from '@/components/world/SeaNotes';
 import { BoundaryStorm } from '@/components/world/BoundaryStorm';
 import { NightGlow } from '@/components/world/NightGlow';
 import { substanceTexturesSettled } from '@/lib/materials/substance-material';
@@ -139,14 +143,20 @@ export function Scene({ mobile }: { mobile: boolean }) {
       <DeferredMarineLife mobile={mobile} />
       <Birds />
       <WindTrails />
+      <Flotsam />
+      <GoldenStars />
+      <SeaNotes />
+      <Celebration />
       {QUALITY_LEVELS[quality].bloom && (
-        <EffectComposer multisampling={0}>
+        // MSAA dans la chaîne d'effets (sinon les arêtes crénèlent) et léger vignettage cinéma.
+        <EffectComposer multisampling={4}>
           <Bloom
             mipmapBlur
             luminanceThreshold={0.9}
             luminanceSmoothing={0.35}
             intensity={0.38}
           />
+          <Vignette eskil={false} offset={0.3} darkness={0.38} />
         </EffectComposer>
       )}
     </>

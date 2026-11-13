@@ -179,12 +179,11 @@ void main() {
     edge = min(edge, length(delta) - radius);
   }
 
-  // Lagon resserré autour des îles : le large reste d'un bleu profond et franc.
-  float shallow = 1.0 - smoothstep(0.0, 17.0, max(edge, 0.0));
+  float shallow = 1.0 - smoothstep(0.0, 22.0, max(edge, 0.0));
   float depthTexture = valueNoise(vWorld.xz * 0.045) * 0.12;
   float lagoon = smoothstep(0.28, 0.94, shallow) * smoothstep(0.18, 0.72, depthTexture + 0.28);
   vec3 water = mix(uDeep, uShallow, clamp(shallow * 0.94 + depthTexture * shallow, 0.0, 1.0));
-  water = mix(water, uLagoon, lagoon * 0.6);
+  water = mix(water, uLagoon, lagoon * 0.72);
 
   vec3 viewDir = normalize(uCameraPos - vWorld);
   float fresnel = 1.0 - max(dot(normal, viewDir), 0.0);
@@ -209,7 +208,7 @@ void main() {
   float spec = pow(max(dot(normal, halfDir), 0.0), mix(54.0, 18.0, roughness));
   spec *= 1.0 - uStormColor * 0.78;
   water += vec3(1.0, 0.95, 0.84) * spec * mix(0.95, 0.45, roughness);
-  water *= 0.84 + lit * 0.3;
+  water *= 0.78 + lit * 0.52;
 
   float sparkleMask = hash21(floor(vWorld.xz * 2.8) + floor(uTime * 2.0));
   float sparkle = smoothstep(0.78, 0.98, spec) * smoothstep(0.91, 1.0, sparkleMask)
@@ -226,7 +225,7 @@ void main() {
   float foamBreakup = uQuality > 0.25
     ? smoothstep(0.30, 0.72, valueNoise(vWorld.xz * 0.62 + uTime * 0.025))
     : 0.62;
-  water = mix(water, uFoam * mix(1.0, 0.92, uDayNight), strokes * 0.46);
+  water = mix(water, uFoam * mix(1.0, 0.92, uDayNight), strokes * 0.62);
   // Assombrissement nocturne : l'eau devient très sombre, l'écume reste claire.
   water *= mix(vec3(1.0), vec3(0.18, 0.24, 0.32), uDayNight);
   // La couleur appréciée de l'océan reste intacte partout ailleurs. Dans le

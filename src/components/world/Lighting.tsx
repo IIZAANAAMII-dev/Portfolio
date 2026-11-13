@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef } from 'react';
+import { useEffect, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { AmbientLight, Color, DirectionalLight, HemisphereLight, PointLight } from 'three';
 import { skyState, updateSky } from '@/lib/sky';
@@ -40,6 +40,15 @@ export function Lighting({ shadows }: { shadows: boolean }) {
   const cycleTime = useRef(useWorld.getState().timeOfDay);
   const storeAccumulator = useRef(0);
   const quality = useWorld((state) => state.quality);
+  // Ombres nettes en haute qualité ; la carte est recréée quand la qualité change.
+  const shadowSize = quality === 'high' ? 2048 : 1024;
+  useEffect(() => {
+    const light = sun.current;
+    if (!light) return;
+    light.shadow.mapSize.set(shadowSize, shadowSize);
+    light.shadow.map?.dispose();
+    light.shadow.map = null;
+  }, [shadowSize]);
 
   // Priorité -10 : ce callback avance l'horloge du monde et met à jour skyState
   // AVANT tous les autres systèmes de la frame (océan, atmosphère, bateau…).
@@ -127,7 +136,7 @@ export function Lighting({ shadows }: { shadows: boolean }) {
         color="#fff0d8"
         intensity={0.2}
         castShadow={shadows && QUALITY_LEVELS[quality].shadows}
-        shadow-mapSize={[1024, 1024]}
+        shadow-mapSize={[shadowSize, shadowSize]}
         shadow-bias={-0.0006}
         shadow-normalBias={0.04}
         shadow-camera-near={1}

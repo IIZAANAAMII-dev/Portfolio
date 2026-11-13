@@ -11,6 +11,7 @@ import { Trees } from '@/components/islands/Trees';
 import { createHeightSampler, terrainFeatures, type TerrainShape } from '@/components/islands/terrain-shape';
 import { islets, type IsletConfig } from '@/data/islets';
 import { boatState } from '@/lib/boat-state';
+import { logbook } from '@/lib/logbook';
 import { useWorld } from '@/lib/store';
 import { damp, smoothstep } from '@/lib/utils/math';
 import { BreizhDecor } from './BreizhDecor';
@@ -97,6 +98,7 @@ function Islet({ islet }: { islet: IsletConfig }) {
     const wanted = Math.max(near, activeIsland === islet.parent ? 1 : 0);
     const awake = isletAwake[islet.id];
     awake.value = damp(awake.value, wanted, 2.4, dt);
+    if (near > 0.85 && scale > 0.9) logbook.stamp(`islet:${islet.id}`);
 
     const material = aura.current?.material as ShaderMaterial | undefined;
     if (material) {

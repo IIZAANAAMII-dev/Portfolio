@@ -1,7 +1,7 @@
 'use client';
 
 import { useContext, useLayoutEffect, useMemo, useRef } from 'react';
-import { useFrame } from '@react-three/fiber';
+import { useFrame, useThree, type ThreeEvent } from '@react-three/fiber';
 import {
   AdditiveBlending,
   BoxGeometry,
@@ -20,6 +20,8 @@ import {
 } from 'three';
 import { addClearing, ClearingContext } from '@/components/islands/clearings';
 import { groundAt } from '@/components/islands/terrain-shape';
+import { ambience } from '@/lib/audio/ambience';
+import { logbook } from '@/lib/logbook';
 import { skyState } from '@/lib/sky';
 import { hash } from '@/lib/utils/math';
 import type { IsletDecorProps } from './types';
@@ -124,23 +126,35 @@ function Lighthouse({ position }: { position: [number, number, number] }) {
   const beam = useRef<Group>(null);
   const beamMaterial = useRef<ShaderMaterial>(null);
   const lamp = useRef<Mesh>(null);
+  const flashAt = useRef(-10);
+  const clock = useThree((state) => state.clock);
   const uniforms = useMemo(() => ({ uStrength: { value: 0 } }), []);
 
   useFrame((state, delta) => {
     const night = skyState.dayNight;
+    // Après un clic, le phare s'allume et balaie vite pendant quelques secondes, même de jour.
+    const flash = Math.max(0, 1 - (state.clock.elapsedTime - flashAt.current) / 4.5);
+    const strength = Math.max(night * 0.55, flash * 0.75);
     if (beam.current) {
-      beam.current.rotation.y += Math.min(delta, 1 / 30) * 0.7;
-      beam.current.visible = night > 0.05;
+      beam.current.rotation.y += Math.min(delta, 1 / 30) * (0.7 + flash * 3.2);
+      beam.current.visible = strength > 0.02;
     }
-    if (beamMaterial.current) beamMaterial.current.uniforms.uStrength.value = night * 0.55;
+    if (beamMaterial.current) beamMaterial.current.uniforms.uStrength.value = strength;
     if (lamp.current) {
-      (lamp.current.material as MeshStandardMaterial).emissiveIntensity = 0.6 + night * 3.2
+      (lamp.current.material as MeshStandardMaterial).emissiveIntensity = 0.6 + Math.max(night, flash) * 3.2
         + Math.sin(state.clock.elapsedTime * 2.2) * 0.15;
     }
   });
 
+  const onClick = (event: ThreeEvent<MouseEvent>) => {
+    event.stopPropagation();
+    flashAt.current = clock.elapsedTime;
+    ambience.chime([523, 659, 784, 1047], 0.09);
+    logbook.stamp('lighthouse');
+  };
+
   return (
-    <group position={position}>
+    <group position={position} onClick={onClick}>
       {/* Tour blanche légèrement conique, bandeau noir, galerie, lanterne, dôme rouge. */}
       <mesh castShadow receiveShadow position-y={2.6}>
         <cylinderGeometry args={[0.62, 0.92, 5.2, 14]} />

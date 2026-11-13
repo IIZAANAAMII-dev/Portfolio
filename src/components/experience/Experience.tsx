@@ -5,6 +5,7 @@ import { Canvas } from '@react-three/fiber';
 import { ACESFilmicToneMapping } from 'three';
 import { Hud } from '@/components/ui/Hud';
 import { Intro } from '@/components/ui/Intro';
+import { LogbookPanel, StampToast } from '@/components/ui/Logbook';
 import { Panel } from '@/components/ui/Panel';
 import { QuickView } from '@/components/ui/QuickView';
 import { useDeepLink } from '@/hooks/useDeepLink';
@@ -84,6 +85,8 @@ export function Experience() {
       <Intro />
       <Hud />
       <Panel />
+      <LogbookPanel />
+      <StampToast />
     </>
   );
 }

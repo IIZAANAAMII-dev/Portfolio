@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { islands } from '@/data/islands';
 import { site } from '@/data/site';
+import { LogbookButton } from '@/components/ui/Logbook';
 import { boatState } from '@/lib/boat-state';
 import { dockPosition, useWorld } from '@/lib/store';
 import { isNightTime } from '@/lib/sky';
@@ -120,6 +121,7 @@ export function Hud() {
           >
             {isNight ? 'Nuit' : 'Jour'}
           </button>
+          <LogbookButton />
           <button type="button" className="ghost-button" onClick={() => setQuickView(true)}>
             Aperçu
           </button>

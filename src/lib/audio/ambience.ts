@@ -273,16 +273,9 @@ class Ambience {
   splash(strength = 1) {
     const context = this.context;
     if (!context || !this.enabled) return;
-    if (!this.splashBuffer) {
-      const length = Math.floor(context.sampleRate * 1.4);
-      const buffer = context.createBuffer(1, length, context.sampleRate);
-      const data = buffer.getChannelData(0);
-      for (let i = 0; i < length; i++) data[i] = Math.random() * 2 - 1;
-      this.splashBuffer = buffer;
-    }
     const now = context.currentTime;
     const noise = context.createBufferSource();
-    noise.buffer = this.splashBuffer;
+    noise.buffer = this.noise(context);
     const band = context.createBiquadFilter();
     band.type = 'bandpass';
     band.Q.value = 0.8;
@@ -317,6 +310,86 @@ class Ambience {
       thump.disconnect();
       thumpGain.disconnect();
     }, { once: true });
+  }
+
+  /** Bruit blanc partagé par les petits effets (chocs, éclaboussures). */
+  private noise(context: AudioContext) {
+    if (!this.splashBuffer) {
+      const length = Math.floor(context.sampleRate * 1.4);
+      const buffer = context.createBuffer(1, length, context.sampleRate);
+      const data = buffer.getChannelData(0);
+      for (let i = 0; i < length; i++) data[i] = Math.random() * 2 - 1;
+      this.splashBuffer = buffer;
+    }
+    return this.splashBuffer;
+  }
+
+  /** Enveloppe courte : attaque, puis extinction exponentielle. */
+  private envelope(context: AudioContext, peak: number, attack: number, release: number) {
+    const gain = context.createGain();
+    const now = context.currentTime;
+    gain.gain.setValueAtTime(0.0001, now);
+    gain.gain.exponentialRampToValueAtTime(peak, now + attack);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + attack + release);
+    gain.connect(context.destination);
+    return gain;
+  }
+
+  /**
+   * Choc d'un objet flottant : « mou » (ballon, bouée), « bois » (caisse) ou « canard »
+   * (couinement de jouet en caoutchouc).
+   */
+  bump(kind: 'soft' | 'wood' | 'duck', strength = 1) {
+    const context = this.context;
+    if (!context || !this.enabled) return;
+    const now = context.currentTime;
+    if (kind === 'duck') {
+      const squeak = context.createOscillator();
+      squeak.type = 'triangle';
+      squeak.frequency.setValueAtTime(760, now);
+      squeak.frequency.exponentialRampToValueAtTime(1320, now + 0.09);
+      squeak.frequency.exponentialRampToValueAtTime(980, now + 0.22);
+      const out = this.envelope(context, 0.09 * strength + 0.04, 0.015, 0.24);
+      squeak.connect(out);
+      squeak.start(now);
+      squeak.stop(now + 0.3);
+      return;
+    }
+    const thump = context.createOscillator();
+    thump.type = 'sine';
+    thump.frequency.setValueAtTime(kind === 'wood' ? 190 : 140, now);
+    thump.frequency.exponentialRampToValueAtTime(kind === 'wood' ? 90 : 60, now + 0.16);
+    thump.connect(this.envelope(context, 0.16 * strength + 0.04, 0.008, 0.2));
+    thump.start(now);
+    thump.stop(now + 0.25);
+    const splash = context.createBufferSource();
+    splash.buffer = this.noise(context);
+    const band = context.createBiquadFilter();
+    band.type = 'bandpass';
+    band.frequency.value = kind === 'wood' ? 900 : 1500;
+    band.Q.value = 0.9;
+    splash.connect(band).connect(this.envelope(context, 0.05 * strength + 0.02, 0.01, 0.35));
+    splash.start(now, Math.random() * 0.8);
+    splash.stop(now + 0.4);
+  }
+
+  /** Arpège cristallin : une étoile d'or repêchée, un tampon gagné. */
+  chime(notes: number[] = [880, 1175, 1568], spacing = 0.07) {
+    const context = this.context;
+    if (!context || !this.enabled) return;
+    notes.forEach((frequency, index) => {
+      const start = context.currentTime + index * spacing;
+      const tone = context.createOscillator();
+      tone.type = 'sine';
+      tone.frequency.value = frequency;
+      const gain = context.createGain();
+      gain.gain.setValueAtTime(0.0001, start);
+      gain.gain.exponentialRampToValueAtTime(0.07, start + 0.012);
+      gain.gain.exponentialRampToValueAtTime(0.0001, start + 0.9);
+      tone.connect(gain).connect(context.destination);
+      tone.start(start);
+      tone.stop(start + 1);
+    });
   }
 
   /** Petit repère sonore : clic, accostage, ouverture. */
