@@ -6,6 +6,8 @@ import { journey } from '@/data/journey';
 import { projects } from '@/data/projects';
 import { site } from '@/data/site';
 import { skillGroups } from '@/data/skills';
+import { bottleThrow } from '@/components/world/MessageBottle';
+import { logbook } from '@/lib/logbook';
 import type { IslandId } from '@/types';
 
 /**
@@ -173,10 +175,55 @@ export function JourneyContent() {
   );
 }
 
+/**
+ * Bouteille à la mer : le message part dans la messagerie du visiteur (mailto, rien n'est
+ * stocké ni envoyé par le site) pendant que le bateau jette une bouteille dans la scène.
+ */
+function MessageInABottle() {
+  const [message, setMessage] = useState('');
+  const [name, setName] = useState('');
+  const [sent, setSent] = useState(false);
+
+  const send = (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!message.trim()) return;
+    const body = name.trim() ? `${message.trim()}\n\n— ${name.trim()}` : message.trim();
+    const href = `mailto:${site.email}?subject=${encodeURIComponent('Une bouteille à la mer')}&body=${encodeURIComponent(body)}`;
+    bottleThrow.requested = true;
+    logbook.stamp('bottle');
+    setSent(true);
+    window.location.href = href;
+  };
+
+  if (sent) {
+    return (
+      <p className="hand text-2xl text-ink/80">
+        Ta bouteille vogue vers moi… Ta messagerie s’est ouverte pour l’envoyer.
+      </p>
+    );
+  }
+  return (
+    <form className="bottle-form" onSubmit={send}>
+      <label className="eyebrow text-ink" htmlFor="bottle-message">Une bouteille à la mer</label>
+      <textarea
+        id="bottle-message"
+        value={message}
+        onChange={(event) => setMessage(event.target.value)}
+        placeholder="Ton message, ton projet, ta question…"
+        rows={4}
+        required
+      />
+      <input value={name} onChange={(event) => setName(event.target.value)} placeholder="Ton nom (facultatif)" aria-label="Ton nom" />
+      <button type="submit" className="stamp-toast__cta">Jeter la bouteille à la mer</button>
+    </form>
+  );
+}
+
 export function ContactContent() {
   return (
     <div className="space-y-5">
       <p className="text-lg">Un projet, une question, ou juste envie d’échanger ?</p>
+      <MessageInABottle />
       <ul className="space-y-2 text-sm">
         <li>
           <a className="link-underline" href={`mailto:${site.email}`}>

@@ -18,6 +18,7 @@ import { WindTrails } from '@/components/world/WindTrails';
 import { Celebration } from '@/components/world/Celebration';
 import { Flotsam } from '@/components/world/Flotsam';
 import { GoldenStars } from '@/components/world/GoldenStars';
+import { MessageBottle } from '@/components/world/MessageBottle';
 import { SeaNotes } from '@/components/world/SeaNotes';
 import { BoundaryStorm } from '@/components/world/BoundaryStorm';
 import { NightGlow } from '@/components/world/NightGlow';
@@ -144,6 +145,7 @@ export function Scene({ mobile }: { mobile: boolean }) {
       <Birds />
       <WindTrails />
       <Flotsam />
+      <MessageBottle />
       <GoldenStars />
       <SeaNotes />
       <Celebration />

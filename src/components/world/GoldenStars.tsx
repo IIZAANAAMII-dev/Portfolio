@@ -11,6 +11,7 @@ import {
   Shape,
   ShaderMaterial,
 } from 'three';
+import { STAR_SPOTS } from '@/data/stars';
 import { ambience } from '@/lib/audio/ambience';
 import { boatState } from '@/lib/boat-state';
 import { STAR_COUNT, useLogbook } from '@/lib/logbook';
@@ -23,17 +24,6 @@ import { clamp } from '@/lib/utils/math';
  * lumière les signale de loin ; le bateau les repêche en passant dessus (gerbe dorée,
  * arpège, tampon au carnet quand la collection est complète).
  */
-
-/** Cachettes : derrière les îles, près des îlots, et une au bord de la mer interdite. */
-export const STAR_SPOTS: [number, number][] = [
-  [-30, -12],
-  [95, 34],
-  [-46, 17],
-  [38, -70],
-  [-46, 76],
-  [-98, 22],
-  [4, 116],
-];
 
 function starGeometry() {
   const shape = new Shape();

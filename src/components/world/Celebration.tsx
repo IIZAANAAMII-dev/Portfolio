@@ -9,6 +9,7 @@ import { ecologyState } from '@/lib/ecology';
 import { logbook, useLogbook } from '@/lib/logbook';
 import { skyState } from '@/lib/sky';
 import { useWorld } from '@/lib/store';
+import { voyage } from '@/lib/voyage';
 import { hash } from '@/lib/utils/math';
 
 /**
@@ -133,7 +134,8 @@ export function Celebration() {
     const { phase } = useWorld.getState();
     const sailing = phase === 'playing' || phase === 'docked';
 
-    // Tampons d'exploration.
+    // Journal de route (carte de voyage) et tampons d'exploration.
+    if (sailing) voyage.record(boatState.position.x, boatState.position.z);
     if (sailing && skyState.dayNight > 0.6 && boatState.speed > 1.5) logbook.stamp('night');
     if (sailing && ecologyState.boundaryWarning > 0.35) logbook.stamp('edge');
 

@@ -147,7 +147,8 @@ const RIPPLES = 10;
 const rippleState = Array.from({ length: RIPPLES }, () => ({ x: 0, z: 0, start: -10, size: 1 }));
 let rippleCursor = 0;
 
-function ripple(x: number, z: number, time: number, size: number) {
+/** Rond dans l'eau à cet endroit (réutilisé par la bouteille à la mer). */
+export function ripple(x: number, z: number, time: number, size: number) {
   const slot = rippleState[rippleCursor];
   rippleCursor = (rippleCursor + 1) % RIPPLES;
   slot.x = x;

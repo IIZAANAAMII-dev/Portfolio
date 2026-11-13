@@ -3,8 +3,17 @@
 import { useEffect, useState } from 'react';
 import { islandById } from '@/data/islands';
 import { useWorld } from '@/lib/store';
+import { STAMPS, useLogbook } from '@/lib/logbook';
 import { islandContent } from './content';
+import { Stamp } from './Logbook';
 import type { IslandId } from '@/types';
+
+/** Sur le papier, une couleur d'accent trop claire (blanc…) devient une encre brune. */
+function inkFor(accent: string) {
+  const value = Number.parseInt(accent.replace('#', ''), 16);
+  const luma = (0.2126 * ((value >> 16) & 255) + 0.7152 * ((value >> 8) & 255) + 0.0722 * (value & 255)) / 255;
+  return luma > 0.72 ? '#8a6d4f' : accent;
+}
 
 /**
  * Feuille de contenu. Elle reste montée pendant sa sortie pour que la fermeture soit
@@ -13,6 +22,7 @@ import type { IslandId } from '@/types';
 export function Panel() {
   const activeIsland = useWorld((s) => s.activeIsland);
   const close = useWorld((s) => s.close);
+  const stamps = useLogbook((s) => s.stamps);
   const [displayed, setDisplayed] = useState<IslandId | null>(activeIsland);
 
   // Dérivé pendant le rendu : le panneau affiche immédiatement la nouvelle île...
@@ -38,6 +48,8 @@ export function Panel() {
   const island = islandById[displayed];
   const Content = islandContent[displayed];
   const open = Boolean(activeIsland);
+  const stamp = STAMPS.find((entry) => entry.id === `island:${displayed}`);
+  const visited = stamps.includes(`island:${displayed}`);
 
   return (
     <aside
@@ -49,14 +61,19 @@ export function Panel() {
       }}
       aria-hidden={!open}
     >
-      <div className="panel max-h-[62vh] overflow-y-auto rounded-b-none p-6 md:max-h-[78vh] md:w-[26rem] md:rounded-b-[20px] md:p-8">
-        <div className="mb-5 flex items-start justify-between gap-6">
-          <div>
-            <p className="eyebrow" style={{ color: island.accent }}>
+      <div className="panel panel--page max-h-[62vh] overflow-y-auto rounded-b-none p-6 md:max-h-[78vh] md:w-[26rem] md:rounded-b-[20px] md:p-8">
+        <div className="mb-5 flex items-start justify-between gap-4">
+          <div className="min-w-0 flex-1">
+            <p className="eyebrow" style={{ color: inkFor(island.accent) }}>
               {island.tagline}
             </p>
-            <h2 className="mt-1 font-medium">{island.label}</h2>
+            <h2 className="panel__title mt-1">{island.label}</h2>
           </div>
+          {stamp && (
+            <div className="panel__stamp" aria-hidden="true">
+              <Stamp stamp={stamp} earned={visited} />
+            </div>
+          )}
           <button
             type="button"
             onClick={close}

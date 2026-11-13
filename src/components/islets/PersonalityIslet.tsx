@@ -10,6 +10,7 @@ import { Terrain } from '@/components/islands/Terrain';
 import { Trees } from '@/components/islands/Trees';
 import { createHeightSampler, terrainFeatures, type TerrainShape } from '@/components/islands/terrain-shape';
 import { islets, type IsletConfig } from '@/data/islets';
+import { ambience } from '@/lib/audio/ambience';
 import { boatState } from '@/lib/boat-state';
 import { logbook } from '@/lib/logbook';
 import { useWorld } from '@/lib/store';
@@ -50,6 +51,9 @@ void main() {
   #include <colorspace_fragment>
 }
 `;
+
+/** Îlots déjà réveillés pendant cette visite (le motif ne se rejoue pas). */
+const awakened = new Set<string>();
 
 function Decor(props: IsletDecorProps) {
   if (props.islet.id === 'breizh') return <BreizhDecor {...props} />;
@@ -98,7 +102,12 @@ function Islet({ islet }: { islet: IsletConfig }) {
     const wanted = Math.max(near, activeIsland === islet.parent ? 1 : 0);
     const awake = isletAwake[islet.id];
     awake.value = damp(awake.value, wanted, 2.4, dt);
-    if (near > 0.85 && scale > 0.9) logbook.stamp(`islet:${islet.id}`);
+    // Premier éveil de la visite : tampon au carnet et motif sonore de l'îlot.
+    if (near > 0.85 && scale > 0.9 && !awakened.has(islet.id)) {
+      awakened.add(islet.id);
+      logbook.stamp(`islet:${islet.id}`);
+      ambience.motif(islet.id);
+    }
 
     const material = aura.current?.material as ShaderMaterial | undefined;
     if (material) {

@@ -20,7 +20,8 @@ export type StampId =
   | 'bumper'
   | 'night'
   | 'edge'
-  | 'lighthouse';
+  | 'lighthouse'
+  | 'bottle';
 
 export interface StampInfo {
   id: StampId;
@@ -48,6 +49,7 @@ export const STAMPS: StampInfo[] = [
   { id: 'night', title: 'Navigateur de nuit', hint: 'Naviguer sous les étoiles', glyph: '☾' },
   { id: 'edge', title: 'Hic sunt dracones', hint: 'Approcher de la mer interdite', glyph: '☠' },
   { id: 'lighthouse', title: 'Gardien du phare', hint: 'Cliquer sur le phare breton', glyph: '✺' },
+  { id: 'bottle', title: 'Bouteille à la mer', hint: 'Écrire à Kyliann depuis l’île Contact', glyph: '✉' },
 ];
 
 const STORAGE_KEY = 'kyliann-logbook-v1';

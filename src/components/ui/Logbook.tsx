@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { STAMPS, STAR_COUNT, useLogbook, type StampId, type StampInfo } from '@/lib/logbook';
 import { useWorld } from '@/lib/store';
 import { hash } from '@/lib/utils/math';
+import { VoyageMap } from './VoyageMap';
 
 /**
  * Carnet de bord : un passeport de marin. Chaque tampon s'imprime à l'encre (rouge pour
@@ -18,7 +19,7 @@ function inkOf(id: StampId) {
   return '#2f7a5a';
 }
 
-function Stamp({ stamp, earned, size = 'normal' }: { stamp: StampInfo; earned: boolean; size?: 'normal' | 'large' }) {
+export function Stamp({ stamp, earned, size = 'normal' }: { stamp: StampInfo; earned: boolean; size?: 'normal' | 'large' }) {
   const tilt = (hash(stamp.id.length * 7.3 + stamp.title.length * 1.9) - 0.5) * 22;
   return (
     <div
@@ -49,6 +50,7 @@ export function LogbookPanel() {
   const stamps = useLogbook((state) => state.stamps);
   const stars = useLogbook((state) => state.stars);
   const setOpen = useLogbook((state) => state.setOpen);
+  const [tab, setTab] = useState<'map' | 'stamps'>('map');
 
   useEffect(() => {
     if (!open) return;
@@ -79,17 +81,29 @@ export function LogbookPanel() {
             ×
           </button>
         </header>
-        <div className="logbook__grid">
-          {STAMPS.map((stamp) => {
-            const earned = stamps.includes(stamp.id);
-            return (
-              <div key={stamp.id} className="logbook__cell">
-                <Stamp stamp={stamp} earned={earned} />
-                <span className="logbook__hint">{earned ? 'obtenu' : stamp.hint}</span>
-              </div>
-            );
-          })}
+        <div className="logbook__tabs" role="tablist" aria-label="Pages du carnet">
+          <button type="button" role="tab" aria-selected={tab === 'map'} onClick={() => setTab('map')}>
+            Carte de voyage
+          </button>
+          <button type="button" role="tab" aria-selected={tab === 'stamps'} onClick={() => setTab('stamps')}>
+            Tampons
+          </button>
         </div>
+        {tab === 'map' ? (
+          <VoyageMap />
+        ) : (
+          <div className="logbook__grid">
+            {STAMPS.map((stamp) => {
+              const earned = stamps.includes(stamp.id);
+              return (
+                <div key={stamp.id} className="logbook__cell">
+                  <Stamp stamp={stamp} earned={earned} />
+                  <span className="logbook__hint">{earned ? 'obtenu' : stamp.hint}</span>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </section>
     </div>
   );

@@ -424,6 +424,72 @@ class Ambience {
     this.engine.rush.gain.setTargetAtTime(t * t * 0.09, now, 0.35);
   }
 
+  /** Une note : oscillateur, enveloppe, filtre optionnel (timbres des motifs d'îlots). */
+  private note(
+    frequency: number,
+    start: number,
+    length: number,
+    { type = 'sine', peak = 0.06, vibrato = 0, band = 0 }: { type?: OscillatorType; peak?: number; vibrato?: number; band?: number } = {},
+  ) {
+    const context = this.context;
+    if (!context) return;
+    const tone = context.createOscillator();
+    tone.type = type;
+    tone.frequency.value = frequency;
+    if (vibrato > 0) {
+      const lfo = context.createOscillator();
+      const depth = context.createGain();
+      lfo.frequency.value = 5.5;
+      depth.gain.value = vibrato;
+      lfo.connect(depth).connect(tone.frequency);
+      lfo.start(start);
+      lfo.stop(start + length + 0.1);
+    }
+    const gain = context.createGain();
+    gain.gain.setValueAtTime(0.0001, start);
+    gain.gain.exponentialRampToValueAtTime(peak, start + 0.02);
+    gain.gain.setValueAtTime(peak, start + length * 0.6);
+    gain.gain.exponentialRampToValueAtTime(0.0001, start + length);
+    let chain: AudioNode = tone;
+    if (band > 0) {
+      const filter = context.createBiquadFilter();
+      filter.type = 'bandpass';
+      filter.frequency.value = band;
+      filter.Q.value = 1.4;
+      chain = tone.connect(filter);
+    }
+    chain.connect(gain).connect(context.destination);
+    tone.start(start);
+    tone.stop(start + length + 0.05);
+  }
+
+  /**
+   * Motif d'éveil d'un îlot de personnalité : air de cornemuse sur bourdon pour la
+   * Bretagne, arpège numérique pour le high-tech, cloches douces pour le design.
+   */
+  motif(kind: 'breizh' | 'tech' | 'design') {
+    const context = this.context;
+    if (!context || !this.enabled) return;
+    const now = context.currentTime + 0.05;
+    if (kind === 'breizh') {
+      this.note(146.8, now, 2.2, { type: 'sawtooth', peak: 0.025, band: 600 });
+      const tune: [number, number][] = [[880, 0.22], [987.8, 0.22], [880, 0.22], [784, 0.3], [659.3, 0.3], [587.3, 0.6]];
+      let at = now;
+      for (const [frequency, length] of tune) {
+        this.note(frequency, at, length * 1.05, { type: 'sawtooth', peak: 0.03, vibrato: 4, band: 1400 });
+        at += length;
+      }
+    } else if (kind === 'tech') {
+      [1046.5, 1318.5, 1568, 2093, 1568, 2093].forEach((frequency, index) => {
+        this.note(frequency, now + index * 0.07, 0.09, { type: 'square', peak: 0.018 });
+      });
+    } else {
+      [523.3, 659.3, 784, 987.8].forEach((frequency, index) => {
+        this.note(frequency, now + index * 0.12, 1.4, { type: 'sine', peak: 0.045 });
+      });
+    }
+  }
+
   /** Arpège cristallin : une étoile d'or repêchée, un tampon gagné. */
   chime(notes: number[] = [880, 1175, 1568], spacing = 0.07) {
     const context = this.context;
