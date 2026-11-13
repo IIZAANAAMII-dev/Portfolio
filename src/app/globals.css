@@ -389,6 +389,43 @@ body.is-quick-view {
 .bottle-form textarea:focus,
 .bottle-form input:focus { outline: 2px solid rgba(200, 85, 61, 0.45); outline-offset: 1px; }
 .bottle-form .stamp-toast__cta { justify-self: start; }
+.bottle-form .stamp-toast__cta:disabled { opacity: 0.55; cursor: default; }
+.bottle-form__row { display: grid; grid-template-columns: 1fr 1fr; gap: 0.55rem; }
+@media (max-width: 520px) { .bottle-form__row { grid-template-columns: 1fr; } }
+.bottle-form__trap { position: absolute !important; left: -9999px; width: 1px; height: 1px; opacity: 0; }
+.bottle-form__note { font-size: 0.82rem; line-height: 1.5; color: rgba(59, 47, 37, 0.75); }
+.bottle-sent { padding: 0.9rem; border-radius: 14px; background: rgba(59, 47, 37, 0.05); animation: rise 700ms cubic-bezier(0.16, 1, 0.3, 1) both; }
+
+/* --- Contenus des îles ------------------------------------------------------ */
+.facts { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem 1rem; font-size: 0.875rem; }
+.facts > div:last-child { grid-column: 1 / -1; }
+.paper-button {
+  display: inline-flex; align-items: center; gap: 0.35rem; padding: 0.42rem 0.9rem; border-radius: 999px;
+  border: 1px solid rgba(59, 47, 37, 0.25); font-size: 0.78rem; letter-spacing: 0.04em; color: var(--ink);
+  transition: border-color 200ms ease, background 200ms ease, transform 200ms ease;
+}
+.paper-button:hover { border-color: rgba(59, 47, 37, 0.6); background: rgba(59, 47, 37, 0.05); transform: translateY(-1px); }
+.chip--explore { background: transparent; border: 1px dashed color-mix(in srgb, var(--ink) 40%, transparent); color: color-mix(in srgb, var(--ink) 70%, transparent); }
+.legend { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+.zone-dot { display: inline-block; width: 0.55rem; height: 0.55rem; margin-right: 0.45rem; border-radius: 999px; vertical-align: 0.05em; }
+.status { flex: none; padding: 0.12rem 0.5rem; border-radius: 999px; font-size: 0.62rem; letter-spacing: 0.08em; text-transform: uppercase; white-space: nowrap; }
+.status--live { background: rgba(63, 154, 92, 0.14); color: #2f7a48; }
+.status--in-progress { background: rgba(224, 163, 33, 0.16); color: #96690f; }
+.status--planned { background: rgba(59, 47, 37, 0.08); color: rgba(59, 47, 37, 0.7); }
+.project-index { margin-right: 0.5rem; font-family: var(--font-caveat), cursive; font-size: 1.3rem; font-weight: 600; }
+.feature-card { padding: 0.75rem 0.9rem; border-radius: 12px; background: rgba(63, 140, 255, 0.07); border: 1px solid rgba(63, 140, 255, 0.18); }
+.shots { display: grid; gap: 0.5rem; }
+.shots img { width: 100%; border-radius: 10px; border: 1px solid rgba(59, 47, 37, 0.12); }
+.journey-dot { flex: none; display: grid; place-items: center; width: 1.7rem; height: 1.7rem; margin-top: 0.15rem; border-radius: 999px; font-size: 0.72rem; font-weight: 600; color: #fff; }
+.journey-dot--bretagne { background: #3d5f7a; }
+.journey-dot--passage { background: #8a7a5c; }
+.journey-dot--marseille { background: #d9783a; }
+.focus-target { border-radius: 12px; transition: background 600ms ease; }
+.focus-target.is-focused { animation: focus-glow 2.2s ease-out both; }
+@keyframes focus-glow {
+  0% { background: rgba(255, 196, 80, 0.32); box-shadow: 0 0 0 6px rgba(255, 196, 80, 0.32); }
+  100% { background: rgba(255, 196, 80, 0); box-shadow: 0 0 0 6px rgba(255, 196, 80, 0); }
+}
 .logbook__tabs { display: flex; gap: 0.4rem; margin-top: 1.1rem; padding-left: 1.6rem; }
 .logbook__tabs button {
   padding: 0.35rem 0.85rem;

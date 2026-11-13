@@ -14,7 +14,7 @@ export interface Clearing {
   radius: number;
 }
 
-export const MAX_CLEARINGS = 12;
+export const MAX_CLEARINGS = 20;
 
 export class ClearingStore {
   private items = new Map<number, Clearing>();

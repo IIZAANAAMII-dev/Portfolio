@@ -1,5 +1,6 @@
 import { homeIsland, islands } from '@/data/islands';
 import { islets } from '@/data/islets';
+import { yellowStaticIsland } from '@/data/yellow-static';
 import type { Vec2 } from '@/types';
 
 /**
@@ -28,6 +29,7 @@ export const SOLIDS: Circle[] = [
   { x: homeIsland.position[0], z: homeIsland.position[1], r: homeIsland.radius },
   ...islands.map((i) => ({ x: i.position[0], z: i.position[1], r: i.radius })),
   ...islets.map((i) => ({ x: i.position[0], z: i.position[1], r: i.radius })),
+  { x: yellowStaticIsland.position[0], z: yellowStaticIsland.position[1], r: yellowStaticIsland.radius },
 ];
 
 /** Empêche de cliquer « dans » une île : la cible est repoussée sur le rivage. */

@@ -15,6 +15,7 @@ import { Grass } from './Grass';
 import { Trees } from './Trees';
 import { NightLights } from './NightLights';
 import { IslandLife } from './IslandLife';
+import { sceneConfigs } from './scenes/registry';
 import type { IslandConfig } from '@/types';
 
 /** Couleur des flamboyants, une par île : corail, mandarine, rose, vermillon, ambre, fuchsia. */
@@ -59,8 +60,15 @@ export function Island({ island, index }: { island: IslandConfig; index: number 
     () => ({ radius: island.radius, elevation: island.elevation, seed: index * 17 + 3 }),
     [index, island.elevation, island.radius],
   );
-  const sampler = useMemo(() => createHeightSampler(shape), [shape]);
+  const config = sceneConfigs[island.id];
   const features = useMemo(() => terrainFeatures(shape), [shape]);
+  const sampler = useMemo<HeightSampler>(() => {
+    const base = createHeightSampler(shape);
+    const sculpt = config.sculpt;
+    if (!sculpt) return base;
+    const shapeFeatures = terrainFeatures(shape);
+    return (x, z) => sculpt(x, z, base(x, z), shapeFeatures);
+  }, [config, shape]);
   const clearings = useMemo(() => new ClearingStore(), []);
 
   // Les îles n'apparaissent pas toutes en même temps pendant la révélation :
@@ -109,17 +117,29 @@ export function Island({ island, index }: { island: IslandConfig; index: number 
       onPointerOut={onOut}
     >
       <ClearingContext.Provider value={clearings}>
-        <Terrain shape={shape} sampler={sampler} cliff={island.terrain.cliff} top={island.terrain.top} />
-        <Grass sampler={sampler} radius={island.radius} plateau={features.plateau} avoidAngle={island.dockAngle} seed={index * 41 + 7} />
-        <Trees
-          sampler={sampler}
-          radius={island.radius}
-          plateau={features.plateau}
-          avoidAngle={island.dockAngle}
-          seed={index * 29 + 11}
-          flame={FLAMES[index % FLAMES.length]}
-          count={island.silhouette === 'nature' || island.silhouette === 'beacon' ? 2 + Math.round(island.radius / 5) : 2}
-        />
+        <Terrain shape={shape} sampler={sampler} cliff={island.terrain.cliff} top={island.terrain.top} cliffTint={config.cliffTint} />
+        {config.grass > 0 && (
+          <Grass
+            sampler={sampler}
+            radius={island.radius}
+            plateau={features.plateau}
+            avoidAngle={island.dockAngle}
+            seed={index * 41 + 7}
+            amount={config.grass}
+            palette={config.grassPalette}
+          />
+        )}
+        {config.trees > 0 && (
+          <Trees
+            sampler={sampler}
+            radius={island.radius}
+            plateau={features.plateau}
+            avoidAngle={island.dockAngle}
+            seed={index * 29 + 11}
+            flame={FLAMES[index % FLAMES.length]}
+            count={config.trees}
+          />
+        )}
         <DeferredDecor island={island} index={index} sampler={sampler} shape={shape} />
         <Dock angle={island.dockAngle} reach={island.radius} />
         <NightLights island={island} />

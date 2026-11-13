@@ -23,7 +23,17 @@ export type StampId =
   | 'lighthouse'
   | 'bottle'
   | 'bell'
-  | 'whale';
+  | 'whale'
+  | 'workshop'
+  | 'static'
+  | 'chest'
+  | 'wreck'
+  | 'submarine'
+  | 'mechafish'
+  | 'serpent'
+  | 'cat'
+  | 'radio'
+  | 'buoy';
 
 export interface StampInfo {
   id: StampId;
@@ -54,6 +64,16 @@ export const STAMPS: StampInfo[] = [
   { id: 'bottle', title: 'Bouteille à la mer', hint: 'Écrire à Kyliann depuis l’île Contact', glyph: '✉' },
   { id: 'bell', title: 'Sonneur de cloche', hint: 'Faire sonner la cloche de l’île Contact', glyph: '♫' },
   { id: 'whale', title: 'Baleine en vue !', hint: 'Voir une baleine sauter au large', glyph: '≈' },
+  { id: 'workshop', title: 'L’atelier', hint: 'Entrer dans l’atelier de la maison bretonne', glyph: '⌂' },
+  { id: 'cat', title: 'Le chat du port', hint: 'Caresser le chat sur un ponton', glyph: '♡' },
+  { id: 'buoy', title: 'Bouée bavarde', hint: 'Écouter le conseil d’une bouée', glyph: '⊙' },
+  { id: 'radio', title: 'Radio de bord', hint: 'Changer de station sur la radio marine', glyph: '♪' },
+  { id: 'chest', title: 'Trésor !', hint: 'Ouvrir le coffre au trésor', glyph: '◈' },
+  { id: 'wreck', title: 'Vieux chalutier', hint: 'Trouver le bateau de pêche échoué', glyph: '⚑' },
+  { id: 'submarine', title: 'Périscope', hint: 'Repérer le mini sous-marin', glyph: '◎' },
+  { id: 'mechafish', title: 'Poisson à remontoir', hint: 'Attraper le poisson mécanique', glyph: '⚙' },
+  { id: 'serpent', title: 'Serpent de mer', hint: 'Apercevoir le serpent au bout du monde', glyph: '∿' },
+  { id: 'static', title: 'Signal jaune', hint: 'Trouver ce qui grésille dans la brume', glyph: '▦' },
 ];
 
 const STORAGE_KEY = 'kyliann-logbook-v1';

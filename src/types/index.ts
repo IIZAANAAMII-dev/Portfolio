@@ -38,26 +38,73 @@ export interface IslandConfig {
   terrain: { cliff: SubstanceId; top: SubstanceId };
 }
 
-export interface Project {
-  id: string;
-  title: string;
-  year: string;
-  summary: string;
-  problem: string;
-  solution: string;
-  role: string;
-  stack: string[];
-  outcomes?: string[];
-  links?: { github?: string; demo?: string };
-  /** Position relative au centre de l'île PROJECTS. */
-  offset: Vec2;
+export type ProjectStatus = 'live' | 'in-progress' | 'planned';
+
+/** Bâtiment qui représente le projet dans la ville de l'île PROJETS. */
+export type ProjectBuilding = 'tech-center' | 'gallery' | 'medical' | 'cyber' | 'workshops' | 'shipyard';
+
+export interface SubProject {
+  name: string;
+  /** Statut propre, s'il diffère de celui du groupe. */
+  status?: ProjectStatus;
+  /** Ce que représente le petit bâtiment (atelier créatif, machines, radar…). */
+  note: string;
 }
 
-export interface SkillGroup {
+export interface Project {
   id: string;
-  label: string;
+  /** Numéro affiché sur le bâtiment : « 01 », « 02 »… */
+  index: string;
+  title: string;
+  /** Nature du projet en quelques mots. */
+  kind: string;
+  /** Cadre : alternance, projet personnel… */
   context: string;
-  items: string[];
+  status: ProjectStatus;
+  /** Libellé de statut libre, quand le statut seul ne suffit pas. */
+  statusLabel?: string;
+  summary: string;
+  /** Ce que j'ai réellement fait (pas de chiffres inventés). */
+  highlights: string[];
+  stack: string[];
+  /** Zoom sur une réalisation précise (ex. la page « Rencontre EIZO »). */
+  feature?: { title: string; points: string[] };
+  /** Sous-projets présentés ensemble (Feeder Graphic / Industrie / Défense). */
+  parts?: SubProject[];
+  /** Site public. Jamais inventé : absent si inconnu. */
+  url?: string;
+  /** Captures réelles (chemins dans /public). Vide tant qu'aucune capture n'est fournie. */
+  screenshots?: string[];
+  building: ProjectBuilding;
+  accent: string;
+}
+
+export interface Experiment {
+  id: string;
+  title: string;
+  kind: string;
+  summary: string;
+  stack: string[];
+}
+
+export type SkillLevel = 'pro' | 'exploration';
+
+export interface SkillItem {
+  name: string;
+  /** « pro » : utilisé dans mon travail. « exploration » : ce que j'apprends et teste. */
+  level: SkillLevel;
+}
+
+export type SkillZoneId = 'front' | 'back' | 'commerce' | 'lab3d' | 'ai' | 'tower';
+
+export interface SkillZone {
+  id: SkillZoneId;
+  label: string;
+  /** Ce qu'on voit sur l'île (le décor de la zone). */
+  place: string;
+  context: string;
+  accent: string;
+  items: SkillItem[];
 }
 
 export interface ExperienceEntry {
@@ -66,13 +113,17 @@ export interface ExperienceEntry {
   company: string;
   period: string;
   location?: string;
+  contract?: string;
   missions: string[];
   stack: string[];
 }
 
 export interface JourneyStep {
   id: string;
-  year: string;
+  /** Repère court affiché à la place d'une date (aucune date inventée). */
+  marker: string;
   title: string;
   description: string;
+  /** Côté de l'île Parcours où l'étape est posée. */
+  side: 'bretagne' | 'passage' | 'marseille';
 }

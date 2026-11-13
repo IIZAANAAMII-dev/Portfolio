@@ -1,5 +1,6 @@
 'use client';
 
+import { Extras } from '@/components/ui/extras/Extras';
 import { Component, Suspense, useEffect, useState, type ReactNode } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { ACESFilmicToneMapping } from 'three';
@@ -87,6 +88,7 @@ export function Experience() {
       <Panel />
       <LogbookPanel />
       <StampToast />
+      <Extras />
       <WelcomeHint />
     </>
   );

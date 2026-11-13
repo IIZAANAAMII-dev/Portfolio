@@ -9,6 +9,7 @@ import { boatState } from '@/lib/boat-state';
 import { introLightStrength } from '@/lib/cinematic';
 import { QUALITY_LEVELS } from '@/lib/quality';
 import { useWorld } from '@/lib/store';
+import { preview } from '@/lib/preview';
 import { damp, smoothstep } from '@/lib/utils/math';
 
 /*
@@ -62,16 +63,16 @@ export function Lighting({ shadows }: { shadows: boolean }) {
         ? introLightStrength(gameTransition)
         : 0;
 
-    // Cycle naturel : un tour complet = 5 minutes.
+    // Cycle naturel : un tour complet = 5 minutes. `?time=` le fige (aperçus, captures).
     if (Math.abs(timeOfDay - cycleTime.current) > 0.02) cycleTime.current = timeOfDay;
-    const next = (cycleTime.current + dt / 300) % 1;
+    const next = preview.time ?? (cycleTime.current + dt / 300) % 1;
     cycleTime.current = next;
     storeAccumulator.current += dt;
     if (storeAccumulator.current >= 0.25) {
       setTimeOfDay(next);
       storeAccumulator.current = 0;
     }
-    updateSky(next, dt);
+    updateSky(next, preview.time === null ? dt : 10);
     updateEcology(dt);
     const { dayNight, golden, sunAngle: angle, sunElevation } = skyState;
     const storm = ecologyState.stormCover;

@@ -221,6 +221,7 @@ export function Grass({
   avoidAngle,
   seed,
   palette,
+  amount = 1,
 }: {
   sampler: HeightSampler;
   radius: number;
@@ -231,6 +232,8 @@ export function Grass({
   seed: number;
   /** Quatre couleurs de touffes (de la plus courante à la plus rare). */
   palette?: string[];
+  /** Multiplicateur de quantité (1 : normale). */
+  amount?: number;
 }) {
   const mesh = useRef<InstancedMesh>(null);
   const clearings = useContext(ClearingContext);
@@ -244,11 +247,11 @@ export function Grass({
       radius,
       minHeight: plateau - 0.35,
       avoidAngle,
-      tufts: Math.round(radius * radius * 1.9 * density),
+      tufts: Math.round(radius * radius * 1.9 * density * amount),
       seed,
       palette: paletteKey ? paletteKey.split('|').map((color) => new Color(color)) : TUFTS,
     }),
-    [avoidAngle, density, paletteKey, plateau, radius, sampler, seed],
+    [amount, avoidAngle, density, paletteKey, plateau, radius, sampler, seed],
   );
 
   useLayoutEffect(() => {

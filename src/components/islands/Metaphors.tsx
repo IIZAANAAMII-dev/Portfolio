@@ -1,6 +1,6 @@
 'use client';
 
-import { useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import {
   BufferAttribute,
@@ -22,13 +22,13 @@ import {
 import { experiences } from '@/data/experience';
 import { journey } from '@/data/journey';
 import { projects } from '@/data/projects';
-import { skillGroups } from '@/data/skills';
+import { skillZones } from '@/data/skills';
 import { skyState } from '@/lib/sky';
 import { useWorld } from '@/lib/store';
 import { hash } from '@/lib/utils/math';
 import type { IslandConfig } from '@/types';
 import { ChimneySmoke } from './ChimneySmoke';
-import { addClearing, ClearingContext } from './clearings';
+import { ClearingAt, facingDock, on, PaintedSign, useClearing, useHandFont } from './kit';
 import { groundAt, type HeightSampler, type terrainFeatures } from './terrain-shape';
 
 /**
@@ -44,129 +44,6 @@ export interface MetaphorProps {
   island: IslandConfig;
   sampler: HeightSampler;
   features: ReturnType<typeof terrainFeatures>;
-}
-
-function on(sampler: HeightSampler, x: number, z: number, footprint = 0.8, sink = 0.06): [number, number, number] {
-  return [x, groundAt(sampler, x, z, footprint) - sink, z];
-}
-
-function facingDock(island: IslandConfig, x: number, z: number) {
-  const dockX = Math.cos(island.dockAngle) * island.radius;
-  const dockZ = Math.sin(island.dockAngle) * island.radius;
-  return Math.atan2(dockX - x, dockZ - z);
-}
-
-/** Déclare une clairière (pas d'herbe) sous un décor procédural. */
-function useClearing(x: number, z: number, radius: number) {
-  const clearings = useContext(ClearingContext);
-  useLayoutEffect(() => addClearing(clearings, x, z, radius), [clearings, radius, x, z]);
-}
-
-/* ------------------------------------------------------------- panneau peint */
-
-let handFamily: Promise<string> | null = null;
-
-/** Police manuscrite du site (next/font), chargée une seule fois pour tous les panneaux. */
-function loadHandFont() {
-  handFamily ??= (async () => {
-    const family = getComputedStyle(document.body).getPropertyValue('--font-caveat').trim() || 'cursive';
-    await document.fonts.load(`500 64px ${family}`).catch(() => undefined);
-    return family;
-  })();
-  return handFamily;
-}
-
-function useHandFont() {
-  const [family, setFamily] = useState<string | null>(null);
-  useEffect(() => {
-    let cancelled = false;
-    void loadHandFont().then((name) => {
-      if (!cancelled) setFamily(name);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-  return family;
-}
-
-function signTexture(lines: string[], family: string, accent: string) {
-  const canvas = document.createElement('canvas');
-  canvas.width = 512;
-  canvas.height = 256;
-  const ctx = canvas.getContext('2d')!;
-  // Planche claire, veinage léger, liseré de couleur.
-  ctx.fillStyle = '#efdcb4';
-  ctx.fillRect(0, 0, 512, 256);
-  for (let index = 0; index < 18; index++) {
-    ctx.strokeStyle = `rgba(140, 100, 60, ${0.06 + hash(index * 1.7) * 0.06})`;
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    const y = 8 + hash(index * 3.1) * 240;
-    ctx.moveTo(0, y);
-    ctx.bezierCurveTo(170, y + 6, 340, y - 6, 512, y + 3);
-    ctx.stroke();
-  }
-  ctx.strokeStyle = accent;
-  ctx.lineWidth = 10;
-  ctx.strokeRect(10, 10, 492, 236);
-  ctx.fillStyle = '#3b2f25';
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  if (lines.length === 1) {
-    ctx.font = `500 104px ${family}`;
-    ctx.fillText(lines[0], 256, 132, 470);
-  } else {
-    ctx.font = `500 84px ${family}`;
-    ctx.fillText(lines[0], 256, 88, 470);
-    ctx.font = `500 58px ${family}`;
-    ctx.fillText(lines[1], 256, 178, 470);
-  }
-  const texture = new CanvasTexture(canvas);
-  texture.colorSpace = SRGBColorSpace;
-  texture.anisotropy = 8;
-  return texture;
-}
-
-/** Panneau en bois sur son poteau : texte peint à la main, liseré à la couleur de l'île. */
-export function PaintedSign({
-  lines,
-  position,
-  rotation,
-  accent,
-  width = 2.1,
-  post = 1.5,
-}: {
-  lines: string[];
-  position: [number, number, number];
-  rotation: number;
-  accent: string;
-  width?: number;
-  post?: number;
-}) {
-  const family = useHandFont();
-  const text = lines.join('\n');
-  const texture = useMemo(() => (family ? signTexture(text.split('\n'), family, accent) : null), [accent, family, text]);
-  useEffect(() => () => texture?.dispose(), [texture]);
-  const height = width / 2;
-  return (
-    <group position={position} rotation-y={rotation}>
-      <mesh castShadow position-y={post / 2}>
-        <cylinderGeometry args={[0.07, 0.09, post, 6]} />
-        <meshStandardMaterial color="#6e4a33" roughness={1} flatShading />
-      </mesh>
-      <mesh castShadow position-y={post + height / 2 - 0.1}>
-        <boxGeometry args={[width + 0.12, height + 0.12, 0.1]} />
-        <meshStandardMaterial color="#8a5d3b" roughness={1} />
-      </mesh>
-      {texture && (
-        <mesh position={[0, post + height / 2 - 0.1, 0.056]}>
-          <planeGeometry args={[width, height]} />
-          <meshStandardMaterial map={texture} roughness={0.95} />
-        </mesh>
-      )}
-    </group>
-  );
 }
 
 /* ================================================================= ATELIER */
@@ -329,8 +206,8 @@ function Forge({ position }: { position: [number, number, number] }) {
 export function AtelierScene({ island, sampler, features }: MetaphorProps) {
   const { hillX, hillZ } = features;
   useClearing(hillX, hillZ, 2.2);
-  const totems = skillGroups.map((group, index) => {
-    const angle = island.dockAngle - 1.1 + (index / Math.max(skillGroups.length - 1, 1)) * 2.2;
+  const totems = skillZones.map((group, index) => {
+    const angle = island.dockAngle - 1.1 + (index / Math.max(skillZones.length - 1, 1)) * 2.2;
     const distance = island.radius * 0.42;
     const x = Math.cos(angle) * distance;
     const z = Math.sin(angle) * distance;
@@ -470,7 +347,9 @@ export function ShipyardScene({ island, sampler, features }: MetaphorProps) {
   return (
     <>
       {projects.map((project, index) => {
-        const [x, z] = project.offset;
+        const angle = island.dockAngle + 0.9 + (index / projects.length) * (Math.PI * 2 - 1.8);
+        const x = Math.cos(angle) * island.radius * 0.5;
+        const z = Math.sin(angle) * island.radius * 0.5;
         return (
           <group key={project.id}>
             <ClearingAt x={x} z={z} radius={3.2} />
@@ -639,7 +518,7 @@ export function TrailScene({ island, sampler, features }: MetaphorProps) {
       {milestones.map(({ step, x, z }) => (
         <PaintedSign
           key={step.id}
-          lines={[step.year, step.title]}
+          lines={[step.marker, step.title]}
           position={on(sampler, x, z, 0.3, 0.04)}
           rotation={facingDock(island, x, z)}
           accent={island.accent}
@@ -652,13 +531,6 @@ export function TrailScene({ island, sampler, features }: MetaphorProps) {
 }
 
 /* ------------------------------------------------------------- utilitaires */
-
-/** Clairière déclarée depuis le rendu d'une liste (composant, pour respecter les règles des hooks). */
-function ClearingAt({ x, z, radius }: { x: number; z: number; radius: number }) {
-  useClearing(x, z, radius);
-  return null;
-}
-
 
 /* ============================================================ À PROPOS : CHEZ MOI */
 

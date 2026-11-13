@@ -35,6 +35,8 @@ import { useWorld } from '@/lib/store';
 import { QUALITY_LEVELS } from '@/lib/quality';
 import { smoothstep } from '@/lib/utils/math';
 import { PerformanceDebug, PerformanceGovernor } from './PerformanceGovernor';
+import { AssetBoundary } from '@/components/world/AssetBoundary';
+import { preview } from '@/lib/preview';
 
 // Les modèles visibles dès l'intro sont demandés en priorité ; le reste de l'archipel
 // se charge pendant que le visiteur regarde la première île.
@@ -47,6 +49,8 @@ const Archipelago = dynamic(
   () => import('@/components/world/Archipelago').then((module) => module.Archipelago),
   { ssr: false },
 );
+// Secrets du monde : chunk séparé, isolé par une boundary.
+const Secrets = dynamic(() => import('@/components/world/secrets/Secrets'), { ssr: false });
 const MarineLife = dynamic(
   () => import('@/components/world/MarineLife').then((module) => module.MarineLife),
   { ssr: false },
@@ -104,6 +108,9 @@ export function Scene({ mobile }: { mobile: boolean }) {
   const ready = useWorld((s) => s.ready);
   const quality = useWorld((s) => s.quality);
   useWorldReveal();
+  // Aperçu `?solo=` : seulement le sujet de la capture (voir lib/preview.ts).
+  const full = preview.solo === null;
+  const sea = preview.solo === 'sea';
 
   const clearColor = useRef(new Color('#08121c'));
 
@@ -141,20 +148,27 @@ export function Scene({ mobile }: { mobile: boolean }) {
       <NightGlow />
       <Ocean />
       <BoundaryStorm />
-      <HomeIsland />
+      {(full || sea) && <HomeIsland />}
       <DeferredArchipelago />
       <Boat />
-      <DeferredMarineLife mobile={mobile} />
-      <Birds />
-      <WindTrails />
-      <Flotsam />
-      <DestinationMarker />
-      <MessageBottle />
-      <SeaLife />
-      <ReefFish />
-      <GoldenStars />
-      <SeaNotes />
-      <Celebration />
+      {full && <DeferredMarineLife mobile={mobile} />}
+      {(full || sea) && <Birds />}
+      {full && (
+        <>
+          <WindTrails />
+          <Flotsam />
+          <DestinationMarker />
+          <MessageBottle />
+          <SeaLife />
+          <ReefFish />
+          <GoldenStars />
+          <SeaNotes />
+          <Celebration />
+          <AssetBoundary>
+            <Secrets />
+          </AssetBoundary>
+        </>
+      )}
       {QUALITY_LEVELS[quality].bloom && (
         // MSAA dans la chaîne d'effets (sinon les arêtes crénèlent) et léger vignettage cinéma.
         <EffectComposer multisampling={4}>

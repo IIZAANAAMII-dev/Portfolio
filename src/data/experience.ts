@@ -3,17 +3,18 @@ import type { ExperienceEntry } from '@/types';
 export const experiences: ExperienceEntry[] = [
   {
     id: 'feeder',
-    role: 'Développeur web',
-    company: 'Feeder',
+    role: 'Développeur full stack',
+    company: 'Feeder SAS – EIZO France',
     period: 'mai 2026 — aujourd’hui',
-    location: 'Marseille, France',
+    location: 'La Ciotat',
+    contract: 'Alternance',
     missions: [
-      'Conception et développement de feeder.fr, la plateforme B2B de distribution de solutions technologiques.',
-      'Mise en place d’un espace revendeurs complet : tarifs, devis, commandes et achats en autonomie.',
-      'Livraison de sites vitrines internationaux et sectoriels (feeder.ae, clarten.fr).',
-      'Intégration Shopify et expérimentations Three.js pour des vitrines interactives.',
+      'Développement web et e-commerce : la plateforme feeder.fr (Next.js, Prisma, Stripe) et la boutique Shopify d’EIZO France.',
+      'Design et intégration : pages produits, collections, landing pages et parcours clients.',
+      'SEO, analytics et suivi de la performance des sites.',
+      'Expériences digitales immersives, comme cyber.feeder.fr (Three.js, GSAP).',
     ],
-    stack: ['React.js', 'TypeScript', 'Node.js', 'Next.js', 'Shopify', 'Three.js', 'WordPress'],
+    stack: ['Next.js', 'React', 'TypeScript', 'Prisma', 'PostgreSQL', 'Stripe', 'Shopify', 'Three.js', 'GSAP'],
   },
   {
     id: 'rgdesign',

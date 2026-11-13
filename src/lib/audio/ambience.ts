@@ -19,6 +19,7 @@ class Ambience {
   private boundaryIntensity = 0;
   private boundaryHush = 0;
   private nodes: AudioNode[] = [];
+  private ducks = new Map<string, number>();
 
   private async ensure() {
     if (this.context) return this.context;
@@ -194,9 +195,7 @@ class Ambience {
     if (this.musicGain) {
       this.musicGain.gain.cancelScheduledValues(now);
       this.musicGain.gain.setValueAtTime(this.musicGain.gain.value, now);
-      const musicTarget = enabled
-        ? 0.35 * (1 - this.boundaryIntensity * 0.78) * (1 - this.boundaryHush * 0.9)
-        : 0;
+      const musicTarget = enabled ? this.musicLevel() : 0;
       this.musicGain.gain.linearRampToValueAtTime(musicTarget, now + (enabled ? 2.5 : 0.4));
     }
 
@@ -214,6 +213,47 @@ class Ambience {
         now + (enabled ? 1.2 : 0.35),
       );
     }
+  }
+
+  /** Volume de la musique selon la météo et les zones qui demandent le silence. */
+  private musicLevel() {
+    let duck = 0;
+    this.ducks.forEach((amount) => {
+      duck = Math.max(duck, amount);
+    });
+    return 0.35 * (1 - this.boundaryIntensity * 0.78) * (1 - this.boundaryHush * 0.9) * (1 - duck);
+  }
+
+  /**
+   * Une zone (île secrète, radio…) baisse la musique de fond : 0 = aucun effet,
+   * 1 = musique coupée. Plusieurs zones peuvent demander en même temps : la plus forte
+   * l'emporte. Appeler à cadence réduite (quelques fois par seconde), pas à chaque image.
+   */
+  setMusicDuck(key: string, amount: number) {
+    const value = Math.max(0, Math.min(1, amount));
+    if (value <= 0.001) this.ducks.delete(key);
+    else this.ducks.set(key, value);
+    const context = this.context;
+    if (!context || !this.musicGain || !this.master) return;
+    const now = context.currentTime;
+    const audible = this.enabled && this.master.gain.value > 0.001;
+    this.musicGain.gain.cancelScheduledValues(now);
+    this.musicGain.gain.setValueAtTime(this.musicGain.gain.value, now);
+    this.musicGain.gain.linearRampToValueAtTime(audible ? this.musicLevel() : 0, now + 0.5);
+  }
+
+  /**
+   * Accès au mixeur pour les couches sonores des décors (bourdon de l'île secrète,
+   * stations de radio…) : brancher ses nœuds sur `destination`. Null tant que le son
+   * n'a jamais été activé par le visiteur (aucun AudioContext avant un geste).
+   */
+  bus(): { context: AudioContext; destination: AudioNode } | null {
+    if (!this.context || !this.master || !this.enabled) return null;
+    return { context: this.context, destination: this.master };
+  }
+
+  get isEnabled() {
+    return this.enabled;
   }
 
   /** Mix continu de la mer interdite. Appelé à cadence réduite par BoundaryStorm. */
@@ -237,9 +277,7 @@ class Ambience {
       this.musicGain.gain.cancelScheduledValues(now);
       this.musicGain.gain.setValueAtTime(this.musicGain.gain.value, now);
       this.musicGain.gain.linearRampToValueAtTime(
-        audible
-          ? 0.35 * (1 - this.boundaryIntensity * 0.78) * (1 - this.boundaryHush * 0.9)
-          : 0,
+        audible ? this.musicLevel() : 0,
         now + 0.65,
       );
     }

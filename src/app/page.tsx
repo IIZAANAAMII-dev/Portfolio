@@ -4,7 +4,7 @@ import { islands } from '@/data/islands';
 import { journey } from '@/data/journey';
 import { projects } from '@/data/projects';
 import { site } from '@/data/site';
-import { skillGroups } from '@/data/skills';
+import { skillZones } from '@/data/skills';
 
 const jsonLd = {
   '@context': 'https://schema.org',
@@ -38,20 +38,24 @@ export default function Home() {
 
         <section id="about">
           <h2>À propos</h2>
-          {site.bio.map((paragraph) => (
-            <p key={paragraph.slice(0, 24)}>{paragraph}</p>
-          ))}
+          <p>{site.about}</p>
+          <p>
+            {site.current.contract} chez {site.current.company}, {site.current.place}.
+          </p>
         </section>
 
         <section id="skills">
           <h2>Compétences</h2>
-          {skillGroups.map((group) => (
-            <div key={group.id}>
-              <h3>{group.label}</h3>
-              <p>{group.context}</p>
+          {skillZones.map((zone) => (
+            <div key={zone.id}>
+              <h3>{zone.label}</h3>
+              <p>{zone.context}</p>
               <ul>
-                {group.items.map((item) => (
-                  <li key={item}>{item}</li>
+                {zone.items.map((item) => (
+                  <li key={item.name}>
+                    {item.name}
+                    {item.level === 'exploration' ? ' (en exploration)' : ''}
+                  </li>
                 ))}
               </ul>
             </div>
@@ -62,11 +66,20 @@ export default function Home() {
           <h2>Projets</h2>
           {projects.map((project) => (
             <article key={project.id}>
-              <h3>{project.title}</h3>
+              <h3>
+                {project.index} — {project.title}
+              </h3>
+              <p>
+                {project.kind} · {project.context} · {project.statusLabel ?? project.status}
+              </p>
               <p>{project.summary}</p>
-              <p>{project.problem}</p>
-              <p>{project.solution}</p>
+              <ul>
+                {project.highlights.map((item) => (
+                  <li key={item}>{item}</li>
+                ))}
+              </ul>
               <p>{project.stack.join(', ')}</p>
+              {project.url && <a href={project.url}>{project.url}</a>}
             </article>
           ))}
         </section>
@@ -93,7 +106,7 @@ export default function Home() {
           {journey.map((step) => (
             <div key={step.id}>
               <h3>
-                {step.year} — {step.title}
+                {step.marker} — {step.title}
               </h3>
               <p>{step.description}</p>
             </div>

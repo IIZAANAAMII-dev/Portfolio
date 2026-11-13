@@ -1,34 +1,48 @@
 import type { JourneyStep } from '@/types';
 
+/**
+ * Les cinq étapes de l'île Parcours, de la Bretagne à Marseille.
+ * Pas de dates : seulement des repères (aucune date n'est inventée).
+ */
 export const journey: JourneyStep[] = [
   {
-    id: 'start',
-    year: '2022',
-    title: 'Premiers pas',
-    description: 'Premiers projets graphiques : le design et le code deviennent un même langage.',
+    id: 'origines',
+    marker: 'Morbihan',
+    title: 'Origines bretonnes',
+    description:
+      'Je grandis dans le Morbihan, dans une famille de pêcheurs. La mer, les ports et les bateaux sont mon premier décor.',
+    side: 'bretagne',
   },
   {
-    id: 'training',
-    year: '2023',
-    title: 'Concepteur Designer UI',
-    description: 'Diplôme Bac+3 au GRETA Occitanie. Entre Figma, Photoshop et prototypage, j’apprends à penser l’interface.',
+    id: 'apprentissage',
+    marker: 'Premiers pas',
+    title: 'Découvrir le code',
+    description:
+      'Plutôt que la pêche, je choisis une autre forme d’exploration : le développement et la création numérique. J’apprends en construisant.',
+    side: 'bretagne',
   },
   {
-    id: 'design',
-    year: '2024',
-    title: 'Design d’interface',
-    description: 'Stages UI/UX : de la maquette à la page web, je passe du design au développement.',
+    id: 'marseille',
+    marker: 'Cap au sud',
+    title: 'Arrivée à Marseille',
+    description:
+      'Je quitte la Bretagne pour Marseille afin de construire ma carrière : nouvelle lumière, nouvelle mer, nouveaux projets.',
+    side: 'passage',
   },
   {
-    id: 'fullstack',
-    year: '2025',
-    title: 'Full stack',
-    description: 'Produits complets en solo ou en équipe : React en front, Node.js en back, et un goût pour les détails.',
+    id: 'feeder',
+    marker: 'La Ciotat',
+    title: 'Feeder – EIZO France',
+    description:
+      'En alternance chez Feeder SAS – EIZO France : développement web, e-commerce, design, SEO et expériences digitales, sur des sites en ligne.',
+    side: 'marseille',
   },
   {
-    id: 'next',
-    year: 'Aujourd’hui',
-    title: 'Master & Freelance',
-    description: 'Master Web/Multimedia Management à l’ISCOD et missions chez Feeder. Je cherche à monter en responsabilité.',
+    id: 'horizon',
+    marker: 'Aujourd’hui',
+    title: 'Vers l’immersif',
+    description:
+      'Je pousse vers les expériences web immersives, la 3D temps réel et des projets personnels ambitieux. L’un d’eux est un jeu… qui se cache quelque part au large.',
+    side: 'marseille',
   },
 ];
