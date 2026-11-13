@@ -16,7 +16,6 @@ import {
   Vector3,
 } from 'three';
 import * as SkeletonUtils from 'three/examples/jsm/utils/SkeletonUtils.js';
-import { AssetBoundary } from '@/components/world/AssetBoundary';
 import { JELLYFISH_ZONES, RAY_ZONES, TURTLE_ZONES } from '@/data/zones';
 import { boatState } from '@/lib/boat-state';
 import { animalRevealScale } from '@/lib/cinematic';
@@ -29,10 +28,7 @@ import { waveHeight } from '@/lib/waves';
 
 const RAY_URL = '/models/aquatic-quaternius/extra/manta-ray.glb';
 const DOLPHIN_URL = '/models/aquatic-quaternius/extra/dolphin.glb';
-const TURTLE_URL = '/models/living-ocean/sea-turtle.glb';
-const ANGLER_URL = '/models/living-ocean/anglerfish.glb';
 const JELLY_URL = '/models/living-ocean/jellyfish.glb';
-const PUFFER_URL = '/models/living-ocean/puffer.glb';
 const JELLY_DAY = new Color('#8dbbc2');
 const JELLY_NIGHT = new Color('#35e6ff');
 
@@ -317,71 +313,6 @@ function SeaTurtle() {
 }
 
 /** Tortue GLB reconnaissable (Poly by Google, CC BY), conservee rare et diurne. */
-function SeaTurtleAsset() {
-  const group = useRef<Group>(null);
-  const zone = TURTLE_ZONES[0];
-  const clone = useAnimatedClones(TURTLE_URL, 1, 2.65)[0];
-  const agent = useRef<Wanderer>({
-    x: zone.center[0],
-    z: zone.center[1],
-    heading: hash(zone.seed) * Math.PI * 2,
-    phase: hash(zone.seed * 5.1) * Math.PI * 2,
-  });
-
-  useFrame((state, delta) => {
-    if (!group.current) return;
-    const dt = Math.min(delta, 1 / 30);
-    const time = state.clock.elapsedTime;
-    const current = agent.current;
-    const distance = Math.hypot(
-      boatState.position.x - current.x,
-      boatState.position.z - current.z,
-    );
-    const quality = useWorld.getState().quality;
-    const config = QUALITY_LEVELS[quality];
-    const simulationDistance = quality === 'high' ? 82 : quality === 'medium' ? 62 : 46;
-    const world = useWorld.getState();
-    const revealDistance = Math.hypot(
-      current.x - world.introCenter[0],
-      current.z - world.introCenter[1],
-    );
-    const revealScale = world.reducedMotion
-      ? (world.reveal > 0.01 ? 1 : 0)
-      : animalRevealScale(revealDistance, world.introRadius, hash(zone.seed * 2.9) * 2.4);
-    clone.scene.scale.setScalar((clone.scene.userData.baseScale as number) * revealScale);
-    const activity = ecologyState.dayLarge * ecologyState.worldLife;
-    group.current.visible = revealScale > 0.006
-      && activity > 0.045 && distance < Math.min(config.fishDistance, simulationDistance);
-    if (!group.current.visible) return;
-
-    const homeDx = zone.center[0] - current.x;
-    const homeDz = zone.center[1] - current.z;
-    const homeDistance = Math.hypot(homeDx, homeDz);
-    let desired = current.heading + Math.sin(time * 0.06 + current.phase) * 0.2 * dt;
-    if (homeDistance > zone.radius) desired += shortestAngle(desired, Math.atan2(homeDz, homeDx)) * 0.6;
-    desired += steerAwayFromIslands(current.x, current.z, desired, 9) * dt * 2;
-    current.heading += clamp(shortestAngle(current.heading, desired), -0.3 * dt, 0.3 * dt);
-    current.x += Math.cos(current.heading) * 0.62 * dt;
-    current.z += Math.sin(current.heading) * 0.62 * dt;
-
-    const breathe = Math.sin(time * 0.115 + current.phase);
-    const depth = Math.min(-1.5 + Math.max(0, breathe - 0.55) * 2.6, -0.32);
-    clone.scene.position.set(current.x, depth, current.z);
-    clone.scene.rotation.set(
-      Math.sin(time * 0.48 + current.phase) * 0.07,
-      -current.heading + Math.PI * 0.5,
-      Math.sin(time * 0.34 + current.phase) * 0.08,
-    );
-  });
-
-  return <group ref={group}><primitive object={clone.scene} /></group>;
-}
-
-/**
- * MÉDUSES — uniquement dans deux poches (voir zones.ts). Pulsation du corps,
- * dérive verticale lente, et bioluminescence la nuit : quand les poissons
- * disparaissent, ce sont elles qui font vivre l'eau sombre.
- */
 function JellyfishCluster({ center, radius, seed, geometry }: {
   center: [number, number]; radius: number; seed: number; geometry: BufferGeometry;
 }) {
@@ -568,101 +499,6 @@ function DolphinPod() {
 }
 
 /** Predateur nocturne rare : deux baudroies animees, emissives, sans PointLight. */
-function Anglerfish({ mobile }: { mobile: boolean }) {
-  const group = useRef<Group>(null);
-  const count = mobile ? 1 : 2;
-  const clones = useAnimatedClones(ANGLER_URL, count, 2.5);
-  const agents = useRef<Wanderer[]>(Array.from({ length: count }, (_, index) => ({
-    x: JELLYFISH_ZONES[index].center[0] + 4,
-    z: JELLYFISH_ZONES[index].center[1] - 3,
-    heading: hash(index * 7.7 + 9) * Math.PI * 2,
-    phase: hash(index * 4.1 + 3) * Math.PI * 2,
-  })));
-
-  useFrame((state, delta) => {
-    if (!group.current) return;
-    const dt = Math.min(delta, 1 / 30);
-    const activity = ecologyState.nocturnalFish * ecologyState.predator * ecologyState.worldLife;
-    group.current.visible = useWorld.getState().reveal > 0.75 && activity > 0.06;
-    if (!group.current.visible) return;
-    const quality = useWorld.getState().quality;
-    const config = QUALITY_LEVELS[quality];
-    const simulationDistance = quality === 'high' ? 84 : quality === 'medium' ? 64 : 48;
-    const time = state.clock.elapsedTime;
-
-    clones.forEach(({ scene, mixer, materials }, index) => {
-      const zone = JELLYFISH_ZONES[index];
-      const agent = agents.current[index];
-      const distance = Math.hypot(boatState.position.x - agent.x, boatState.position.z - agent.z);
-      scene.visible = distance < Math.min(config.fishDistance, simulationDistance);
-      if (!scene.visible) return;
-      mixer.update(dt * 0.72);
-      const homeAngle = Math.atan2(zone.center[1] - agent.z, zone.center[0] - agent.x);
-      const homeDistance = Math.hypot(zone.center[0] - agent.x, zone.center[1] - agent.z);
-      let desired = agent.heading + Math.sin(time * 0.08 + agent.phase) * 0.22 * dt;
-      if (homeDistance > zone.radius) desired += shortestAngle(desired, homeAngle) * 0.55;
-      agent.heading += clamp(shortestAngle(agent.heading, desired), -0.34 * dt, 0.34 * dt);
-      agent.x += Math.cos(agent.heading) * 0.56 * dt;
-      agent.z += Math.sin(agent.heading) * 0.56 * dt;
-      scene.position.set(agent.x, -1.55 + Math.sin(time * 0.28 + agent.phase) * 0.25, agent.z);
-      scene.rotation.y = -agent.heading + Math.PI * 0.5;
-      materials.forEach((item) => {
-        item.emissive.copy(item.color).multiplyScalar(0.48);
-        item.emissiveIntensity = activity * (0.72 + Math.sin(time * 1.4 + index) * 0.12);
-      });
-    });
-  });
-
-  return <group ref={group}>{clones.map(({ scene }, index) => <primitive key={index} object={scene} />)}</group>;
-}
-
-const PUFFER_HOMES: [number, number][] = [
-  [-18, 12], [23, -17], [-43, 12], [41, 19],
-];
-
-/** Poissons-globes animés CC0 : petits solitaires autour des récifs, jamais en boule. */
-function Pufferfish({ mobile }: { mobile: boolean }) {
-  const group = useRef<Group>(null);
-  const count = mobile ? 2 : PUFFER_HOMES.length;
-  const clones = useAnimatedClones(PUFFER_URL, count, 1.45);
-
-  useFrame((state, delta) => {
-    if (!group.current) return;
-    const time = state.clock.elapsedTime;
-    const world = useWorld.getState();
-    const activity = ecologyState.dayFish * ecologyState.worldLife;
-    group.current.visible = activity > 0.045;
-    if (!group.current.visible) return;
-    const range = world.quality === 'high' ? 112 : world.quality === 'medium' ? 84 : 62;
-
-    clones.forEach((clone, index) => {
-      const home = PUFFER_HOMES[index];
-      const phase = hash(index * 7.31 + 2) * Math.PI * 2;
-      const orbit = time * (0.075 + index * 0.009) + phase;
-      const x = home[0] + Math.cos(orbit) * (7 + index * 0.7);
-      const z = home[1] + Math.sin(orbit * 0.83) * (6 + index * 0.5);
-      const distance = Math.hypot(boatState.position.x - x, boatState.position.z - z);
-      const revealDistance = Math.hypot(x - world.introCenter[0], z - world.introCenter[1]);
-      const revealScale = world.reducedMotion
-        ? (world.reveal > 0.01 ? 1 : 0)
-        : animalRevealScale(revealDistance, world.introRadius, hash(index * 3.1) * 2);
-      const visible = revealScale > 0.006 && distance < range;
-      clone.scene.visible = visible;
-      if (!visible) return;
-      clone.mixer.update(Math.min(delta, 1 / 24) * 0.82);
-      clone.scene.scale.setScalar((clone.scene.userData.baseScale as number) * revealScale);
-      clone.scene.position.set(x, -1.05 + Math.sin(time * 0.42 + phase) * 0.24, z);
-      clone.scene.rotation.set(
-        Math.sin(time * 0.31 + phase) * 0.06,
-        -orbit,
-        Math.cos(time * 0.27 + phase) * 0.08,
-      );
-    });
-  });
-
-  return <group ref={group}>{clones.map(({ scene }, index) => <primitive key={index} object={scene} />)}</group>;
-}
-
 /**
  * Faune « spéciale » : raies, tortue, méduses, dauphins. Les bancs de poissons
  * ordinaires vivent dans MarineLife ; ici on gère les rencontres mémorables.
@@ -675,12 +511,8 @@ export function Fauna({ mobile }: { mobile: boolean }) {
   return (
     <group>
       <MantaRays mobile={mobile} />
-      <Pufferfish mobile={mobile} />
       <DolphinPod />
-      <AssetBoundary fallback={<SeaTurtle />}>
-        <SeaTurtleAsset />
-      </AssetBoundary>
-      <Anglerfish mobile={mobile} />
+      <SeaTurtle />
       {jellyZones.map((zone) => (
         <JellyfishCluster
           key={zone.seed}

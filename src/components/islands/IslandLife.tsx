@@ -1,28 +1,13 @@
 'use client';
 
-import { useEffect, useMemo, useRef } from 'react';
+import { useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
-import { useGLTF } from '@react-three/drei';
-import {
-  AdditiveBlending,
-  AnimationMixer,
-  Box3,
-  Color,
-  Group,
-  Mesh,
-  ShaderMaterial,
-  Vector3,
-} from 'three';
-import * as SkeletonUtils from 'three/examples/jsm/utils/SkeletonUtils.js';
+import { AdditiveBlending, Color, Group, ShaderMaterial } from 'three';
 import { boatState } from '@/lib/boat-state';
-import { ecologyState } from '@/lib/ecology';
 import { skyState } from '@/lib/sky';
 import { useWorld } from '@/lib/store';
 import { hash } from '@/lib/utils/math';
 import type { IslandConfig } from '@/types';
-
-const CRAB_URL = '/models/living-ocean/crab.glb';
-const CRAB_ISLANDS = new Set<IslandConfig['id']>(['about', 'projects', 'journey', 'contact']);
 
 const moteVertex = /* glsl */ `
 attribute float aPhase;
@@ -128,62 +113,11 @@ function IslandMotes({ island, index }: { island: IslandConfig; index: number })
   );
 }
 
-/** Un crabe animé rare sur les plages, avec une vraie animation de marche CC0. */
-function BeachCrab({ island, index }: { island: IslandConfig; index: number }) {
-  const root = useRef<Group>(null);
-  const gltf = useGLTF(CRAB_URL);
-  const asset = useMemo(() => {
-    const scene = SkeletonUtils.clone(gltf.scene);
-    const size = new Box3().setFromObject(scene).getSize(new Vector3());
-    const scalar = 1.15 / Math.max(size.x, size.y, size.z, 0.001);
-    scene.scale.setScalar(scalar);
-    scene.traverse((child) => {
-      if (child instanceof Mesh) {
-        child.castShadow = false;
-        child.receiveShadow = true;
-        child.frustumCulled = false;
-      }
-    });
-    const mixer = new AnimationMixer(scene);
-    const walk = gltf.animations.find((clip) => /walk/i.test(clip.name)) ?? gltf.animations[0];
-    if (walk) mixer.clipAction(walk).setEffectiveTimeScale(0.72).play();
-    return { scene, mixer };
-  }, [gltf]);
-
-  useEffect(() => () => {
-    asset.mixer.stopAllAction();
-  }, [asset]);
-
-  useFrame((state, delta) => {
-    if (!root.current) return;
-    const world = useWorld.getState();
-    const distance = Math.hypot(
-      boatState.position.x - island.position[0],
-      boatState.position.z - island.position[1],
-    );
-    const visible = world.quality !== 'low'
-      && distance < 92
-      && ecologyState.dayFish * ecologyState.worldLife > 0.08;
-    root.current.visible = visible;
-    if (!visible) return;
-    asset.mixer.update(Math.min(delta, 1 / 24));
-    const phase = hash(index * 8.17 + 3) * Math.PI * 2;
-    const arc = island.dockAngle + 1.35 + Math.sin(state.clock.elapsedTime * 0.13 + phase) * 0.52;
-    const coast = island.radius * 0.91;
-    root.current.position.set(Math.cos(arc) * coast, 0.24, Math.sin(arc) * coast);
-    root.current.rotation.y = -arc + Math.PI * 0.5;
-  });
-
-  return <group ref={root}><primitive object={asset.scene} /></group>;
-}
-
 export function IslandLife({ island, index }: { island: IslandConfig; index: number }) {
   return (
     <group>
       <IslandMotes island={island} index={index} />
-      {CRAB_ISLANDS.has(island.id) && <BeachCrab island={island} index={index} />}
     </group>
   );
 }
 
-useGLTF.preload(CRAB_URL);

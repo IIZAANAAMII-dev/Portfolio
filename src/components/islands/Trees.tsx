@@ -204,11 +204,11 @@ function angleGap(a: number, b: number) {
 }
 
 /** Emplacements possibles : sur le plateau, loin du ponton et du sommet (le monument). */
-function candidateSpots(sampler: HeightSampler, radius: number, plateau: number, avoidAngle: number, seed: number) {
+function candidateSpots(sampler: HeightSampler, radius: number, plateau: number, avoidAngle: number | undefined, seed: number) {
   const spots: Spot[] = [];
   for (let attempt = 1; spots.length < 14 && attempt < 260; attempt++) {
     const angle = hash(seed + attempt * 2.17) * Math.PI * 2;
-    if (angleGap(angle, avoidAngle) < 0.6) continue;
+    if (avoidAngle !== undefined && angleGap(angle, avoidAngle) < 0.6) continue;
     const spread = radius * (0.34 + hash(seed + attempt * 3.43) * 0.42);
     const x = Math.cos(angle) * spread;
     const z = Math.sin(angle) * spread;
@@ -249,7 +249,8 @@ export function Trees({
   sampler: HeightSampler;
   radius: number;
   plateau: number;
-  avoidAngle: number;
+  /** Direction du ponton, laissée libre (absent : aucun secteur réservé). */
+  avoidAngle?: number;
   seed: number;
   /** Couleur des flamboyants de cette île. */
   flame: string;

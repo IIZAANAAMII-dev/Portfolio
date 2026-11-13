@@ -25,6 +25,17 @@ const targetPoints = Array.from({ length: 5 }, () => new Vector3());
 const positionCurve = new CatmullRomCurve3(positionPoints, false, 'centripetal', 0.45);
 const targetCurve = new CatmullRomCurve3(targetPoints, false, 'centripetal', 0.45);
 
+/**
+ * Mode photo : `?cam=x,y,z,tx,ty,tz` fige la caméra sur une position et une cible (relevés
+ * visuels, captures d'écran). Lu une seule fois.
+ */
+const photoCamera = (() => {
+  if (typeof window === 'undefined') return null;
+  const values = new URLSearchParams(window.location.search).get('cam')?.split(',').map(Number);
+  if (!values || values.length !== 6 || values.some((value) => !Number.isFinite(value))) return null;
+  return { position: new Vector3(values[0], values[1], values[2]), target: new Vector3(values[3], values[4], values[5]) };
+})();
+
 function directions() {
   const forwardX = Math.cos(boatState.heading);
   const forwardZ = Math.sin(boatState.heading);
@@ -144,6 +155,11 @@ export function CameraRig({ mobile }: { mobile: boolean }) {
     const camera = state.camera;
     const dt = Math.min(delta, 1 / 30);
     const { phase, gameTransition, activeIsland, reducedMotion } = useWorld.getState();
+    if (photoCamera && phase !== 'loading' && phase !== 'intro') {
+      camera.position.copy(photoCamera.position);
+      camera.lookAt(photoCamera.target);
+      return;
+    }
     introPose(mobile, aspect);
     gameplayPose(mobile);
     let lambda = 2.4;
@@ -205,7 +221,8 @@ export function CameraRig({ mobile }: { mobile: boolean }) {
       return;
     } else if (phase === 'docked' && activeIsland) {
       const island = islandById[activeIsland];
-      const zoomOut = mobile ? 1.35 : 1;
+      // « À propos » recule et monte : ses îlots de personnalité entrent dans le cadre.
+      const zoomOut = (mobile ? 1.35 : 1) * (activeIsland === 'about' ? 1.55 : 1);
       const distance = (island.radius + 26) * zoomOut;
       const dockX = Math.cos(island.dockAngle);
       const dockZ = Math.sin(island.dockAngle);

@@ -2,9 +2,9 @@
 
 import { useMemo } from 'react';
 import { RingGeometry } from 'three';
-import { getSubstanceMaterial } from '@/lib/materials/substance-material';
+import { getPaintedTerrainMaterial } from '@/lib/materials/painted-terrain';
 import type { SubstanceId } from '@/lib/materials/substances';
-import { BEACH_HEIGHT, buildTerrainGeometry, type HeightSampler, type TerrainShape } from './terrain-shape';
+import { buildTerrainGeometry, type HeightSampler, type TerrainShape } from './terrain-shape';
 
 interface TerrainProps {
   shape: TerrainShape;
@@ -13,6 +13,8 @@ interface TerrainProps {
   cliff?: SubstanceId;
   /** Couvert des plateaux. */
   top?: SubstanceId;
+  /** Teinte multiplicative de la roche seule (granit rose…). */
+  cliffTint?: string;
 }
 
 function makeReef(radius: number, seed: number, inner: number, outer: number) {
@@ -39,23 +41,10 @@ function makeReef(radius: number, seed: number, inner: number, outer: number) {
  * selon la forme : roche sur les pentes, herbe sur les plateaux, sable sous la ligne de
  * plage (projection triplanaire, sans UV ni couture).
  */
-export function Terrain({ shape, sampler, cliff = 'island_cliff', top = 'wild_grass' }: TerrainProps) {
+export function Terrain({ shape, sampler, cliff = 'island_cliff', top = 'wild_grass', cliffTint }: TerrainProps) {
   const geometry = useMemo(() => buildTerrainGeometry(shape, sampler), [shape, sampler]);
-  const material = useMemo(
-    () =>
-      getSubstanceMaterial(cliff, {
-        projection: 'triplanar',
-        // Géométrie procédurale en mètres : l'espace objet suit l'île pendant sa révélation.
-        space: 'object',
-        top,
-        topThreshold: 0.78,
-        topSoftness: 0.09,
-        low: 'fine_sand_beach',
-        lowBelow: BEACH_HEIGHT,
-        lowSoftness: 0.2,
-      }),
-    [cliff, top],
-  );
+  // Relief peint (sable, strates, herbe) : aucune texture, une couleur choisie pour chaque forme.
+  const material = useMemo(() => getPaintedTerrainMaterial(cliff, top, cliffTint), [cliff, cliffTint, top]);
   const reef = useMemo(() => makeReef(shape.radius, shape.seed + 8.1, 1.22, 1.5), [shape.radius, shape.seed]);
 
   return (

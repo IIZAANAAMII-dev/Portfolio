@@ -102,11 +102,8 @@ export const MODEL_MATERIALS: Record<SubstanceModelName, Record<string, SlotSpec
     light: lamp,
   },
   'house-mound': {
-    // Butte de la maison : vert prairie franc (la carte d'origine, très sombre, faisait une masse noire).
-    mound: {
-      substance: 'earth_and_grass',
-      options: { projection: 'triplanar', space: 'world', top: 'wild_grass', topThreshold: 0.35, recolor: '#9cc35a', recolorAmount: 0.7 },
-    },
+    // Butte de la maison : même vert peint que les plateaux (la carte d'origine faisait une masse noire).
+    mound: { paint: '#79ad4a', roughness: 1 },
     wall_plaster: { substance: 'mossy_brick_wall' },
     bottom_platform: { substance: 'blocky_stone_cliff', options: { projection: 'triplanar', space: 'world' } },
     light_wood: { substance: 'wood_barrier' },

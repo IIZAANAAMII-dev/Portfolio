@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef } from 'react';
 import { useFrame, type ThreeEvent } from '@react-three/fiber';
 import { Color, ShaderMaterial, Vector2, Vector3, Vector4 } from 'three';
 import { homeIsland, islands } from '@/data/islands';
+import { islets } from '@/data/islets';
 import { ecologyState } from '@/lib/ecology';
 import { skyState } from '@/lib/sky';
 import { useWorld } from '@/lib/store';
@@ -12,7 +13,7 @@ import { WAVE_GLSL } from '@/lib/waves';
 import { loadSubstanceMap } from '@/lib/materials/substance-material';
 
 const OCEAN_SIZE = 1200;
-const SHOAL_COUNT = 7;
+const SHOAL_COUNT = 10;
 
 const DAY_DEEP = new Color('#07547a');
 const NIGHT_DEEP = new Color('#01060c');
@@ -331,6 +332,7 @@ export function Ocean() {
         value: [
           new Vector4(homeIsland.position[0], homeIsland.position[1], homeIsland.radius, 0),
           ...islands.map((island) => new Vector4(island.position[0], island.position[1], island.radius, 0)),
+          ...islets.map((islet) => new Vector4(islet.position[0], islet.position[1], islet.radius, 0)),
         ],
       },
     }),

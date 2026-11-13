@@ -88,3 +88,11 @@ export function clearingFor(holder: Object3D, model: Object3D): Clearing | null 
   const radius = Math.max(box.max.x - box.min.x, box.max.z - box.min.z) * 0.5 * Math.max(scale.x, scale.z);
   return { x: center.x, z: center.z, radius: radius * 0.9 };
 }
+
+/**
+ * Clairière fixe déclarée par un décor procédural (phare, plateforme…), en coordonnées de
+ * l'île. À appeler depuis un effet de montage ; renvoie la fonction de retrait.
+ */
+export function addClearing(store: ClearingStore | null, x: number, z: number, radius: number) {
+  return store ? store.add({ x, z, radius }) : undefined;
+}

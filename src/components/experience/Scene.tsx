@@ -14,6 +14,7 @@ import { Lighting } from '@/components/world/Lighting';
 import { Ocean } from '@/components/world/Ocean';
 import { HomeIsland } from '@/components/world/HomeIsland';
 import { Birds } from '@/components/world/Birds';
+import { WindTrails } from '@/components/world/WindTrails';
 import { BoundaryStorm } from '@/components/world/BoundaryStorm';
 import { NightGlow } from '@/components/world/NightGlow';
 import { substanceTexturesSettled } from '@/lib/materials/substance-material';
@@ -137,6 +138,7 @@ export function Scene({ mobile }: { mobile: boolean }) {
       <Boat />
       <DeferredMarineLife mobile={mobile} />
       <Birds />
+      <WindTrails />
       {QUALITY_LEVELS[quality].bloom && (
         <EffectComposer multisampling={0}>
           <Bloom

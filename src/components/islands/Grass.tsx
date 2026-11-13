@@ -158,13 +158,20 @@ function angleGap(a: number, b: number) {
 /** Touffes posées sur le plateau : hors plage, hors pente forte, hors secteur du ponton. */
 function plant(
   sampler: HeightSampler,
-  { radius, minHeight, avoidAngle, tufts, seed }: { radius: number; minHeight: number; avoidAngle: number; tufts: number; seed: number },
+  {
+    radius,
+    minHeight,
+    avoidAngle,
+    tufts,
+    seed,
+    palette,
+  }: { radius: number; minHeight: number; avoidAngle?: number; tufts: number; seed: number; palette: Color[] },
 ) {
   const blades: Blade[] = [];
   let planted = 0;
   for (let attempt = 1; planted < tufts && attempt < tufts * 14; attempt++) {
     const angle = hash(seed + attempt * 1.37) * Math.PI * 2;
-    if (angleGap(angle, avoidAngle) < 0.42) continue;
+    if (avoidAngle !== undefined && angleGap(angle, avoidAngle) < 0.42) continue;
     const spread = radius * 0.86 * Math.sqrt(hash(seed + attempt * 3.71));
     const cx = Math.cos(angle) * spread;
     const cz = Math.sin(angle) * spread;
@@ -172,7 +179,7 @@ function plant(
     planted += 1;
 
     const tone = hash(seed + attempt * 8.17);
-    const base = TUFTS[tone < 0.4 ? 0 : tone < 0.72 ? 1 : tone < 0.92 ? 2 : 3];
+    const base = palette[tone < 0.4 ? 0 : tone < 0.72 ? 1 : tone < 0.92 ? 2 : 3] ?? palette[0];
     const count = 7 + Math.floor(hash(seed + attempt * 4.91) * 9);
     const tuftRadius = 0.28 + hash(seed + attempt * 6.29) * 0.4;
     const tuftHeight = 0.55 + hash(seed + attempt * 7.43) * 0.5;
@@ -206,14 +213,17 @@ export function Grass({
   plateau,
   avoidAngle,
   seed,
+  palette,
 }: {
   sampler: HeightSampler;
   radius: number;
   /** Altitude du premier plateau : sous elle, c'est la plage ou la falaise. */
   plateau: number;
-  /** Direction du ponton : l'herbe laisse le passage libre. */
-  avoidAngle: number;
+  /** Direction du ponton : l'herbe laisse le passage libre (absent : aucun secteur réservé). */
+  avoidAngle?: number;
   seed: number;
+  /** Quatre couleurs de touffes (de la plus courante à la plus rare). */
+  palette?: string[];
 }) {
   const mesh = useRef<InstancedMesh>(null);
   const clearings = useContext(ClearingContext);
@@ -221,6 +231,7 @@ export function Grass({
   const quality = useWorld((state) => state.quality);
   const density = QUALITY_LEVELS[quality].vegetationDensity;
   const material = useMemo(() => createGrassMaterial(), []);
+  const paletteKey = palette?.join('|') ?? '';
   const blades = useMemo(
     () => plant(sampler, {
       radius,
@@ -228,8 +239,9 @@ export function Grass({
       avoidAngle,
       tufts: Math.round(radius * radius * 1.9 * density),
       seed,
+      palette: paletteKey ? paletteKey.split('|').map((color) => new Color(color)) : TUFTS,
     }),
-    [avoidAngle, density, plateau, radius, sampler, seed],
+    [avoidAngle, density, paletteKey, plateau, radius, sampler, seed],
   );
 
   useLayoutEffect(() => {

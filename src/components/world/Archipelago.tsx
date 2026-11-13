@@ -1,6 +1,7 @@
 'use client';
 
 import { Island } from '@/components/islands/Island';
+import { PersonalityIslets } from '@/components/islets/PersonalityIslet';
 import { islands } from '@/data/islands';
 
 /** Archipel des îles secondaires, révélé progressivement par le cercle d'intro. */
@@ -10,6 +11,7 @@ export function Archipelago() {
       {islands.map((island, index) => (
         <Island key={island.id} island={island} index={index} />
       ))}
+      <PersonalityIslets />
     </group>
   );
 }

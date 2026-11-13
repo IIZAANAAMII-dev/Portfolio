@@ -59,21 +59,6 @@ export const FISH_SCHOOLS: SchoolSpawn[] = [
     travelSpeed: 0.31,
     route: [[37, -29], [51, -15], [59, 4], [49, 29], [29, 22], [19, 2]],
   }, // Skills -> Projects
-  {
-    species: 'blue', center: [48, 31], count: 12, radius: 16, depth: -1.28, seed: 73, scale: 0.4,
-    travelSpeed: 0.28,
-    route: [[48, 31], [28, 45], [4, 55], [-20, 51], [-43, 42], [-23, 29], [10, 27]],
-  }, // Projects -> Experience -> Journey
-  {
-    species: 'reef', center: [-31, -48], count: 10, radius: 13, depth: -1.05, seed: 101, scale: 0.34,
-    travelSpeed: 0.47,
-    route: [[-31, -48], [-47, -35], [-37, -14], [-15, -21], [2, -42], [-6, -63]],
-  }, // passage sud-ouest, petit banc rapide
-  {
-    species: 'clown', center: [37, 12], count: 9, radius: 11, depth: -0.92, seed: 119, scale: 0.29,
-    travelSpeed: 0.42,
-    route: [[37, 12], [20, 24], [2, 17], [-2, -3], [20, -5]],
-  }, // traverse discrète entre l'îlot et Projects
 
   // — Couronne centrale : petits bancs espacés qui tournent autour de l'îlot —
   {
@@ -85,11 +70,6 @@ export const FISH_SCHOOLS: SchoolSpawn[] = [
     species: 'clown', center: [6, 16], count: 7, radius: 7, depth: -0.74, seed: 193, scale: 0.27,
     travelSpeed: 0.38,
     route: [[6, 16], [-8, 14], [-16, 5], [-14, -9], [-2, -16], [13, -11], [17, 3]],
-  },
-  {
-    species: 'blue', center: [19, 9], count: 8, radius: 8, depth: -1.08, seed: 207, scale: 0.32,
-    travelSpeed: 0.29,
-    route: [[19, 9], [9, 20], [-7, 21], [-20, 10], [-20, -7], [-8, -21], [10, -19], [21, -6]],
   },
 
   // — Eau profonde (rare et impressionnant) —
