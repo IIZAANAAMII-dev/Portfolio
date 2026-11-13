@@ -56,6 +56,21 @@ export function Intro() {
       </div>
 
       <p className="intro-hint">Naviguez au clic sur la mer · le son démarre avec le voyage</p>
+
+      {interactive && (
+        <button
+          type="button"
+          className="intro-quick"
+          onClick={(event) => {
+            // Ne pas larguer les amarres : le recruteur pressé va droit au contenu.
+            event.stopPropagation();
+            useWorld.getState().setQuickView(true);
+          }}
+          onKeyDown={(event) => event.stopPropagation()}
+        >
+          Pressé ? <span>Version rapide · 2 min</span>
+        </button>
+      )}
     </div>
   );
 }

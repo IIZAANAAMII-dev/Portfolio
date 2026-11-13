@@ -191,6 +191,11 @@ function ProjectCard({ project, open, onToggle }: { project: Project; open: bool
                   <li key={point}>{point}</li>
                 ))}
               </ul>
+              {project.feature.url && (
+                <a className="link-underline mt-2 inline-block text-xs" href={project.feature.url} target="_blank" rel="noreferrer">
+                  Voir la page ↗
+                </a>
+              )}
             </div>
           )}
           {project.parts && (

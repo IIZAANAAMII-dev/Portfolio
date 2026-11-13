@@ -68,7 +68,7 @@ export interface Project {
   highlights: string[];
   stack: string[];
   /** Zoom sur une réalisation précise (ex. la page « Rencontre EIZO »). */
-  feature?: { title: string; points: string[] };
+  feature?: { title: string; points: string[]; url?: string };
   /** Sous-projets présentés ensemble (Feeder Graphic / Industrie / Défense). */
   parts?: SubProject[];
   /** Site public. Jamais inventé : absent si inconnu. */

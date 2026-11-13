@@ -2,10 +2,13 @@
 
 import { useEffect, useLayoutEffect, useRef } from 'react';
 import gsap from 'gsap';
-import { islands } from '@/data/islands';
+import { islandById } from '@/data/islands';
 import { site } from '@/data/site';
 import { useWorld } from '@/lib/store';
 import { islandContent } from './content';
+
+/** Ordre de lecture pensé pour un recruteur : qui, ce que je fais, avec quoi, où, comment me joindre. */
+const ORDER = ['about', 'projects', 'skills', 'experience', 'journey', 'contact'] as const;
 
 /**
  * Version DOM complète du portfolio, pensée comme une carte de navigation.
@@ -66,16 +69,36 @@ export function QuickView() {
       }}
     >
       <div className="mx-auto max-w-4xl px-6 py-16 md:py-28">
-        <header ref={headerRef} className="mb-20 text-center">
+        <header ref={headerRef} className="mb-14 text-center">
           <span className="eyebrow mb-6 inline-block rounded-full border border-paper/15 bg-paper/5 px-3 py-1.5 text-[0.65rem] tracking-[0.22em] text-paper/70">
-            Quick view
+            Version rapide
           </span>
           <h1 className="mt-2 text-5xl font-light tracking-tight md:text-7xl">
             {site.name}
           </h1>
-          <p className="mx-auto mt-4 max-w-md text-paper/55 md:text-lg">
+          <p className="mx-auto mt-4 max-w-md text-paper/70 md:text-lg">
             {site.role} · {site.location}
           </p>
+          <p className="mx-auto mt-2 max-w-md text-sm text-paper/50">
+            {site.current.contract} chez {site.current.company} · {site.current.place}
+          </p>
+          <p className="mx-auto mt-6 max-w-xl text-paper/75">{site.intro}</p>
+          <div className="mt-8 flex flex-wrap justify-center gap-2">
+            <a className="ghost-button" href="#contact">
+              Écrire un message
+            </a>
+            <a className="ghost-button" href={site.links.linkedin} target="_blank" rel="noreferrer">
+              LinkedIn
+            </a>
+            <a className="ghost-button" href={site.links.github} target="_blank" rel="noreferrer">
+              GitHub
+            </a>
+            {site.links.cv && (
+              <a className="ghost-button" href={site.links.cv} download>
+                CV (PDF)
+              </a>
+            )}
+          </div>
 
           {!webglFailed && (
             <button
@@ -94,6 +117,14 @@ export function QuickView() {
           )}
         </header>
 
+        <nav className="quick-toc" aria-label="Sommaire">
+          {ORDER.map((id) => (
+            <a key={id} href={`#${id}`} style={{ ['--accent' as string]: islandById[id].accent }}>
+              {islandById[id].label}
+            </a>
+          ))}
+        </nav>
+
         <div className="relative">
           <div
             ref={lineRef}
@@ -105,7 +136,8 @@ export function QuickView() {
           />
 
           <div className="space-y-14 md:space-y-20">
-            {islands.map((island, index) => {
+            {ORDER.map((id, index) => {
+              const island = islandById[id];
               const Content = islandContent[island.id];
               return (
                 <div
@@ -156,6 +188,9 @@ export function QuickView() {
         </div>
 
         <footer className="mt-28 border-t border-paper/10 pt-8 text-center text-xs text-paper/40">
+          {!webglFailed && (
+            <p className="hand mb-4 text-xl text-dawn/70">Psst… un projet de jeu se cache quelque part dans l’archipel 3D.</p>
+          )}
           © {new Date().getFullYear()} {site.name} — {site.location}
         </footer>
       </div>

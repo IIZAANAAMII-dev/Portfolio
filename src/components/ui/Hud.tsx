@@ -144,8 +144,8 @@ export function Hud() {
             {isNight ? 'Nuit' : 'Jour'}
           </button>
           <LogbookButton />
-          <button type="button" className="ghost-button" onClick={() => setQuickView(true)}>
-            Aperçu
+          <button type="button" className="ghost-button" onClick={() => setQuickView(true)} aria-label="Version rapide du portfolio, pour les recruteurs">
+            Version rapide
           </button>
         </div>
       </header>

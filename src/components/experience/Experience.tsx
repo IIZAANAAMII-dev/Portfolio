@@ -12,6 +12,7 @@ import { QuickView } from '@/components/ui/QuickView';
 import { useDeepLink } from '@/hooks/useDeepLink';
 import { ambience } from '@/lib/audio/ambience';
 import { useWorld } from '@/lib/store';
+import { boatState } from '@/lib/boat-state';
 import { isCoarsePointer, prefersReducedMotion, supportsWebGL } from '@/lib/utils/device';
 import { Scene } from './Scene';
 import { IntroStage } from '@/components/world/IntroStage';
@@ -55,6 +56,15 @@ export function Experience() {
     void ambience.setEnabled(soundOn);
   }, [soundOn]);
 
+  // Tests automatisés (navigation, collisions) : accès à l'état du monde, en développement
+  // seulement — rien n'est exposé en production.
+  useEffect(() => {
+    if (process.env.NODE_ENV === 'production') return;
+    const target = window as unknown as Record<string, unknown>;
+    target.__world = useWorld;
+    target.__boat = boatState;
+  }, []);
+
   if (quickView) return <QuickView />;
 
   return (
@@ -71,7 +81,15 @@ export function Experience() {
         }}
         camera={{ fov: 42, near: 0.5, far: 620, position: [12, 7.5, -11.2] }}
         onCreated={({ gl }) => {
-          gl.domElement.addEventListener('webglcontextlost', failWebgl);
+          // Un contexte perdu (onglet en arrière-plan sur mobile, pilote qui redémarre) est
+          // souvent restauré par le navigateur : three.js sait reprendre. On ne bascule en
+          // version rapide que si la restauration n'arrive pas.
+          let lostTimer = 0;
+          gl.domElement.addEventListener('webglcontextlost', () => {
+            window.clearTimeout(lostTimer);
+            lostTimer = window.setTimeout(failWebgl, 5000);
+          });
+          gl.domElement.addEventListener('webglcontextrestored', () => window.clearTimeout(lostTimer));
         }}
       >
         {/* Le seuil (carte marine + anneau de chargement) s'affiche avant la scène. */}
