@@ -140,7 +140,12 @@ export const useWorld = create<WorldState>((set, get) => ({
 
   // Le monde doit être entièrement révélé : sans cela le cercle d'intro garde les îles
   // à l'échelle zéro (elles n'apparaissent qu'à son passage).
-  jumpTo: (id) =>
+  jumpTo: (id) => {
+    // Le bateau est amarré le long du ponton, comme au port de départ.
+    const [x, z] = dockPosition(id);
+    boatState.position.set(x, 0, z);
+    boatState.heading = islandById[id].dockAngle + Math.PI / 2;
+    boatState.speed = 0;
     set({
       phase: 'docked',
       reveal: 1,
@@ -150,5 +155,6 @@ export const useWorld = create<WorldState>((set, get) => ({
       activeIsland: id,
       destination: null,
       freeTarget: null,
-    }),
+    });
+  },
 }));

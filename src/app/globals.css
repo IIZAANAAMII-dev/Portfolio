@@ -627,3 +627,18 @@ body.is-quick-view {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* --- Lisibilité du HUD sur l'eau claire ------------------------------------ */
+.hud-shade::before,
+.hud-shade::after {
+  content: '';
+  position: fixed;
+  left: 0;
+  right: 0;
+  pointer-events: none;
+  z-index: -1;
+}
+.hud-shade::before { top: 0; height: 7.5rem; background: linear-gradient(180deg, rgba(4, 18, 28, 0.32), transparent); }
+.hud-shade::after { bottom: 0; height: 9rem; background: linear-gradient(0deg, rgba(4, 18, 28, 0.38), transparent); }
+.hud-shade nav button,
+.hud-shade header p { text-shadow: 0 1px 10px rgba(2, 10, 18, 0.55), 0 0 2px rgba(2, 10, 18, 0.35); }

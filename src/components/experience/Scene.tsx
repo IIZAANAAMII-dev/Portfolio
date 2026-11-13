@@ -16,6 +16,7 @@ import { HomeIsland } from '@/components/world/HomeIsland';
 import { Birds } from '@/components/world/Birds';
 import { WindTrails } from '@/components/world/WindTrails';
 import { Celebration } from '@/components/world/Celebration';
+import { DestinationMarker } from '@/components/world/DestinationMarker';
 import { Flotsam } from '@/components/world/Flotsam';
 import { GoldenStars } from '@/components/world/GoldenStars';
 import { MessageBottle } from '@/components/world/MessageBottle';
@@ -146,6 +147,7 @@ export function Scene({ mobile }: { mobile: boolean }) {
       <Birds />
       <WindTrails />
       <Flotsam />
+      <DestinationMarker />
       <MessageBottle />
       <SeaLife />
       <GoldenStars />

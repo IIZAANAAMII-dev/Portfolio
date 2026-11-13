@@ -8,6 +8,8 @@
 
 const STORAGE_KEY = 'kyliann-voyage-v1';
 const STEP = 3;
+/** Marque de coupure dans le tracé (téléportation). */
+export const BREAK = 99999;
 const MAX_POINTS = 1600;
 
 let points: number[] = [];
@@ -45,10 +47,13 @@ export const voyage = {
     if (count > 0) {
       const lx = points[points.length - 2];
       const lz = points[points.length - 1];
-      if (Math.hypot(x - lx, z - lz) < STEP) {
+      const gap = Math.hypot(x - lx, z - lz);
+      if (gap < STEP) {
         save(Date.now());
         return;
       }
+      // Saut (lien direct vers une île) : la route est coupée, pas de trait fantôme.
+      if (gap > 25 && lx !== BREAK) points.push(BREAK, BREAK);
     }
     points.push(Math.round(x * 2) / 2, Math.round(z * 2) / 2);
     // Trop long : on garde un point sur deux de la première moitié (le début se simplifie).

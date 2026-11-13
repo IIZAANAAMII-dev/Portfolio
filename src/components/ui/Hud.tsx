@@ -98,7 +98,7 @@ export function Hud() {
 
   return (
     <div
-      className="pointer-events-none fixed inset-0 z-20 flex flex-col justify-between p-5 transition-opacity duration-1000 md:p-7"
+      className="hud-shade pointer-events-none fixed inset-0 z-20 flex flex-col justify-between p-5 transition-opacity duration-1000 md:p-7"
       style={{ opacity: visible ? 1 : 0 }}
       aria-hidden={!visible}
     >

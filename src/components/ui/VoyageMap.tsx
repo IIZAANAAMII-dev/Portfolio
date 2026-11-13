@@ -6,7 +6,7 @@ import { islets } from '@/data/islets';
 import { STAR_SPOTS } from '@/data/stars';
 import { boatState } from '@/lib/boat-state';
 import { STAMPS, useLogbook, type StampId } from '@/lib/logbook';
-import { voyage } from '@/lib/voyage';
+import { BREAK, voyage } from '@/lib/voyage';
 import { hash } from '@/lib/utils/math';
 
 /**
@@ -195,10 +195,12 @@ function draw(canvas: HTMLCanvasElement, family: string) {
     ctx.lineCap = 'round';
     ctx.beginPath();
     route.forEach(([x, z], index) => {
+      if (x === BREAK) return;
       const [px, py] = at(x, z);
-      if (index === 0) ctx.moveTo(px, py);
+      const previous = route[index - 1];
+      if (index === 0 || !previous || previous[0] === BREAK) ctx.moveTo(px, py);
       else {
-        const [qx, qy] = at(route[index - 1][0], route[index - 1][1]);
+        const [qx, qy] = at(previous[0], previous[1]);
         ctx.quadraticCurveTo(qx, qy, (px + qx) / 2, (py + qy) / 2);
       }
     });
@@ -253,6 +255,7 @@ function draw(canvas: HTMLCanvasElement, family: string) {
   ctx.fillText(`ARCHIPEL DE KYLIANN · ${date.toUpperCase()}`, 38, 94);
   let length = 0;
   for (let index = 1; index < route.length; index++) {
+    if (route[index][0] === BREAK || route[index - 1][0] === BREAK) continue;
     length += Math.hypot(route[index][0] - route[index - 1][0], route[index][1] - route[index - 1][1]);
   }
   ctx.font = `500 26px ${family}`;

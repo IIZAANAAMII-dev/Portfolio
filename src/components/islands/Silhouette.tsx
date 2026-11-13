@@ -1,20 +1,15 @@
 'use client';
 
-import { useCallback, useLayoutEffect, useMemo, useRef } from 'react';
+import { useCallback, useRef } from 'react';
 import { useFrame, useThree, type ThreeEvent } from '@react-three/fiber';
-import { Group, InstancedMesh, Mesh, MeshStandardMaterial, Object3D, PointLight, Vector3 } from 'three';
+import { Group, Mesh, MeshStandardMaterial, Object3D, PointLight, Vector3 } from 'three';
 import { AssetBoundary } from '@/components/world/AssetBoundary';
-import { projects } from '@/data/projects';
-import { experiences } from '@/data/experience';
-import { journey } from '@/data/journey';
-import { skillGroups } from '@/data/skills';
 import { ambience } from '@/lib/audio/ambience';
 import { logbook } from '@/lib/logbook';
-import { getSubstanceMaterial } from '@/lib/materials/substance-material';
-import { hash } from '@/lib/utils/math';
 import { useWorld } from '@/lib/store';
 import { skyState } from '@/lib/sky';
 import { SubstanceProp, SubstanceScatter } from './bell-island';
+import { AtelierScene, LighthouseScene, ShipyardScene, TrailScene } from './Metaphors';
 import { groundAt, terrainFeatures, type HeightSampler } from './terrain-shape';
 import type { IslandConfig } from '@/types';
 
@@ -36,16 +31,6 @@ function facingDock(island: IslandConfig, x: number, z: number) {
   return Math.atan2(dockX - x, dockZ - z);
 }
 
-/** Petite sphère lumineuse à la couleur de l'île, au-dessus d'un repère de contenu. */
-function Beacon({ color, position, size = 0.22 }: { color: string; position: [number, number, number]; size?: number }) {
-  return (
-    <mesh position={position}>
-      <sphereGeometry args={[size, 12, 10]} />
-      <meshStandardMaterial color={color} emissive={color} emissiveIntensity={0.9} />
-    </mesh>
-  );
-}
-
 /* ------------------------------------------------------------------------------------ */
 /* ABOUT — la maison-butte de Bell Island : « chez moi ».                               */
 /* ------------------------------------------------------------------------------------ */
@@ -59,163 +44,6 @@ function HomeScene({ island, sampler, features }: SceneProps) {
       {/* La cheminée perce le dôme à l'arrière (+X dans le repère du modèle). */}
       <SubstanceProp name="chimney-curved" position={[0.8, 6.0, 0]} scale={0.75} smoke />
     </SubstanceProp>
-  );
-}
-
-/* ------------------------------------------------------------------------------------ */
-/* SKILLS — l'atelier : technologies en cristaux flottants, kiosque à outils.           */
-/* ------------------------------------------------------------------------------------ */
-function SkillCrystals({ island, height }: { island: IslandConfig; height: number }) {
-  const group = useRef<Group>(null);
-  const mesh = useRef<InstancedMesh>(null);
-  const dummy = useMemo(() => new Object3D(), []);
-  const items = useMemo(
-    () => skillGroups.flatMap((groupData, g) => groupData.items.map((item, i) => ({ groupData, g, item, i }))),
-    [],
-  );
-
-  useLayoutEffect(() => {
-    if (!mesh.current) return;
-    items.forEach(({ g, i, groupData }, index) => {
-      const angle = (g / skillGroups.length) * Math.PI * 2 + (i / groupData.items.length) * 0.9;
-      const ring = 3.4 + g * 1.5;
-      dummy.position.set(Math.cos(angle) * ring, Math.sin(hash(g * 13 + i) * Math.PI * 2) * 1.2, Math.sin(angle) * ring);
-      dummy.rotation.set(hash(i + g) * 3, hash(i * 2 + g) * 3, 0);
-      dummy.updateMatrix();
-      mesh.current!.setMatrixAt(index, dummy.matrix);
-    });
-    mesh.current.instanceMatrix.needsUpdate = true;
-    mesh.current.computeBoundingSphere();
-  }, [dummy, items]);
-
-  useFrame((state) => {
-    if (group.current) group.current.rotation.y = state.clock.elapsedTime * 0.06;
-  });
-
-  return (
-    <group ref={group} position={[0, height, 0]}>
-      <instancedMesh ref={mesh} args={[undefined, undefined, items.length]} castShadow>
-        <octahedronGeometry args={[0.42, 0]} />
-        <meshStandardMaterial color={island.accent} emissive={island.accent} emissiveIntensity={0.35} roughness={0.4} flatShading />
-      </instancedMesh>
-    </group>
-  );
-}
-
-function WorkshopScene({ island, sampler, features }: SceneProps) {
-  const { hillX, hillZ, summit } = features;
-  const kioskX = hillX + 1.2;
-  const kioskZ = hillZ - 0.6;
-  const rotation = facingDock(island, kioskX, kioskZ);
-  return (
-    <>
-      <SkillCrystals island={island} height={summit + 4.2} />
-      <SubstanceProp name="kiosk" position={on(sampler, kioskX, kioskZ, 1.2)} rotation={rotation} scale={1.15} />
-      <SubstanceProp name="chimney-straight" position={on(sampler, hillX - 1.9, hillZ + 1.4, 0.4)} scale={1.5} smoke />
-      <SubstanceProp name="chimney-straight" position={on(sampler, hillX - 2.6, hillZ + 0.3, 0.4)} scale={1.1} />
-    </>
-  );
-}
-
-/* ------------------------------------------------------------------------------------ */
-/* PROJECTS — un chantier par projet : terrasse, bannière et balise lumineuse.          */
-/* ------------------------------------------------------------------------------------ */
-function ProjectYard({ island, sampler }: SceneProps) {
-  return (
-    <>
-      {projects.map((project, i) => {
-        const [x, z] = project.offset;
-        const base = on(sampler, x, z, 1.9, 0.18);
-        const rotation = facingDock(island, x, z) + (hash(i * 3.1) - 0.5) * 0.5;
-        return (
-          <group key={project.id} position={base} rotation-y={rotation}>
-            <SubstanceProp name="porch" position={[0, 0, 0]} scale={0.42} />
-            <SubstanceProp name="flags-rectangle" position={[1.1, 0.5, -1.0]} rotation={0.4} scale={1.25} />
-            <Beacon color={island.accent} position={[0, 4.2, 0]} size={0.24} />
-          </group>
-        );
-      })}
-    </>
-  );
-}
-
-/* ------------------------------------------------------------------------------------ */
-/* EXPERIENCE — l'escalier, une bannière par poste, de la plus ancienne à la plus haute. */
-/* ------------------------------------------------------------------------------------ */
-function CareerScene({ island, sampler, features }: SceneProps) {
-  const { hillX, hillZ } = features;
-  const rotation = facingDock(island, hillX, hillZ);
-  return (
-    <>
-      <SubstanceProp name="staircase" position={on(sampler, hillX, hillZ, 2, 0.2)} rotation={rotation} scale={0.95} />
-      {experiences.map((entry, i) => {
-        const angle = island.dockAngle + 0.9 + (i / Math.max(experiences.length, 1)) * Math.PI * 1.1;
-        const distance = island.radius * 0.52;
-        const x = Math.cos(angle) * distance;
-        const z = Math.sin(angle) * distance;
-        const scale = 1.2 + (experiences.length - 1 - i) * 0.25;
-        const base = on(sampler, x, z, 0.4, 0.05);
-        return (
-          <group key={entry.id} position={base}>
-            <SubstanceProp name="flags-rectangle" position={[0, 0, 0]} rotation={facingDock(island, x, z)} scale={scale} />
-            <Beacon color={island.accent} position={[0, 2.7 * scale, 0]} size={0.18} />
-          </group>
-        );
-      })}
-    </>
-  );
-}
-
-/* ------------------------------------------------------------------------------------ */
-/* JOURNEY — un chemin de pierres de gué, une étape par marche.                         */
-/* ------------------------------------------------------------------------------------ */
-function JourneyStones({ island, sampler }: SceneProps) {
-  const mesh = useRef<InstancedMesh>(null);
-  const dummy = useMemo(() => new Object3D(), []);
-  const material = useMemo(
-    () => getSubstanceMaterial('blocky_stone_cliff', { projection: 'triplanar', space: 'object', scale: 0.5 }),
-    [],
-  );
-
-  useLayoutEffect(() => {
-    if (!mesh.current) return;
-    journey.forEach((_, index) => {
-      const t = index / Math.max(journey.length - 1, 1);
-      const x = (t - 0.5) * island.radius * 1.05;
-      const z = Math.sin(t * Math.PI * 1.4) * island.radius * 0.26;
-      dummy.position.set(x, groundAt(sampler, x, z, 0.7) + 0.05, z);
-      dummy.rotation.set(0, t * Math.PI * 1.7, 0);
-      dummy.scale.set(0.8 + hash(index * 4.1) * 0.2, 0.75, 0.8 + hash(index * 7.3) * 0.2);
-      dummy.updateMatrix();
-      mesh.current!.setMatrixAt(index, dummy.matrix);
-    });
-    mesh.current.instanceMatrix.needsUpdate = true;
-    mesh.current.computeBoundingSphere();
-  }, [dummy, island.radius, sampler]);
-
-  return (
-    <instancedMesh ref={mesh} args={[undefined, material, journey.length]} castShadow receiveShadow>
-      <cylinderGeometry args={[0.62, 0.76, 0.32, 9]} />
-    </instancedMesh>
-  );
-}
-
-function PathScene(props: SceneProps) {
-  const { island, sampler } = props;
-  return (
-    <>
-      <JourneyStones {...props} />
-      <SubstanceScatter
-        name="fence-set"
-        sampler={sampler}
-        zone={{ inner: island.radius * 0.5, outer: island.radius * 0.68, maxSlope: 0.3, minHeight: 1.2, avoidAngle: island.dockAngle, avoidWidth: 0.5 }}
-        count={7}
-        seed={53}
-        scale={[0.9, 1.05]}
-        variety={4}
-        sink={0.04}
-      />
-    </>
   );
 }
 
@@ -299,10 +127,10 @@ function BellScene({ island, sampler, features }: SceneProps) {
 
 const SCENES = {
   nature: HomeScene,
-  grid: WorkshopScene,
-  monoliths: ProjectYard,
-  towers: CareerScene,
-  path: PathScene,
+  grid: AtelierScene,
+  monoliths: ShipyardScene,
+  towers: LighthouseScene,
+  path: TrailScene,
   beacon: BellScene,
 } as const;
 

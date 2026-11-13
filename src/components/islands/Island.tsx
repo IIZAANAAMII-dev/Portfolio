@@ -118,7 +118,7 @@ export function Island({ island, index }: { island: IslandConfig; index: number 
           avoidAngle={island.dockAngle}
           seed={index * 29 + 11}
           flame={FLAMES[index % FLAMES.length]}
-          count={2 + Math.round(island.radius / 5)}
+          count={island.silhouette === 'nature' || island.silhouette === 'beacon' ? 2 + Math.round(island.radius / 5) : 2}
         />
         <DeferredDecor island={island} index={index} sampler={sampler} shape={shape} />
         <Dock angle={island.dockAngle} reach={island.radius} />
