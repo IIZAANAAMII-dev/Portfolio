@@ -118,6 +118,7 @@ export function Boat() {
   const drop = useRef<Group>(null);
   const boatLight = useRef<PointLight>(null);
   const splashed = useRef(false);
+  const engineClock = useRef(0);
   const quality = useWorld((state) => state.quality);
 
   useBoatNavigation();
@@ -137,6 +138,13 @@ export function Boat() {
       splashed.current = true;
       triggerSplash(time, position.x, position.z, 1);
       ambience.splash();
+    }
+
+    engineClock.current += dt;
+    if (engineClock.current > 0.12) {
+      engineClock.current = 0;
+      const running = phase === 'playing' || phase === 'docked';
+      ambience.setEngine(running ? Math.min(speed / MAX_VISUAL_SPEED, 1) : 0);
     }
 
     if (boatLight.current) {

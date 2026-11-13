@@ -98,7 +98,8 @@ function SeaNote({ note, family }: { note: Note; family: string }) {
     const target = mesh.current;
     if (!target) return;
     const { phase } = useWorld.getState();
-    const sailing = phase === 'playing' || phase === 'docked';
+    // Faites pour la navigation : à quai, la caméra est trop près pour les lire.
+    const sailing = phase === 'playing';
     const distance = Math.hypot(boatState.position.x - note.at[0], boatState.position.z - note.at[1]);
     const opacity = sailing ? 1 - smoothstep(reach * 0.6, reach, distance) : 0;
     const material = target.material as MeshBasicMaterial;

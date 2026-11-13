@@ -14,6 +14,7 @@ class Ambience {
   private thunderBuffer: AudioBuffer | null = null;
   private stormSource: AudioBufferSourceNode | null = null;
   private splashBuffer: AudioBuffer | null = null;
+  private engine: { gain: GainNode; filter: BiquadFilterNode; rush: GainNode; low: OscillatorNode; high: OscillatorNode } | null = null;
   private enabled = false;
   private boundaryIntensity = 0;
   private boundaryHush = 0;
@@ -371,6 +372,56 @@ class Ambience {
     splash.connect(band).connect(this.envelope(context, 0.05 * strength + 0.02, 0.01, 0.35));
     splash.start(now, Math.random() * 0.8);
     splash.stop(now + 0.4);
+  }
+
+  /**
+   * Moteur du bateau : un ronronnement grave (deux oscillateurs filtrés) et le bruissement
+   * de l'eau sur la coque, qui montent avec la vitesse (0 → 1). Créé au premier appel.
+   */
+  setEngine(throttle: number) {
+    const context = this.context;
+    if (!context || !this.master) return;
+    if (!this.engine) {
+      const filter = context.createBiquadFilter();
+      filter.type = 'lowpass';
+      filter.frequency.value = 160;
+      filter.Q.value = 2.2;
+      const gain = context.createGain();
+      gain.gain.value = 0;
+      const low = context.createOscillator();
+      low.type = 'sawtooth';
+      low.frequency.value = 46;
+      const high = context.createOscillator();
+      high.type = 'square';
+      high.frequency.value = 92.5;
+      const highLevel = context.createGain();
+      highLevel.gain.value = 0.35;
+      low.connect(filter);
+      high.connect(highLevel).connect(filter);
+      filter.connect(gain).connect(this.master);
+      // Bruissement : bruit en boucle, filtré en bande.
+      const water = context.createBufferSource();
+      water.buffer = this.noise(context);
+      water.loop = true;
+      const band = context.createBiquadFilter();
+      band.type = 'bandpass';
+      band.frequency.value = 900;
+      band.Q.value = 0.6;
+      const rush = context.createGain();
+      rush.gain.value = 0;
+      water.connect(band).connect(rush).connect(this.master);
+      low.start();
+      high.start();
+      water.start();
+      this.engine = { gain, filter, rush, low, high };
+    }
+    const now = context.currentTime;
+    const t = Math.max(0, Math.min(1, throttle));
+    this.engine.gain.gain.setTargetAtTime(0.012 + t * 0.07, now, 0.25);
+    this.engine.filter.frequency.setTargetAtTime(150 + t * 520, now, 0.3);
+    this.engine.low.frequency.setTargetAtTime(44 + t * 22, now, 0.3);
+    this.engine.high.frequency.setTargetAtTime(88 + t * 44, now, 0.3);
+    this.engine.rush.gain.setTargetAtTime(t * t * 0.09, now, 0.35);
   }
 
   /** Arpège cristallin : une étoile d'or repêchée, un tampon gagné. */

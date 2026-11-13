@@ -91,6 +91,12 @@ body.is-quick-view {
   color: var(--dawn);
 }
 
+/* Téléphone : boutons compacts, rangée qui passe à la ligne sans chevaucher le nom. */
+@media (max-width: 640px) {
+  .hud-actions { flex-wrap: wrap; justify-content: flex-end; max-width: 72vw; gap: 0.35rem; }
+  .ghost-button { padding: 0.36rem 0.62rem; font-size: 0.6rem; letter-spacing: 0.06em; }
+}
+
 /* --- Étiquettes d'îles (rendues en DOM au-dessus du canvas) ---------------- */
 
 .island-label {

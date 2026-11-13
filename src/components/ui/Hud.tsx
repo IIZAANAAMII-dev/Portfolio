@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef } from 'react';
 import { islands } from '@/data/islands';
 import { site } from '@/data/site';
 import { LogbookButton } from '@/components/ui/Logbook';
@@ -17,63 +17,63 @@ const RAD2DEG = 180 / Math.PI;
  * l'île cible (ou le cap du bateau si aucune cible n'est active).
  */
 function Compass() {
-  const [boat, setBoat] = useState({ x: boatState.position.x, z: boatState.position.z });
+  const needle = useRef<HTMLElement>(null);
+  const dots = useRef<(HTMLButtonElement | null)[]>([]);
   const destination = useWorld((s) => s.destination);
   const activeIsland = useWorld((s) => s.activeIsland);
   const sailTo = useWorld((s) => s.sailTo);
   const hover = useWorld((s) => s.hover);
+  const targetId = destination || activeIsland;
 
+  // Aiguille et repères suivent le bateau à chaque image, sans rendu React.
   useEffect(() => {
     let rafId = 0;
     const loop = () => {
-      setBoat({ x: boatState.position.x, z: boatState.position.z });
+      const boatX = boatState.position.x;
+      const boatZ = boatState.position.z;
+      let angle = boatState.heading * RAD2DEG + 90;
+      if (targetId) {
+        const [tx, tz] = dockPosition(targetId);
+        angle = Math.atan2(tz - boatZ, tx - boatX) * RAD2DEG + 90;
+      }
+      if (needle.current) needle.current.style.transform = `rotate(${angle}deg)`;
+      islands.forEach((island, index) => {
+        const dot = dots.current[index];
+        if (!dot) return;
+        const bearing = Math.atan2(island.position[1] - boatZ, island.position[0] - boatX);
+        dot.style.left = `${50 + 44 * Math.cos(bearing)}%`;
+        dot.style.top = `${50 + 44 * Math.sin(bearing)}%`;
+      });
       rafId = requestAnimationFrame(loop);
     };
     rafId = requestAnimationFrame(loop);
     return () => cancelAnimationFrame(rafId);
-  }, []);
-
-  const targetId = destination || activeIsland;
-  let needleAngle = boatState.heading * RAD2DEG + 90;
-  if (targetId) {
-    const [tx, tz] = dockPosition(targetId);
-    const dx = tx - boat.x;
-    const dz = tz - boat.z;
-    needleAngle = Math.atan2(dz, dx) * RAD2DEG + 90;
-  }
+  }, [targetId]);
 
   return (
     <div className="intro-compass hud-compass" aria-label="Boussole">
       <span>N</span>
-      <i style={{ transform: `rotate(${needleAngle}deg)` }} />
+      <i ref={needle} />
       <span>S</span>
       <b>✦</b>
-      {islands.map((island) => {
-        const dx = island.position[0] - boat.x;
-        const dz = island.position[1] - boat.z;
-        const angle = Math.atan2(dz, dx);
-        const left = 50 + 44 * Math.cos(angle);
-        const top = 50 + 44 * Math.sin(angle);
-        return (
-          <button
-            key={island.id}
-            type="button"
-            className="hud-island-dot"
-            aria-label={island.label}
-            onClick={(e) => {
-              e.stopPropagation();
-              sailTo(island.id);
-            }}
-            onMouseEnter={() => hover(island.id)}
-            onMouseLeave={() => hover(null)}
-            style={{
-              left: `${left}%`,
-              top: `${top}%`,
-              backgroundColor: island.accent,
-            }}
-          />
-        );
-      })}
+      {islands.map((island, index) => (
+        <button
+          key={island.id}
+          ref={(element) => {
+            dots.current[index] = element;
+          }}
+          type="button"
+          className="hud-island-dot"
+          aria-label={island.label}
+          onClick={(e) => {
+            e.stopPropagation();
+            sailTo(island.id);
+          }}
+          onMouseEnter={() => hover(island.id)}
+          onMouseLeave={() => hover(null)}
+          style={{ backgroundColor: island.accent }}
+        />
+      ))}
     </div>
   );
 }
@@ -104,7 +104,7 @@ export function Hud() {
     >
       <header className="flex items-start justify-between">
         <p className="text-xs tracking-[0.4em] text-paper/90">{site.shortName}</p>
-        <div className="pointer-events-auto flex gap-2">
+        <div className="hud-actions pointer-events-auto flex gap-2">
           <button
             type="button"
             className="ghost-button"

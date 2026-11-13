@@ -7,6 +7,7 @@ import { splashState } from '@/components/boat/Splash';
 import { homeIsland, islandById } from '@/data/islands';
 import { boatState } from '@/lib/boat-state';
 import { ecologyState } from '@/lib/ecology';
+import { skyState } from '@/lib/sky';
 import { cameraProgress, cinematicEase, INTRO_ANTICIPATION } from '@/lib/cinematic';
 import { useWorld } from '@/lib/store';
 import { damp, smoothstep } from '@/lib/utils/math';
@@ -224,12 +225,19 @@ export function CameraRig({ mobile }: { mobile: boolean }) {
       // « À propos » recule et monte : ses îlots de personnalité entrent dans le cadre.
       const zoomOut = (mobile ? 1.35 : 1) * (activeIsland === 'about' ? 1.55 : 1);
       const distance = (island.radius + 26) * zoomOut;
-      const dockX = Math.cos(island.dockAngle);
-      const dockZ = Math.sin(island.dockAngle);
+      // La caméra se place entre le ponton et le soleil : l'île est éclairée de face
+      // (couleurs franches, ombres derrière les objets) et le bateau reste au premier plan.
+      const sunX = Math.cos(skyState.sunAngle) * 80;
+      const sunLength = Math.hypot(sunX, 40);
+      let viewX = Math.cos(island.dockAngle) + sunX / sunLength;
+      let viewZ = Math.sin(island.dockAngle) + 40 / sunLength;
+      const viewLength = Math.hypot(viewX, viewZ) || 1;
+      viewX /= viewLength;
+      viewZ /= viewLength;
       desiredPosition.set(
-        island.position[0] - dockX * distance * 0.7,
+        island.position[0] + viewX * distance * 0.7,
         32 * zoomOut,
-        island.position[1] - dockZ * distance * 0.7,
+        island.position[1] + viewZ * distance * 0.7,
       );
       desiredTarget.set(island.position[0], 2.2, island.position[1]);
       lambda = 1.6;
