@@ -659,3 +659,140 @@ function ClearingAt({ x, z, radius }: { x: number; z: number; radius: number }) 
   return null;
 }
 
+
+/* ============================================================ À PROPOS : CHEZ MOI */
+
+function screenTexture() {
+  const canvas = document.createElement('canvas');
+  canvas.width = 256;
+  canvas.height = 160;
+  const ctx = canvas.getContext('2d')!;
+  ctx.fillStyle = '#16202c';
+  ctx.fillRect(0, 0, 256, 160);
+  const lines = [
+    ['#ff9ad5', 'export function'],
+    ['#bff6ff', '  Portfolio() {'],
+    ['#ffe28a', "    return <Archipel />"],
+    ['#bff6ff', '  }'],
+    ['#7fa7b8', '// fait main, avec soin'],
+  ];
+  ctx.font = '600 17px ui-monospace, Menlo, Consolas, monospace';
+  ctx.textBaseline = 'top';
+  lines.forEach(([color, text], index) => {
+    ctx.fillStyle = color;
+    ctx.fillText(text, 12, 14 + index * 27);
+  });
+  const texture = new CanvasTexture(canvas);
+  texture.colorSpace = SRGBColorSpace;
+  return texture;
+}
+
+/** Bureau en plein air : table, ordinateur ouvert sur du code, tasse qui fume, chaise. */
+function OutdoorDesk({ position, rotation }: { position: [number, number, number]; rotation: number }) {
+  const screen = useMemo(() => screenTexture(), []);
+  const glow = useRef<MeshStandardMaterial>(null);
+  useEffect(() => () => screen.dispose(), [screen]);
+  useFrame(() => {
+    if (glow.current) glow.current.emissiveIntensity = 0.55 + skyState.dayNight * 1.4;
+  });
+  const wood = '#9b6b45';
+  return (
+    <group position={position} rotation-y={rotation}>
+      <mesh castShadow receiveShadow position-y={0.86}>
+        <boxGeometry args={[1.5, 0.08, 0.8]} />
+        <meshStandardMaterial color={wood} roughness={0.9} />
+      </mesh>
+      {[[-0.66, -0.32], [0.66, -0.32], [-0.66, 0.32], [0.66, 0.32]].map(([x, z]) => (
+        <mesh key={`${x}${z}`} castShadow position={[x, 0.42, z]}>
+          <boxGeometry args={[0.07, 0.84, 0.07]} />
+          <meshStandardMaterial color={wood} roughness={0.9} />
+        </mesh>
+      ))}
+      {/* Ordinateur portable : socle, écran incliné qui affiche du code. */}
+      <mesh castShadow position={[0, 0.915, 0.05]}>
+        <boxGeometry args={[0.62, 0.03, 0.42]} />
+        <meshStandardMaterial color="#c9ced6" roughness={0.35} metalness={0.4} />
+      </mesh>
+      <group position={[0, 0.93, -0.16]} rotation-x={-0.32}>
+        <mesh castShadow position-y={0.2}>
+          <boxGeometry args={[0.62, 0.4, 0.025]} />
+          <meshStandardMaterial color="#c9ced6" roughness={0.35} metalness={0.4} />
+        </mesh>
+        <mesh position={[0, 0.2, 0.014]}>
+          <planeGeometry args={[0.56, 0.35]} />
+          <meshStandardMaterial ref={glow} map={screen} emissive="#ffffff" emissiveMap={screen} emissiveIntensity={0.6} roughness={0.4} />
+        </mesh>
+      </group>
+      {/* Tasse de café, et sa vapeur. */}
+      <group position={[0.52, 0.9, 0.12]}>
+        <mesh castShadow position-y={0.07}>
+          <cylinderGeometry args={[0.07, 0.06, 0.14, 12]} />
+          <meshStandardMaterial color="#f4efe6" roughness={0.5} />
+        </mesh>
+        <mesh position={[0.08, 0.07, 0]} rotation-y={Math.PI / 2}>
+          <torusGeometry args={[0.04, 0.012, 6, 12]} />
+          <meshStandardMaterial color="#f4efe6" roughness={0.5} />
+        </mesh>
+        <group scale={0.18}>
+          <ChimneySmoke position={[0, 0.9, 0]} />
+        </group>
+      </group>
+      {/* Chaise. */}
+      <group position={[0, 0, 0.75]}>
+        <mesh castShadow position-y={0.46}>
+          <boxGeometry args={[0.5, 0.06, 0.48]} />
+          <meshStandardMaterial color={wood} roughness={0.9} />
+        </mesh>
+        <mesh castShadow position={[0, 0.78, 0.22]}>
+          <boxGeometry args={[0.5, 0.56, 0.05]} />
+          <meshStandardMaterial color={wood} roughness={0.9} />
+        </mesh>
+        {[[-0.21, -0.2], [0.21, -0.2], [-0.21, 0.2], [0.21, 0.2]].map(([x, z]) => (
+          <mesh key={`${x}${z}`} position={[x, 0.22, z]}>
+            <boxGeometry args={[0.05, 0.44, 0.05]} />
+            <meshStandardMaterial color={wood} roughness={0.9} />
+          </mesh>
+        ))}
+      </group>
+    </group>
+  );
+}
+
+/** Boîte aux lettres au pied du ponton, au nom du propriétaire des lieux. */
+function Mailbox({ position, rotation, accent }: { position: [number, number, number]; rotation: number; accent: string }) {
+  return (
+    <group position={position} rotation-y={rotation}>
+      <mesh castShadow position-y={0.55}>
+        <cylinderGeometry args={[0.05, 0.06, 1.1, 6]} />
+        <meshStandardMaterial color="#6e4a33" roughness={1} />
+      </mesh>
+      <mesh castShadow position-y={1.2}>
+        <boxGeometry args={[0.5, 0.34, 0.32]} />
+        <meshStandardMaterial color="#d8473a" roughness={0.55} />
+      </mesh>
+      <mesh position={[0.26, 1.38, 0.08]}>
+        <boxGeometry args={[0.03, 0.26, 0.06]} />
+        <meshStandardMaterial color="#f2c14e" roughness={0.5} />
+      </mesh>
+      <PaintedSign lines={['Kyliann']} position={[0, 0, -0.45]} rotation={0} accent={accent} width={1.2} post={0.85} />
+    </group>
+  );
+}
+
+/** Habillage « chez moi » de l'île À propos : ce que Kyliann fait, là où il vit. */
+export function HomeExtras({ island, sampler }: Pick<MetaphorProps, 'island' | 'sampler'>) {
+  const deskAngle = island.dockAngle + 0.95;
+  const deskX = Math.cos(deskAngle) * island.radius * 0.5;
+  const deskZ = Math.sin(deskAngle) * island.radius * 0.5;
+  const boxAngle = island.dockAngle + 0.2;
+  const boxX = Math.cos(boxAngle) * island.radius * 0.9;
+  const boxZ = Math.sin(boxAngle) * island.radius * 0.9;
+  return (
+    <>
+      <ClearingAt x={deskX} z={deskZ} radius={1.7} />
+      <ClearingAt x={boxX} z={boxZ} radius={0.8} />
+      <OutdoorDesk position={on(sampler, deskX, deskZ, 0.9, 0.04)} rotation={facingDock(island, deskX, deskZ)} />
+      <Mailbox position={on(sampler, boxX, boxZ, 0.4, 0.04)} rotation={facingDock(island, boxX, boxZ)} accent={island.accent} />
+    </>
+  );
+}

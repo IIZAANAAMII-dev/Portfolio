@@ -9,7 +9,7 @@ import { logbook } from '@/lib/logbook';
 import { useWorld } from '@/lib/store';
 import { skyState } from '@/lib/sky';
 import { SubstanceProp, SubstanceScatter } from './bell-island';
-import { AtelierScene, LighthouseScene, ShipyardScene, TrailScene } from './Metaphors';
+import { AtelierScene, HomeExtras, LighthouseScene, ShipyardScene, TrailScene } from './Metaphors';
 import { groundAt, terrainFeatures, type HeightSampler } from './terrain-shape';
 import type { IslandConfig } from '@/types';
 
@@ -40,10 +40,13 @@ function HomeScene({ island, sampler, features }: SceneProps) {
   // La façade (fenêtres, porte) du modèle regarde -X : un quart de tour la tourne vers le ponton.
   const rotation = facingDock(island, hillX, hillZ) + Math.PI / 2;
   return (
-    <SubstanceProp name="house-mound" position={base} rotation={rotation} scale={0.92}>
-      {/* La cheminée perce le dôme à l'arrière (+X dans le repère du modèle). */}
-      <SubstanceProp name="chimney-curved" position={[0.8, 6.0, 0]} scale={0.75} smoke />
-    </SubstanceProp>
+    <>
+      <SubstanceProp name="house-mound" position={base} rotation={rotation} scale={0.92}>
+        {/* La cheminée perce le dôme à l'arrière (+X dans le repère du modèle). */}
+        <SubstanceProp name="chimney-curved" position={[0.8, 6.0, 0]} scale={0.75} smoke />
+      </SubstanceProp>
+      <HomeExtras island={island} sampler={sampler} />
+    </>
   );
 }
 

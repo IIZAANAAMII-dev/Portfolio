@@ -51,7 +51,7 @@ function ermine(ctx: CanvasRenderingContext2D, x: number, y: number, s: number) 
 }
 
 /** Gwenn-ha-Du : neuf bandes (cinq noires, quatre blanches) et un canton à onze hermines. */
-function gwennHaDu() {
+export function gwennHaDu() {
   const canvas = document.createElement('canvas');
   canvas.width = 384;
   canvas.height = 256;

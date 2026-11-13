@@ -2,11 +2,23 @@
 
 import { useEffect, useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
-import { Box3, Group, MeshBasicMaterial, Vector3, type Mesh, type MeshStandardMaterial, type Object3D } from 'three';
+import {
+  Box3,
+  DoubleSide,
+  Group,
+  Matrix4,
+  MeshBasicMaterial,
+  MeshStandardMaterial,
+  PlaneGeometry,
+  Vector3,
+  type Mesh,
+  type Object3D,
+} from 'three';
+import { gwennHaDu } from '@/components/islets/BreizhDecor';
 import { AssetBoundary } from '@/components/world/AssetBoundary';
 import { MODEL, useModelScene } from '@/lib/models';
 import { bindSubstanceRoot } from '@/lib/materials/substance-material';
-import { preloadSubstanceModels, useSubstanceModel } from '@/lib/substance-models';
+import { clothClock, preloadSubstanceModels, useSubstanceModel } from '@/lib/substance-models';
 import { boatState } from '@/lib/boat-state';
 import { MAX_SPEED } from '@/hooks/useBoatNavigation';
 import { useWorld } from '@/lib/store';
@@ -50,6 +62,56 @@ WATER_MASK.name = 'boat-water-mask';
 /** Hauteur du masque au-dessus du pont (mètres, repère du fichier) : sous le plat-bord. */
 const MASK_LIFT = 0.45;
 
+/** Point le plus haut du modèle (tête de mât), dans le repère du fichier. */
+function mastTop(model: Object3D) {
+  const top = new Vector3(0, -Infinity, 0);
+  const point = new Vector3();
+  const matrix = new Matrix4();
+  model.traverse((child) => {
+    if (!isMesh(child)) return;
+    matrix.identity();
+    for (let node: Object3D | null = child; node && node !== model; node = node.parent) {
+      node.updateMatrix();
+      matrix.premultiply(node.matrix);
+    }
+    const positions = child.geometry.attributes.position;
+    for (let index = 0; index < positions.count; index++) {
+      point.fromBufferAttribute(positions, index).applyMatrix4(matrix);
+      if (point.y > top.y) top.copy(point);
+    }
+  });
+  return top;
+}
+
+const BOAT_FLAG_WIDTH = 1.15;
+
+/** Petit Gwenn-ha-Du en tête de mât : il flotte vers l'arrière, ondule plus vite en route. */
+function BoatFlag({ position }: { position: Vector3 }) {
+  const material = useMemo(() => {
+    const flag = new MeshStandardMaterial({ map: gwennHaDu(), side: DoubleSide, roughness: 0.9 });
+    flag.onBeforeCompile = (shader) => {
+      shader.uniforms.uClothTime = clothClock;
+      shader.vertexShader = shader.vertexShader
+        .replace('#include <common>', '#include <common>\nuniform float uClothTime;')
+        .replace(
+          '#include <begin_vertex>',
+          `#include <begin_vertex>
+          float free = clamp(position.x / ${BOAT_FLAG_WIDTH.toFixed(2)}, 0.0, 1.0);
+          transformed.z += (sin(position.x * 5.0 - uClothTime * 7.5) * 0.09 + sin(position.x * 9.0 - uClothTime * 11.0) * 0.03) * free;`,
+        );
+    };
+    flag.customProgramCacheKey = () => 'boat-flag-v1';
+    return flag;
+  }, []);
+  const cloth = useMemo(() => new PlaneGeometry(BOAT_FLAG_WIDTH, 0.74, 12, 4).translate(BOAT_FLAG_WIDTH / 2, -0.4, 0), []);
+  return (
+    // Dans le fichier, l'arrière est -Z : le drapeau s'étire dans ce sens.
+    <group position={position} rotation-y={Math.PI / 2}>
+      <mesh geometry={cloth} material={material} castShadow />
+    </group>
+  );
+}
+
 function FishingBoat() {
   const model = useSubstanceModel('fishing-boat');
   const chimney = useSubstanceModel('chimney-straight');
@@ -59,7 +121,7 @@ function FishingBoat() {
   const steer = useRef(0);
 
   // Le gouvernail (un seul mesh avec l'hélice) pivote autour de sa mèche, à l'avant du safran.
-  const { rudder, pivot, hull, deck } = useMemo(() => {
+  const { rudder, pivot, hull, deck, flagAt } = useMemo(() => {
     let rudderMesh: Object3D | null = null;
     let hullMaterial: MeshStandardMaterial | null = null;
     let deckMesh: Mesh | null = null;
@@ -82,6 +144,7 @@ function FishingBoat() {
       pivot: pivotPoint,
       hull: hullMaterial as MeshStandardMaterial | null,
       deck: deckMesh as Mesh | null,
+      flagAt: mastTop(model),
     };
   }, [model]);
 
@@ -138,6 +201,7 @@ function FishingBoat() {
       )}
       <group ref={rudderPivot} position={[pivot.x, 0, pivot.z]} />
       <primitive object={chimney} position={CHIMNEY_POSITION} scale={CHIMNEY_SCALE} />
+      {Number.isFinite(flagAt.y) && <BoatFlag position={flagAt} />}
     </group>
   );
 }
