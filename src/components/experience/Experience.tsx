@@ -5,7 +5,6 @@ import { Canvas } from '@react-three/fiber';
 import { ACESFilmicToneMapping } from 'three';
 import { Hud } from '@/components/ui/Hud';
 import { Intro } from '@/components/ui/Intro';
-import { Loader } from '@/components/ui/Loader';
 import { Panel } from '@/components/ui/Panel';
 import { QuickView } from '@/components/ui/QuickView';
 import { useDeepLink } from '@/hooks/useDeepLink';
@@ -13,6 +12,7 @@ import { ambience } from '@/lib/audio/ambience';
 import { useWorld } from '@/lib/store';
 import { isCoarsePointer, prefersReducedMotion, supportsWebGL } from '@/lib/utils/device';
 import { Scene } from './Scene';
+import { IntroStage } from '@/components/world/IntroStage';
 
 /** Une erreur dans la scène ne doit jamais laisser une page cassée : on bascule en Quick View. */
 class SceneBoundary extends Component<{ children: ReactNode; onError: () => void }> {
@@ -31,7 +31,6 @@ class SceneBoundary extends Component<{ children: ReactNode; onError: () => void
 export function Experience() {
   const quickView = useWorld((s) => s.quickView);
   const soundOn = useWorld((s) => s.soundOn);
-  const sceneReady = useWorld((s) => s.sceneReady);
   const failWebgl = useWorld((s) => s.failWebgl);
   // Le composant n'est monté que côté client (voir ExperienceLoader) : on peut
   // interroger l'appareil dès le premier rendu, sans passer par un effet.
@@ -73,6 +72,8 @@ export function Experience() {
           gl.domElement.addEventListener('webglcontextlost', failWebgl);
         }}
       >
+        {/* Le seuil (carte marine + anneau de chargement) s'affiche avant la scène. */}
+        <IntroStage mobile={mobile} />
         <SceneBoundary onError={failWebgl}>
           <Suspense fallback={null}>
             <Scene mobile={mobile} />
@@ -80,7 +81,6 @@ export function Experience() {
         </SceneBoundary>
       </Canvas>
 
-      <Loader done={sceneReady} />
       <Intro />
       <Hud />
       <Panel />

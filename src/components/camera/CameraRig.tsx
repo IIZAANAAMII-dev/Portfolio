@@ -2,7 +2,8 @@
 
 import { useRef } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
-import { CatmullRomCurve3, PerspectiveCamera, Vector3 } from 'three';
+import { CatmullRomCurve3, PerspectiveCamera, Vector3, type Camera } from 'three';
+import { splashState } from '@/components/boat/Splash';
 import { homeIsland, islandById } from '@/data/islands';
 import { boatState } from '@/lib/boat-state';
 import { ecologyState } from '@/lib/ecology';
@@ -47,6 +48,20 @@ function introPose(mobile: boolean, aspect: number) {
     bz - forward.z * dist + side.z * sideShift,
   );
   introTarget.set(bx, 2.2, bz);
+}
+
+/** Place la caméra d'intro (utilisée aussi par la scène de chargement avant le montage du rig). */
+export function placeIntroCamera(camera: Camera, mobile: boolean, aspect: number) {
+  introPose(mobile, aspect);
+  camera.position.copy(introPosition);
+  camera.lookAt(introTarget);
+  if (camera instanceof PerspectiveCamera) {
+    const fov = aspect < 0.82 ? 36 : mobile ? 33 : 30;
+    if (Math.abs(camera.fov - fov) > 0.001) {
+      camera.fov = fov;
+      camera.updateProjectionMatrix();
+    }
+  }
 }
 
 function gameplayPose(mobile: boolean) {
@@ -164,6 +179,14 @@ export function CameraRig({ mobile }: { mobile: boolean }) {
           smoothstep(0, INTRO_ANTICIPATION, gameTransition) * Math.PI,
         );
         desiredPosition.y += anticipation * 0.13;
+      }
+
+      // L'impact du bateau secoue brièvement la caméra : la chute a du poids.
+      const sinceSplash = state.clock.elapsedTime - splashState.time;
+      if (splashState.time >= 0 && sinceSplash >= 0 && sinceSplash < 1.2 && !reducedMotion) {
+        const shake = Math.exp(-sinceSplash * 5.5) * 0.3;
+        desiredPosition.y += Math.sin(sinceSplash * 38) * shake;
+        desiredPosition.x += Math.sin(sinceSplash * 29 + 1.3) * shake * 0.6;
       }
 
       position.current.copy(desiredPosition);

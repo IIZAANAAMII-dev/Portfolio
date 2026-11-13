@@ -4,8 +4,12 @@ import { clamp, smoothstep } from '@/lib/utils/math';
 export const INTRO_DURATION = 6.0;
 export const INTRO_ANTICIPATION = 0.09;
 
-/** Rayon initial du diorama lumineux. */
-export const INTRO_RADIUS_START = 22;
+/** Rien n'est dévoilé avant le clic : seul l'anneau de lanterne brille sur la carte. */
+export const INTRO_RADIUS_START = 0;
+/** Rayon de l'anneau de chargement, centré sur le point de chute du bateau. */
+export const INTRO_RING_RADIUS = 6.5;
+/** Instant (en fraction de la cinématique) où le bateau touche l'eau : l'onde part de là. */
+export const INTRO_SPLASH_AT = 0.14;
 /** Rayon final quand le monde est entièrement révélé. */
 export const INTRO_RADIUS_END = 120;
 /** Épaisseur du bord lumineux. */
@@ -36,10 +40,16 @@ export function introLightStrength(progress: number) {
 
 /** Rayon du cercle révélateur en world space, lié au temps de la cinématique. */
 export function introRadiusFromGameTransition(t: number) {
-  const start = INTRO_RADIUS_START;
-  const end = INTRO_RADIUS_END;
-  const eased = cinematicEase(clamp((t - 0.08) / 0.92, 0, 1));
-  return start + (end - start) * eased;
+  // L'anneau attend la chute du bateau, puis l'éclaboussure le pousse en onde de choc :
+  // départ vif, arrivée lente (ease-out cubique).
+  if (t < INTRO_SPLASH_AT) {
+    // Au clic, l'intérieur de l'anneau s'ouvre sur l'eau (≈ 0,35 s) et attend le bateau.
+    const open = clamp(t / 0.06, 0, 1);
+    return INTRO_RING_RADIUS * (1 - (1 - open) ** 3);
+  }
+  const x = clamp((t - INTRO_SPLASH_AT) / (1 - INTRO_SPLASH_AT), 0, 1);
+  const eased = 1 - (1 - x) ** 3;
+  return INTRO_RING_RADIUS + (INTRO_RADIUS_END - INTRO_RING_RADIUS) * eased;
 }
 
 /** Intensité du halo au bord du cercle. */

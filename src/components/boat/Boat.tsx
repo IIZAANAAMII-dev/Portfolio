@@ -3,17 +3,44 @@
 import { useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { Group, InstancedMesh, Object3D, PointLight } from 'three';
+import { ambience } from '@/lib/audio/ambience';
 import { boatState } from '@/lib/boat-state';
+import { INTRO_DURATION, INTRO_SPLASH_AT } from '@/lib/cinematic';
 import { ecologyState } from '@/lib/ecology';
 import { skyState } from '@/lib/sky';
 import { useWorld } from '@/lib/store';
 import { waveHeight } from '@/lib/waves';
 import { damp } from '@/lib/utils/math';
 import { MAX_SPEED, useBoatNavigation } from '@/hooks/useBoatNavigation';
+import { Splash, triggerSplash } from './Splash';
 import { Wake } from './Wake';
 import { BOAT_FRAME, BoatModel } from './BoatModel';
 
 const MAX_VISUAL_SPEED = MAX_SPEED;
+/** Hauteur d'où tombe le bateau au clic d'intro (au-dessus du cadre de la caméra). */
+const DROP_HEIGHT = 13;
+
+/**
+ * Chute d'intro : le bateau tombe du ciel (gravité constante), s'étire pendant la chute,
+ * s'écrase à l'impact puis rebondit, amorti, comme un jouet qu'on pose dans l'eau.
+ * Renvoie le décalage vertical, l'écrasement et l'inclinaison à appliquer.
+ */
+function dropPose(seconds: number) {
+  const impact = INTRO_SPLASH_AT * INTRO_DURATION;
+  if (seconds < impact) {
+    const f = seconds / impact;
+    return { y: DROP_HEIGHT * (1 - f * f), squash: -0.1 * f * f, pitch: -0.16 * f, roll: 0.06 * f };
+  }
+  const s = seconds - impact;
+  const decay = Math.exp(-s * 3.1);
+  return {
+    // Le bateau s'enfonce d'abord (vitesse d'arrivée), puis remonte et oscille.
+    y: -decay * Math.sin(s * 8.5) * 1.15,
+    squash: 0.26 * Math.exp(-s * 6.5) * Math.cos(s * 15),
+    pitch: decay * Math.sin(s * 6.2 + 0.4) * 0.13,
+    roll: decay * Math.sin(s * 5.1 + 1.3) * 0.1,
+  };
+}
 
 function ExhaustSmoke() {
   const mesh = useRef<InstancedMesh>(null);
@@ -88,7 +115,9 @@ function HullFoam() {
 export function Boat() {
   const group = useRef<Group>(null);
   const rocker = useRef<Group>(null);
+  const drop = useRef<Group>(null);
   const boatLight = useRef<PointLight>(null);
+  const splashed = useRef(false);
   const quality = useWorld((state) => state.quality);
 
   useBoatNavigation();
@@ -98,8 +127,17 @@ export function Boat() {
     const time = state.clock.elapsedTime;
     const { position, heading, speed } = boatState;
     const { phase, gameTransition } = useWorld.getState();
-    const anticipation = phase === 'transitioning' && gameTransition < 0.09
-      ? Math.sin((gameTransition / 0.09) * Math.PI) : 0;
+    // Avant le clic, il n'y a pas encore de bateau : il tombe dans l'anneau au départ.
+    const waiting = phase === 'loading' || phase === 'intro';
+    const dropping = phase === 'transitioning' && gameTransition * INTRO_DURATION < INTRO_SPLASH_AT * INTRO_DURATION + 2.2;
+    const pose = dropping ? dropPose(gameTransition * INTRO_DURATION) : null;
+
+    if (group.current) group.current.visible = !waiting;
+    if (phase === 'transitioning' && !splashed.current && gameTransition >= INTRO_SPLASH_AT) {
+      splashed.current = true;
+      triggerSplash(time, position.x, position.z, 1);
+      ambience.splash();
+    }
 
     if (boatLight.current) {
       const silhouetteLight = Math.max(skyState.dayNight, ecologyState.stormCover * 0.52);
@@ -112,15 +150,24 @@ export function Boat() {
         + Math.sin(time * 1.3 + 1.1) * 0.07
         + Math.sin(time * 2.1 + 2.5) * 0.03;
       const swallowed = ecologyState.leviathanAttack;
-      const heave = y + drift + anticipation * 0.1
+      const heave = y + drift
         + Math.sin(time * 1.35) * Math.min(speed / MAX_VISUAL_SPEED, 1) * 0.055
         + Math.sin(time * 2.35 + position.x * 0.08) * ecologyState.stormWaves * 0.12;
       group.current.position.x = position.x;
-      group.current.position.y = damp(group.current.position.y, heave - swallowed * 5.4, 8, dt);
+      // Pendant la chute, la position est imposée : un lissage la ferait traîner.
+      group.current.position.y = pose
+        ? heave + pose.y
+        : damp(group.current.position.y, heave - swallowed * 5.4, 8, dt);
       group.current.position.z = position.z;
       group.current.rotation.y = -heading;
       const scale = damp(group.current.scale.x, 1 - swallowed * 0.42, 6, dt);
       group.current.scale.setScalar(scale);
+    }
+
+    if (drop.current) {
+      const squash = pose?.squash ?? 0;
+      drop.current.scale.set(1 + squash * 0.5, 1 - squash, 1 + squash * 0.5);
+      drop.current.rotation.set(pose?.roll ?? 0, 0, pose?.pitch ?? 0);
     }
 
     if (rocker.current) {
@@ -148,7 +195,7 @@ export function Boat() {
       const damping = 1 - Math.min(speed / 14, 0.5);
       rocker.current.rotation.z = damp(
         rocker.current.rotation.z,
-        (ahead - behind) * 0.34 * damping - anticipation * 0.018
+        (ahead - behind) * 0.34 * damping
           + Math.sin(time * 1.13) * ecologyState.stormWind * 0.055
           + ecologyState.leviathanAttack * 0.72,
         4,
@@ -179,12 +226,15 @@ export function Boat() {
               decay={1.8}
             />
           )}
-          <BoatModel />
+          <group ref={drop}>
+            <BoatModel />
+          </group>
           <HullFoam />
           <ExhaustSmoke />
         </group>
       </group>
       <Wake />
+      <Splash />
     </>
   );
 }

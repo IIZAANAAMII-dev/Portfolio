@@ -4,8 +4,9 @@ import { useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { AdditiveBlending, Mesh, ShaderMaterial } from 'three';
 import { boatState } from '@/lib/boat-state';
-import { introLightStrength } from '@/lib/cinematic';
+import { INTRO_SPLASH_AT, introLightStrength } from '@/lib/cinematic';
 import { useWorld } from '@/lib/store';
+import { smoothstep } from '@/lib/utils/math';
 
 const vertexShader = /* glsl */ `
 varying vec2 vUv;
@@ -40,11 +41,10 @@ export function IntroHalo() {
   useFrame((state) => {
     if (!mesh.current || !material.current) return;
     const { phase, gameTransition } = useWorld.getState();
-    const strength = phase === 'loading' || phase === 'intro'
-      ? 1
-      : phase === 'transitioning'
-        ? introLightStrength(gameTransition)
-        : 0;
+    // Rien ne brille avant l'impact : la lanterne s'allume avec l'îlot qui surgit.
+    const strength = phase === 'transitioning'
+      ? introLightStrength(gameTransition) * smoothstep(INTRO_SPLASH_AT, INTRO_SPLASH_AT + 0.08, gameTransition)
+      : 0;
     material.current.uniforms.uStrength.value = strength;
     mesh.current.visible = strength > 0.01;
     if (!mesh.current.visible) return;

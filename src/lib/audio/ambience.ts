@@ -13,6 +13,7 @@ class Ambience {
   private stormBuffer: AudioBuffer | null = null;
   private thunderBuffer: AudioBuffer | null = null;
   private stormSource: AudioBufferSourceNode | null = null;
+  private splashBuffer: AudioBuffer | null = null;
   private enabled = false;
   private boundaryIntensity = 0;
   private boundaryHush = 0;
@@ -261,6 +262,60 @@ class Ambience {
     source.addEventListener('ended', () => {
       source.disconnect();
       gain.disconnect();
+    }, { once: true });
+  }
+
+  /**
+   * « Plouf » de l'intro : un bruit blanc filtré dont l'aigu retombe (la gerbe d'eau)
+   * et un coup sourd très court (la coque). Branché hors du bus principal, qui est encore
+   * en fondu d'ouverture au moment de l'impact.
+   */
+  splash(strength = 1) {
+    const context = this.context;
+    if (!context || !this.enabled) return;
+    if (!this.splashBuffer) {
+      const length = Math.floor(context.sampleRate * 1.4);
+      const buffer = context.createBuffer(1, length, context.sampleRate);
+      const data = buffer.getChannelData(0);
+      for (let i = 0; i < length; i++) data[i] = Math.random() * 2 - 1;
+      this.splashBuffer = buffer;
+    }
+    const now = context.currentTime;
+    const noise = context.createBufferSource();
+    noise.buffer = this.splashBuffer;
+    const band = context.createBiquadFilter();
+    band.type = 'bandpass';
+    band.Q.value = 0.8;
+    band.frequency.setValueAtTime(2400, now);
+    band.frequency.exponentialRampToValueAtTime(360, now + 1.1);
+    const noiseGain = context.createGain();
+    noiseGain.gain.setValueAtTime(0.0001, now);
+    noiseGain.gain.exponentialRampToValueAtTime(0.16 * strength, now + 0.02);
+    noiseGain.gain.exponentialRampToValueAtTime(0.0001, now + 1.3);
+    noise.connect(band).connect(noiseGain).connect(context.destination);
+
+    const thump = context.createOscillator();
+    thump.type = 'sine';
+    thump.frequency.setValueAtTime(120, now);
+    thump.frequency.exponentialRampToValueAtTime(44, now + 0.3);
+    const thumpGain = context.createGain();
+    thumpGain.gain.setValueAtTime(0.0001, now);
+    thumpGain.gain.exponentialRampToValueAtTime(0.2 * strength, now + 0.012);
+    thumpGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.38);
+    thump.connect(thumpGain).connect(context.destination);
+
+    noise.start(now);
+    noise.stop(now + 1.4);
+    thump.start(now);
+    thump.stop(now + 0.42);
+    noise.addEventListener('ended', () => {
+      noise.disconnect();
+      band.disconnect();
+      noiseGain.disconnect();
+    }, { once: true });
+    thump.addEventListener('ended', () => {
+      thump.disconnect();
+      thumpGain.disconnect();
     }, { once: true });
   }
 
