@@ -12,6 +12,7 @@ import {
   Object3D,
   Vector3,
 } from 'three';
+import { CLOUD_SHADOW_GLSL, cloudClock } from '@/lib/materials/cloud-shadow';
 import { QUALITY_LEVELS } from '@/lib/quality';
 import { useWorld } from '@/lib/store';
 import { hash } from '@/lib/utils/math';
@@ -57,6 +58,7 @@ const shared = {
 };
 
 const VERTEX_PARS = /* glsl */ `
+varying vec2 vGrassWorld;
 uniform float uTime;
 uniform vec3 uWind;
 uniform vec3 uClearings[ ${MAX_CLEARINGS} ];
@@ -75,6 +77,7 @@ const VERTEX_MAIN = /* glsl */ `
     grassKeep *= smoothstep( clearing.z * 0.8, clearing.z, distance( grassRoot.xz, clearing.xy ) );
   }
   transformed *= grassKeep;
+  vGrassWorld = (modelMatrix * vec4(grassRoot, 1.0)).xz;
 
   // Vent : la pointe se couche, le pied reste ancré. Les rafales traversent l'île.
   float grassBend = position.y * position.y;
@@ -122,9 +125,13 @@ function createGrassMaterial() {
     shader.vertexShader = shader.vertexShader
       .replace('#include <common>', `#include <common>\n${VERTEX_PARS}`)
       .replace('#include <begin_vertex>', VERTEX_MAIN);
-    shader.fragmentShader = shader.fragmentShader.replace('#include <normal_fragment_begin>', NORMAL_BEGIN);
+    shader.uniforms.uCloudTime = cloudClock;
+    shader.fragmentShader = shader.fragmentShader
+      .replace('#include <common>', `#include <common>\nvarying vec2 vGrassWorld;\nuniform float uCloudTime;\n${CLOUD_SHADOW_GLSL}`)
+      .replace('#include <color_fragment>', '#include <color_fragment>\ndiffuseColor.rgb *= 1.0 - cloudShadow(vGrassWorld, uCloudTime) * 0.2;')
+      .replace('#include <normal_fragment_begin>', NORMAL_BEGIN);
   };
-  material.customProgramCacheKey = () => 'grass-blades-v1';
+  material.customProgramCacheKey = () => 'grass-blades-v2';
   return material;
 }
 

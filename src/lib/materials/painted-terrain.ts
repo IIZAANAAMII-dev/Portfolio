@@ -1,5 +1,6 @@
 import { Color, MeshStandardMaterial } from 'three';
 import { BEACH_HEIGHT, WATERLINE_HEIGHT } from '@/components/islands/terrain-shape';
+import { CLOUD_SHADOW_GLSL, cloudClock } from './cloud-shadow';
 import type { SubstanceId } from './substances';
 
 /**
@@ -32,17 +33,22 @@ const SAND = { dry: '#f0cf98', light: '#f8e3b6', wet: '#c49767' };
 const VERTEX_PARS = /* glsl */ `
 varying vec3 vTerrainPos;
 varying vec3 vTerrainNormal;
+varying vec2 vTerrainWorld;
 `;
 
 const VERTEX_MAIN = /* glsl */ `
 #include <worldpos_vertex>
 vTerrainPos = position;
 vTerrainNormal = normal;
+vTerrainWorld = (modelMatrix * vec4(position, 1.0)).xz;
 `;
 
 const FRAGMENT_PARS = /* glsl */ `
 varying vec3 vTerrainPos;
 varying vec3 vTerrainNormal;
+varying vec2 vTerrainWorld;
+uniform float uCloudTime;
+${CLOUD_SHADOW_GLSL}
 uniform vec3 uSandDry;
 uniform vec3 uSandLight;
 uniform vec3 uSandWet;
@@ -113,7 +119,7 @@ tColor = mix(tColor, tSand, tSandMask);
 // Lisière claire : l'herbe déborde un peu au-dessus de la falaise.
 float tLip = tGrassMask * (1.0 - smoothstep(0.8, 0.9, tN.y)) * (1.0 - tSandMask);
 tColor = mix(tColor, uGrassB * 1.15, tLip * 0.45);
-diffuseColor.rgb *= tColor;
+diffuseColor.rgb *= tColor * (1.0 - cloudShadow(vTerrainWorld, uCloudTime) * 0.2);
 float tCliff = (1.0 - tGrassMask) * (1.0 - tSandMask);
 `;
 
@@ -144,6 +150,7 @@ export function getPaintedTerrainMaterial(cliff: SubstanceId, top: SubstanceId, 
     uRockC: { value: new Color(rock[2]) },
     uRockD: { value: new Color(rock[3]) },
     uRockTint: { value: new Color(rockTint ?? '#ffffff') },
+    uCloudTime: cloudClock,
   };
   const material = new MeshStandardMaterial({ color: '#ffffff', roughness: 0.96, metalness: 0 });
   material.name = `painted-terrain:${key}`;
@@ -157,7 +164,7 @@ export function getPaintedTerrainMaterial(cliff: SubstanceId, top: SubstanceId, 
       .replace('#include <map_fragment>', FRAGMENT_COLOR)
       .replace('#include <normal_fragment_maps>', FRAGMENT_NORMAL);
   };
-  material.customProgramCacheKey = () => 'painted-terrain-v1';
+  material.customProgramCacheKey = () => 'painted-terrain-v2';
   cache.set(key, material);
   return material;
 }

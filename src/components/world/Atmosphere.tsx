@@ -58,6 +58,7 @@ uniform float uSunGlow;
 uniform float uReveal;
 uniform float uTime;
 uniform float uStorm;
+uniform float uNight;
 
 varying vec3 vWorld;
 varying float vHeight;
@@ -110,6 +111,15 @@ void main() {
   // Ton légèrement plus lumineux après la révélation.
   sky *= 0.9 + 0.2 * uReveal;
 
+  // Étoiles : un point rond par cellule de la voûte, qui scintille ; la nuit et pendant
+  // l'intro (ciel noir au-dessus de la carte marine).
+  vec3 starCell = floor(view * 230.0);
+  float starSeed = fract(sin(dot(starCell, vec3(12.9898, 78.233, 37.719))) * 43758.5453);
+  float starDot = 1.0 - smoothstep(0.08, 0.32, length(fract(view * 230.0) - 0.5));
+  float twinkle = 0.55 + 0.45 * sin(uTime * (1.5 + starSeed * 3.0) + starSeed * 40.0);
+  float stars = step(0.9955, starSeed) * starDot * twinkle * smoothstep(0.02, 0.22, vHeight);
+  sky += vec3(0.88, 0.93, 1.0) * stars * uNight * (1.0 - uStorm);
+
   gl_FragColor = vec4(sky, 1.0);
   #include <colorspace_fragment>
 }
@@ -127,6 +137,7 @@ const uniforms = {
   uReveal: { value: 0.0 },
   uTime: { value: 0.0 },
   uStorm: { value: 0.0 },
+  uNight: { value: 1.0 },
 };
 const fogColor = new Color(NIGHT);
 
@@ -317,6 +328,8 @@ export function Atmosphere() {
     uniforms.uReveal.value = reveal * (1 - dayNight * 0.4);
     uniforms.uTime.value = state.clock.elapsedTime;
     uniforms.uStorm.value = storm;
+    // Étoiles : la nuit, et dans le noir de l'intro.
+    uniforms.uNight.value = Math.max(dayNight, 1 - smoothstep(0, 0.35, reveal));
     uniforms.uSunColor.value
       .copy(SUN_RISE)
       .lerp(SUN_DAY, dayLight)

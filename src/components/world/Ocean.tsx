@@ -5,6 +5,7 @@ import { useFrame, type ThreeEvent } from '@react-three/fiber';
 import { Color, ShaderMaterial, Vector2, Vector3, Vector4 } from 'three';
 import { homeIsland, islands } from '@/data/islands';
 import { islets } from '@/data/islets';
+import { CLOUD_SHADOW_GLSL, cloudClock } from '@/lib/materials/cloud-shadow';
 import { ecologyState } from '@/lib/ecology';
 import { skyState } from '@/lib/sky';
 import { useWorld } from '@/lib/store';
@@ -105,6 +106,7 @@ uniform float uIntroFeather;
 uniform float uIntroGlow;
 uniform vec4 uShoals[${SHOAL_COUNT}];
 uniform float uStrokes;
+uniform float uCloudTime;
 #ifdef OCEAN_TEX
   // « Stylized Ocean Water » (Substance 3D Assets) : normales des vaguelettes et, dans le
   // canal G (rugosité), le masque des traits d'écume peints.
@@ -127,6 +129,28 @@ float valueNoise(vec2 p) {
   f = f * f * (3.0 - 2.0 * f);
   return mix(mix(hash21(i), hash21(i + vec2(1.0, 0.0)), f.x),
              mix(hash21(i + vec2(0.0, 1.0)), hash21(i + 1.0), f.x), f.y);
+}
+
+${CLOUD_SHADOW_GLSL}
+
+// Remous dessinés (esprit dessin animé) : dans une grille de cellules, une virgule
+// d'écume naît, s'enroule en spirale puis s'efface ; seules certaines cellules en ont.
+float swirlFoam(vec2 p, float t) {
+  vec2 cell = vec2(12.0);
+  vec2 id = floor(p / cell);
+  float alive = step(0.5, hash21(id + 7.31));
+  vec2 centre = (id + vec2(0.28, 0.28) + vec2(hash21(id), hash21(id + 1.7)) * 0.44) * cell;
+  float period = 5.5 + hash21(id + 3.3) * 3.0;
+  float phase = fract(t / period + hash21(id + 5.1));
+  float life = smoothstep(0.0, 0.22, phase) * (1.0 - smoothstep(0.55, 0.82, phase));
+  float a = hash21(id + 9.7) * 6.28318;
+  vec2 q = mat2(cos(a), -sin(a), sin(a), cos(a)) * (p - centre);
+  float sweep = (atan(q.y, q.x) + 3.14159) / 6.28318;
+  float radius = 0.9 + sweep * 1.25 + phase * 0.7;
+  float arc = smoothstep(0.0, 0.07, sweep) * (1.0 - smoothstep(0.5 + phase * 0.25, 0.68 + phase * 0.25, sweep));
+  float width = 0.17 * (1.0 - sweep * 0.65);
+  float band = 1.0 - smoothstep(width * 0.55, width, abs(length(q) - radius));
+  return band * arc * life * alive;
 }
 
 float segmentDistance(vec2 p, vec2 a, vec2 b) {
@@ -219,13 +243,20 @@ void main() {
   float crestHeight = vHeight + crestNoise * 0.055;
   float crest = smoothstep(0.48, 0.61, crestHeight)
     * (1.0 - smoothstep(0.72, 0.91, crestHeight)) * 0.028;
-  float shoreBand = 1.0 - smoothstep(0.35, 2.6, max(edge, 0.0));
-  float shorePulse = smoothstep(0.42, 0.68,
+  float shoreBand = 1.0 - smoothstep(0.35, 3.2, max(edge, 0.0));
+  // Anneaux d'écume nets qui partent de la plage (bords francs, pas de dégradé mou).
+  float shorePulse = smoothstep(0.6, 0.66,
     0.5 + 0.5 * sin(edge * 1.65 - uTime * 1.55 + valueNoise(vWorld.xz * 0.22) * 4.0));
   float foamBreakup = uQuality > 0.25
     ? smoothstep(0.30, 0.72, valueNoise(vWorld.xz * 0.62 + uTime * 0.025))
     : 0.62;
   water = mix(water, uFoam * mix(1.0, 0.92, uDayNight), strokes * 0.62);
+  // Remous au large, plus visibles près de la caméra, absents des lagons.
+  float swirl = swirlFoam(vWorld.xz + vec2(uTime * 0.25, uTime * 0.1), uTime)
+    * (1.0 - shallow) * (1.0 - smoothstep(60.0, 115.0, cameraDistance)) * step(0.25, uQuality);
+  water = mix(water, uFoam, swirl * 0.8);
+  // Ombres de nuages qui glissent sur la mer (de jour).
+  water *= 1.0 - cloudShadow(vWorld.xz, uCloudTime) * 0.2 * (1.0 - uDayNight);
   // Assombrissement nocturne : l'eau devient très sombre, l'écume reste claire.
   water *= mix(vec3(1.0), vec3(0.18, 0.24, 0.32), uDayNight);
   // La couleur appréciée de l'océan reste intacte partout ailleurs. Dans le
@@ -303,6 +334,7 @@ export function Ocean() {
   const uniforms = useMemo(
     () => ({
       uTime: { value: 0 },
+      uCloudTime: cloudClock,
       uDeep: { value: new Color('#07547a') },
       uShallow: { value: new Color('#20b8c4') },
       uLagoon: { value: new Color('#72e1d0') },

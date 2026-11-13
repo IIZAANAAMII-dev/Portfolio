@@ -2,6 +2,7 @@
 
 import { useFrame } from '@react-three/fiber';
 import { skyState } from '@/lib/sky';
+import { cloudClock } from '@/lib/materials/cloud-shadow';
 import { clothClock, nightGlow } from '@/lib/substance-models';
 
 /**
@@ -11,6 +12,7 @@ import { clothClock, nightGlow } from '@/lib/substance-models';
 export function NightGlow() {
   useFrame((state) => {
     clothClock.value = state.clock.elapsedTime;
+    cloudClock.value = state.clock.elapsedTime;
     const t = skyState.dayNight;
     nightGlow.forEach(({ day, night }, material) => {
       material.emissiveIntensity = day + (night - day) * t;
