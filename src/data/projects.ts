@@ -91,6 +91,7 @@ export const projects: Project[] = [
     index: '04',
     title: 'Feeder Cyber',
     kind: 'Expérience immersive',
+    badge: 'Nouveau site',
     context: 'Alternance — Feeder SAS',
     status: 'live',
     summary:

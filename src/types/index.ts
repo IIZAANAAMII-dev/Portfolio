@@ -63,6 +63,8 @@ export interface Project {
   status: ProjectStatus;
   /** Libellé de statut libre, quand le statut seul ne suffit pas. */
   statusLabel?: string;
+  /** Petit badge affiché à côté du titre (ex. « Nouveau »). */
+  badge?: string;
   summary: string;
   /** Ce que j'ai réellement fait (pas de chiffres inventés). */
   highlights: string[];

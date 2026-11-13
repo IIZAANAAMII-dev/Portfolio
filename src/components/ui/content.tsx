@@ -157,6 +157,7 @@ function ProjectCard({ project, open, onToggle }: { project: Project; open: bool
             {project.index}
           </span>
           <span className="text-base font-medium">{project.title}</span>
+          {project.badge && <span className="project-badge">{project.badge}</span>}
         </span>
         <StatusBadge project={project} />
       </button>

@@ -4,7 +4,6 @@ import { Suspense, useEffect, useRef, useState } from 'react';
 import dynamic from 'next/dynamic';
 import { useFrame, useThree } from '@react-three/fiber';
 import { Color } from 'three';
-import { EffectComposer, Bloom, Vignette } from '@react-three/postprocessing';
 import { skyState } from '@/lib/sky';
 import { ecologyState } from '@/lib/ecology';
 import { Boat } from '@/components/boat/Boat';
@@ -25,6 +24,7 @@ import { SeaLife } from '@/components/world/SeaLife';
 import { SeaNotes } from '@/components/world/SeaNotes';
 import { BoundaryStorm } from '@/components/world/BoundaryStorm';
 import { NightGlow } from '@/components/world/NightGlow';
+import { PostFX } from '@/components/world/PostFX';
 import { substanceTexturesSettled } from '@/lib/materials/substance-material';
 import { applyToonShading } from '@/lib/toon';
 
@@ -32,7 +32,6 @@ import { applyToonShading } from '@/lib/toon';
 applyToonShading();
 import { useWorldReveal } from '@/hooks/useWorldReveal';
 import { useWorld } from '@/lib/store';
-import { QUALITY_LEVELS } from '@/lib/quality';
 import { smoothstep } from '@/lib/utils/math';
 import { PerformanceDebug, PerformanceGovernor } from './PerformanceGovernor';
 import { AssetBoundary } from '@/components/world/AssetBoundary';
@@ -107,7 +106,6 @@ export function Scene({ mobile }: { mobile: boolean }) {
   const gl = useThree((state) => state.gl);
   const renderer = useRef(gl);
   const ready = useWorld((s) => s.ready);
-  const quality = useWorld((s) => s.quality);
   useWorldReveal();
   // Aperçu `?solo=` : seulement le sujet de la capture (voir lib/preview.ts).
   const full = preview.solo === null;
@@ -173,18 +171,7 @@ export function Scene({ mobile }: { mobile: boolean }) {
           </AssetBoundary>
         </>
       )}
-      {QUALITY_LEVELS[quality].bloom && (
-        // MSAA dans la chaîne d'effets (sinon les arêtes crénèlent) et léger vignettage cinéma.
-        <EffectComposer multisampling={4}>
-          <Bloom
-            mipmapBlur
-            luminanceThreshold={0.9}
-            luminanceSmoothing={0.35}
-            intensity={0.38}
-          />
-          <Vignette eskil={false} offset={0.3} darkness={0.38} />
-        </EffectComposer>
-      )}
+      <PostFX />
     </>
   );
 }
