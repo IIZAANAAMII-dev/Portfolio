@@ -490,6 +490,63 @@ class Ambience {
     }
   }
 
+  /**
+   * Cloche de bronze : partiels inharmoniques (bourdon, fondamentale, tierce mineure,
+   * quinte, octave…) qui s'éteignent chacun à leur rythme, plus le choc du battant.
+   */
+  bell(strength = 1) {
+    const context = this.context;
+    if (!context || !this.enabled) return;
+    const now = context.currentTime;
+    const f0 = 233;
+    const partials: [number, number, number][] = [
+      [0.5, 0.5, 4.5], [1, 1, 3.6], [1.19, 0.55, 2.8], [1.5, 0.35, 2.2], [2, 0.42, 1.8], [2.52, 0.22, 1.3], [3.01, 0.14, 1],
+    ];
+    for (const [ratio, level, decay] of partials) {
+      const tone = context.createOscillator();
+      tone.type = 'sine';
+      tone.frequency.value = f0 * ratio * (1 + (Math.random() - 0.5) * 0.002);
+      const gain = context.createGain();
+      gain.gain.setValueAtTime(0.0001, now);
+      gain.gain.exponentialRampToValueAtTime(0.06 * level * strength + 0.0002, now + 0.006);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + decay);
+      tone.connect(gain).connect(context.destination);
+      tone.start(now);
+      tone.stop(now + decay + 0.1);
+    }
+    const strike = context.createBufferSource();
+    strike.buffer = this.noise(context);
+    const band = context.createBiquadFilter();
+    band.type = 'bandpass';
+    band.frequency.value = 2800;
+    band.Q.value = 2;
+    strike.connect(band).connect(this.envelope(context, 0.05 * strength + 0.001, 0.002, 0.08));
+    strike.start(now, Math.random() * 0.5);
+    strike.stop(now + 0.12);
+  }
+
+  /** Chant de baleine : une plainte grave qui glisse, avec un léger vibrato. */
+  whale() {
+    const context = this.context;
+    if (!context || !this.enabled) return;
+    const now = context.currentTime;
+    const voice = context.createOscillator();
+    voice.type = 'sine';
+    voice.frequency.setValueAtTime(190, now);
+    voice.frequency.exponentialRampToValueAtTime(260, now + 0.6);
+    voice.frequency.exponentialRampToValueAtTime(130, now + 1.9);
+    const lfo = context.createOscillator();
+    const depth = context.createGain();
+    lfo.frequency.value = 6;
+    depth.gain.value = 5;
+    lfo.connect(depth).connect(voice.frequency);
+    voice.connect(this.envelope(context, 0.07, 0.25, 1.8));
+    lfo.start(now);
+    voice.start(now);
+    lfo.stop(now + 2.2);
+    voice.stop(now + 2.2);
+  }
+
   /** Arpège cristallin : une étoile d'or repêchée, un tampon gagné. */
   chime(notes: number[] = [880, 1175, 1568], spacing = 0.07) {
     const context = this.context;

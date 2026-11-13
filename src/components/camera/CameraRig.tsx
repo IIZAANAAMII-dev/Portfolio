@@ -235,11 +235,12 @@ export function CameraRig({ mobile }: { mobile: boolean }) {
       viewX /= viewLength;
       viewZ /= viewLength;
       desiredPosition.set(
-        island.position[0] + viewX * distance * 0.7,
+        island.position[0] + viewX * distance * 0.78,
         32 * zoomOut,
-        island.position[1] + viewZ * distance * 0.7,
+        island.position[1] + viewZ * distance * 0.78,
       );
-      desiredTarget.set(island.position[0], 2.2, island.position[1]);
+      // Visée relevée selon le relief : les monuments (clocher, maison…) restent dans le cadre.
+      desiredTarget.set(island.position[0], 2.2 + island.elevation * 0.45, island.position[1]);
       lambda = 1.6;
     } else {
       gameplayPose(mobile);

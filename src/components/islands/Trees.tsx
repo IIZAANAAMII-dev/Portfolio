@@ -30,15 +30,24 @@ import type { HeightSampler } from './terrain-shape';
 
 /** Feuille : un losange. Sa normale réelle vient de l'attribut d'instance. */
 function leafGeometry() {
+  // Feuille arrondie : un hexagone légèrement allongé, centre compris (7 sommets).
+  const positions = [0, 0, 0];
+  for (let index = 0; index < 6; index++) {
+    const angle = (index / 6) * Math.PI * 2 + Math.PI / 2;
+    positions.push(Math.cos(angle) * 0.42, Math.sin(angle) * 0.5, 0);
+  }
+  const indices: number[] = [];
+  for (let index = 1; index <= 6; index++) indices.push(0, index, (index % 6) + 1);
   const geometry = new BufferGeometry();
-  geometry.setAttribute('position', new BufferAttribute(new Float32Array([0, -0.5, 0, 0.42, 0, 0, 0, 0.5, 0, -0.42, 0, 0]), 3));
-  geometry.setAttribute('normal', new BufferAttribute(new Float32Array([0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1]), 3));
-  geometry.setIndex([0, 1, 2, 0, 2, 3]);
+  geometry.setAttribute('position', new BufferAttribute(new Float32Array(positions), 3));
+  geometry.setAttribute('normal', new BufferAttribute(new Float32Array(7 * 3).map((_, i) => (i % 3 === 2 ? 1 : 0)), 3));
+  geometry.setIndex(indices);
   return geometry;
 }
 
 const LEAF = leafGeometry();
 const TRUNK = new CylinderGeometry(0.13, 0.26, 1, 6, 1).translate(0, 0.5, 0);
+const BRANCH = new CylinderGeometry(0.05, 0.1, 1, 5, 1).translate(0, 0.5, 0);
 
 const shared = {
   uTime: { value: 0 },
@@ -115,6 +124,8 @@ interface TreeDesign {
   girth: number;
   tilt: Vector3;
   leaves: Leaf[];
+  /** Branches : du haut du tronc vers chaque masse secondaire du houppier. */
+  branches: { from: Vector3; to: Vector3 }[];
 }
 
 /** Un arbre : tronc légèrement penché, houppier en ombrelle fait de 3 à 4 masses. */
@@ -142,7 +153,7 @@ function designTree(seed: number, flame: Color): TreeDesign {
   const volume = blobs.reduce((sum, blob) => sum + blob.radius ** 3, 0);
 
   const leaves: Leaf[] = [];
-  const count = Math.round(380 + crown * 120);
+  const count = Math.round(540 + crown * 170);
   for (let index = 0; index < count; index++) {
     const key = seed * 13.1 + index * 1.618;
     // Masse choisie au prorata de son volume.
@@ -178,12 +189,16 @@ function designTree(seed: number, flame: Color): TreeDesign {
       offset,
       normal: direction,
       rotation,
-      size: 0.3 + hash(key + 5.9) * 0.2,
+      size: 0.25 + hash(key + 5.9) * 0.17,
       sway: Math.min(1, Math.max(0, offset.y / (height + crown))),
       color: base.clone().lerp(light, Math.max(0, direction.y) * 0.55 + hash(key + 6.7) * 0.2).multiplyScalar(tone),
     });
   }
-  return { height, girth: 0.85 + hash(seed * 8.3) * 0.35, tilt, leaves };
+  const branches = blobs.slice(1).map((blob) => ({
+    from: top.clone().multiplyScalar(0.82),
+    to: blob.center.clone().lerp(top, 0.25).setY(blob.center.y - blob.radius * 0.35),
+  }));
+  return { height, girth: 0.85 + hash(seed * 8.3) * 0.35, tilt, leaves, branches };
 }
 
 interface Spot {
@@ -258,6 +273,7 @@ export function Trees({
 }) {
   const leaves = useRef<InstancedMesh>(null);
   const trunks = useRef<InstancedMesh>(null);
+  const boughs = useRef<InstancedMesh>(null);
   const clearings = useContext(ClearingContext);
   const seenVersion = useRef(-1);
   const quality = useWorld((state) => state.quality);
@@ -269,6 +285,7 @@ export function Trees({
   }, [flame, seed, wanted]);
   const spots = useMemo(() => candidateSpots(sampler, radius, plateau, avoidAngle, seed), [avoidAngle, plateau, radius, sampler, seed]);
   const leafCount = designs.reduce((sum, design) => sum + design.leaves.length, 0);
+  const branchCount = Math.max(1, designs.reduce((sum, design) => sum + design.branches.length, 0));
 
   // Normales sphériques et amplitude du vent : fixées par feuille, une fois pour toutes.
   const geometry = useMemo(() => {
@@ -291,9 +308,11 @@ export function Trees({
   const layout = (clearingList: Clearing[]) => {
     const leafMesh = leaves.current;
     const trunkMesh = trunks.current;
-    if (!leafMesh || !trunkMesh) return;
+    const branchMesh = boughs.current;
+    if (!leafMesh || !trunkMesh || !branchMesh) return;
     const chosen = chooseSpots(spots, designs.length, clearingList);
     let cursor = 0;
+    let branchCursor = 0;
     designs.forEach((design, index) => {
       const spot = chosen[index];
       // Pas de place : l'arbre est replié à l'échelle zéro (ni rendu, ni ombre).
@@ -302,6 +321,17 @@ export function Trees({
       quaternion.setFromUnitVectors(up, position.set(design.tilt.x, 1, design.tilt.z).normalize());
       matrix.compose(position.set(root.x, root.y, root.z), quaternion, scale.set(design.girth * visible, design.height * visible, design.girth * visible));
       trunkMesh.setMatrixAt(index, matrix);
+      for (const branch of design.branches) {
+        const length = branch.from.distanceTo(branch.to);
+        quaternion.setFromUnitVectors(up, position.copy(branch.to).sub(branch.from).normalize());
+        matrix.compose(
+          position.set(root.x + branch.from.x, root.y + branch.from.y, root.z + branch.from.z),
+          quaternion,
+          scale.set(design.girth * visible, length * visible, design.girth * visible),
+        );
+        branchMesh.setMatrixAt(branchCursor, matrix);
+        branchCursor += 1;
+      }
       for (const leaf of design.leaves) {
         quaternion.copy(leaf.rotation);
         matrix.compose(
@@ -314,8 +344,10 @@ export function Trees({
       }
     });
     trunkMesh.instanceMatrix.needsUpdate = true;
+    branchMesh.instanceMatrix.needsUpdate = true;
     leafMesh.instanceMatrix.needsUpdate = true;
     trunkMesh.computeBoundingSphere();
+    branchMesh.computeBoundingSphere();
     leafMesh.computeBoundingSphere();
   };
 
@@ -351,6 +383,7 @@ export function Trees({
         raycast={() => null}
       />
       <instancedMesh ref={trunks} args={[TRUNK, TRUNK_MATERIAL, designs.length]} castShadow receiveShadow raycast={() => null} />
+      <instancedMesh ref={boughs} args={[BRANCH, TRUNK_MATERIAL, branchCount]} castShadow receiveShadow raycast={() => null} />
     </>
   );
 }

@@ -37,6 +37,34 @@ function isMesh(object: Object3D): object is Mesh {
 
 const paintCache = new Map<string, MeshStandardMaterial>();
 
+/** Horloge partagée des tissus au vent (avancée par NightGlow, une fois par image). */
+export const clothClock = { value: 0 };
+
+/**
+ * Ondulation d'un tissu, calculée en espace monde (les modèles sont quantifiés : leurs
+ * coordonnées locales ne sont pas en mètres). Une vague court dans le sens du vent ;
+ * la normale monde porte le déplacement, ajouté en espace vue.
+ */
+function addClothWave(material: MeshStandardMaterial, amplitude: number) {
+  material.onBeforeCompile = (shader) => {
+    shader.uniforms.uClothTime = clothClock;
+    shader.vertexShader = shader.vertexShader
+      .replace('#include <common>', '#include <common>\nuniform float uClothTime;')
+      .replace(
+        '#include <project_vertex>',
+        /* glsl */ `
+        vec4 clothWorld = modelMatrix * vec4(transformed, 1.0);
+        vec3 clothNormal = normalize(mat3(modelMatrix) * objectNormal);
+        float clothPhase = dot(clothWorld.xz, vec2(0.84, 0.54)) * 2.6 - uClothTime * 5.2;
+        float clothWave = sin(clothPhase) * 0.7 + sin(clothPhase * 1.9 + clothWorld.y * 3.0) * 0.3;
+        #include <project_vertex>
+        mvPosition.xyz += (viewMatrix * vec4(clothNormal * clothWave * ${amplitude.toFixed(3)}, 0.0)).xyz;
+        gl_Position = projectionMatrix * mvPosition;`,
+      );
+  };
+  material.customProgramCacheKey = () => `cloth-wave-${amplitude}`;
+}
+
 /**
  * Matériaux qui s'allument la nuit (vitres, lampes, écrans) : intensité émissive de jour
  * et de nuit. Un seul composant (NightGlow) les met à jour depuis le cycle du ciel.
@@ -58,6 +86,7 @@ function paintMaterial(spec: Extract<SlotSpec, { paint: string }>) {
       side: spec.double ? DoubleSide : FrontSide,
     });
     material.name = `paint:${spec.paint}`;
+    if (spec.wave) addClothWave(material, spec.wave);
     paintCache.set(key, material);
     if (spec.night !== undefined) nightGlow.set(material, { day: spec.emissiveIntensity ?? 0, night: spec.night });
   }

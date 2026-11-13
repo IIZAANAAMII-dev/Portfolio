@@ -2,12 +2,14 @@
 
 import { useContext, useLayoutEffect, useMemo, useRef } from 'react';
 import { Group, InstancedMesh, Object3D } from 'three';
+import type { ThreeEvent } from '@react-three/fiber';
 import type { SubstanceModelName } from '@/lib/materials/model-materials';
 import { QUALITY_LEVELS } from '@/lib/quality';
 import { useWorld } from '@/lib/store';
 import { useSubstanceModel, useSubstancePieces, type SubstancePiece } from '@/lib/substance-models';
 import { hash } from '@/lib/utils/math';
-import { ClearingContext, clearingFor } from './clearings';
+import { ClearingContext, clearingFor, modelFootprint } from './clearings';
+import { ChimneySmoke } from './ChimneySmoke';
 import type { HeightSampler } from './terrain-shape';
 
 /**
@@ -24,6 +26,9 @@ export function SubstanceProp({
   rotation = 0,
   scale = 1,
   children,
+  smoke = false,
+  onModel,
+  onClick,
 }: {
   name: SubstanceModelName;
   position: [number, number, number];
@@ -31,11 +36,25 @@ export function SubstanceProp({
   scale?: number;
   /** Objets attachés dans le repère du modèle (cheminée sur une maison…). */
   children?: React.ReactNode;
+  /** Fumée qui s'échappe du sommet du modèle (cheminées). */
+  smoke?: boolean;
+  /** Reçoit le modèle cloné une fois posé (animations sur mesure : cloche…). */
+  onModel?: (model: Object3D) => void;
+  onClick?: (event: ThreeEvent<MouseEvent>) => void;
 }) {
   const model = useSubstanceModel(name);
   const holder = useRef<Group>(null);
   const clearings = useContext(ClearingContext);
   const [px, py, pz] = position;
+  const top = useMemo(() => {
+    if (!smoke) return null;
+    const box = modelFootprint(model);
+    return [(box.min.x + box.max.x) / 2, box.max.y, (box.min.z + box.max.z) / 2] as [number, number, number];
+  }, [model, smoke]);
+
+  useLayoutEffect(() => {
+    onModel?.(model);
+  }, [model, onModel]);
 
   // L'emprise du bâtiment devient une clairière : l'herbe de l'île n'y pousse pas.
   useLayoutEffect(() => {
@@ -45,8 +64,9 @@ export function SubstanceProp({
   }, [clearings, model, px, py, pz, rotation, scale]);
 
   return (
-    <group ref={holder} position={position} rotation-y={rotation} scale={scale}>
+    <group ref={holder} position={position} rotation-y={rotation} scale={scale} onClick={onClick}>
       <primitive object={model} />
+      {top && <ChimneySmoke position={top} />}
       {children}
     </group>
   );

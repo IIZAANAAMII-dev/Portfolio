@@ -45,7 +45,7 @@ export const CLEARING_ROOT = { clearingRoot: true };
 const footprints = new WeakMap<Object3D, Box3>();
 
 /** Boîte englobante d'un modèle dans son propre repère (avant toute pose sur l'île). */
-function modelFootprint(model: Object3D) {
+export function modelFootprint(model: Object3D) {
   const cached = footprints.get(model);
   if (cached) return cached;
   const box = new Box3();

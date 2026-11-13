@@ -22,6 +22,8 @@ export type SlotSpec =
       transparent?: boolean;
       opacity?: number;
       double?: boolean;
+      /** Tissu au vent : amplitude de l'ondulation (mètres). */
+      wave?: number;
     };
 
 export type SubstanceModelName =
@@ -130,14 +132,14 @@ export const MODEL_MATERIALS: Record<SubstanceModelName, Record<string, SlotSpec
   cavern: { stylized_large_cavern: { substance: 'mossy_island_cliff', options: { projection: 'triplanar', space: 'world', top: 'wild_grass' } } },
   porch: { plank: { substance: 'wood_flooring' } },
   'flags-multi': {
-    flag: { paint: PAINT.flagRed, roughness: 0.9, double: true },
-    flag_001: { paint: PAINT.flagOchre, roughness: 0.9, double: true },
-    flag_004: { paint: PAINT.flagTeal, roughness: 0.9, double: true },
+    flag: { paint: PAINT.flagRed, roughness: 0.9, double: true, wave: 0.12 },
+    flag_001: { paint: PAINT.flagOchre, roughness: 0.9, double: true, wave: 0.12 },
+    flag_004: { paint: PAINT.flagTeal, roughness: 0.9, double: true, wave: 0.12 },
     pole: { substance: 'wood_beam' },
     rope,
   },
   'flags-rectangle': {
-    cloth: { paint: PAINT.flagCream, roughness: 0.9, double: true },
+    cloth: { paint: PAINT.flagCream, roughness: 0.9, double: true, wave: 0.16 },
     pole: { substance: 'wood_beam' },
   },
   'sea-dock': {

@@ -21,7 +21,9 @@ export type StampId =
   | 'night'
   | 'edge'
   | 'lighthouse'
-  | 'bottle';
+  | 'bottle'
+  | 'bell'
+  | 'whale';
 
 export interface StampInfo {
   id: StampId;
@@ -50,6 +52,8 @@ export const STAMPS: StampInfo[] = [
   { id: 'edge', title: 'Hic sunt dracones', hint: 'Approcher de la mer interdite', glyph: '☠' },
   { id: 'lighthouse', title: 'Gardien du phare', hint: 'Cliquer sur le phare breton', glyph: '✺' },
   { id: 'bottle', title: 'Bouteille à la mer', hint: 'Écrire à Kyliann depuis l’île Contact', glyph: '✉' },
+  { id: 'bell', title: 'Sonneur de cloche', hint: 'Faire sonner la cloche de l’île Contact', glyph: '♫' },
+  { id: 'whale', title: 'Baleine en vue !', hint: 'Voir une baleine sauter au large', glyph: '≈' },
 ];
 
 const STORAGE_KEY = 'kyliann-logbook-v1';

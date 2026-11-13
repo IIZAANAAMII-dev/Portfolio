@@ -1,13 +1,15 @@
 'use client';
 
-import { useLayoutEffect, useMemo, useRef } from 'react';
-import { useFrame } from '@react-three/fiber';
-import { Group, InstancedMesh, MeshStandardMaterial, Object3D, PointLight } from 'three';
+import { useCallback, useLayoutEffect, useMemo, useRef } from 'react';
+import { useFrame, useThree, type ThreeEvent } from '@react-three/fiber';
+import { Group, InstancedMesh, Mesh, MeshStandardMaterial, Object3D, PointLight, Vector3 } from 'three';
 import { AssetBoundary } from '@/components/world/AssetBoundary';
 import { projects } from '@/data/projects';
 import { experiences } from '@/data/experience';
 import { journey } from '@/data/journey';
 import { skillGroups } from '@/data/skills';
+import { ambience } from '@/lib/audio/ambience';
+import { logbook } from '@/lib/logbook';
 import { getSubstanceMaterial } from '@/lib/materials/substance-material';
 import { hash } from '@/lib/utils/math';
 import { useWorld } from '@/lib/store';
@@ -55,7 +57,7 @@ function HomeScene({ island, sampler, features }: SceneProps) {
   return (
     <SubstanceProp name="house-mound" position={base} rotation={rotation} scale={0.92}>
       {/* La cheminée perce le dôme à l'arrière (+X dans le repère du modèle). */}
-      <SubstanceProp name="chimney-curved" position={[0.8, 6.0, 0]} scale={0.75} />
+      <SubstanceProp name="chimney-curved" position={[0.8, 6.0, 0]} scale={0.75} smoke />
     </SubstanceProp>
   );
 }
@@ -109,7 +111,7 @@ function WorkshopScene({ island, sampler, features }: SceneProps) {
     <>
       <SkillCrystals island={island} height={summit + 4.2} />
       <SubstanceProp name="kiosk" position={on(sampler, kioskX, kioskZ, 1.2)} rotation={rotation} scale={1.15} />
-      <SubstanceProp name="chimney-straight" position={on(sampler, hillX - 1.9, hillZ + 1.4, 0.4)} scale={1.5} />
+      <SubstanceProp name="chimney-straight" position={on(sampler, hillX - 1.9, hillZ + 1.4, 0.4)} scale={1.5} smoke />
       <SubstanceProp name="chimney-straight" position={on(sampler, hillX - 2.6, hillZ + 0.3, 0.4)} scale={1.1} />
     </>
   );
@@ -231,15 +233,58 @@ function BellScene({ island, sampler, features }: SceneProps) {
   const dockX = Math.cos(island.dockAngle) * island.radius * 0.62;
   const dockZ = Math.sin(island.dockAngle) * island.radius * 0.62;
 
+  const bell = useRef<Object3D | null>(null);
+  const struck = useRef(-100);
+  const chimes = useRef(0);
+  const clock = useThree((state) => state.clock);
+
+  // La grosse cloche pend à son joug : on l'accroche à un pivot placé en haut de la cloche.
+  const onModel = useCallback((model: Object3D) => {
+    if (bell.current) return;
+    let found: Mesh | null = null;
+    model.traverse((child) => {
+      if (!found && (child as Mesh).isMesh && child.name.startsWith('main_bell')) found = child as Mesh;
+    });
+    const mesh = found as Mesh | null;
+    if (!mesh || !mesh.parent) return;
+    if (!mesh.geometry.boundingBox) mesh.geometry.computeBoundingBox();
+    const box = mesh.geometry.boundingBox!;
+    const pivotAt = new Vector3((box.min.x + box.max.x) / 2, box.max.y, (box.min.z + box.max.z) / 2);
+    mesh.updateMatrix();
+    pivotAt.applyMatrix4(mesh.matrix);
+    const pivot = new Object3D();
+    pivot.position.copy(pivotAt);
+    mesh.parent.add(pivot);
+    pivot.updateMatrixWorld(true);
+    pivot.attach(mesh);
+    bell.current = pivot;
+  }, []);
+
+  const ring = useCallback((event: ThreeEvent<MouseEvent>) => {
+    event.stopPropagation();
+    struck.current = clock.elapsedTime;
+    chimes.current = 1;
+    ambience.bell();
+    logbook.stamp('bell');
+  }, [clock]);
+
   useFrame((state) => {
     if (light.current) light.current.rotation.y = state.clock.elapsedTime * 0.8;
     if (point.current) point.current.intensity = skyState.dayNight * 26;
     if (lamp.current) lamp.current.emissiveIntensity = 0.35 + skyState.dayNight * 2.15;
+    // Volée amortie ; la cloche retinte à chaque aller-retour, de plus en plus doucement.
+    const since = state.clock.elapsedTime - struck.current;
+    if (bell.current) bell.current.rotation.z = since < 9 ? Math.sin(since * 3.4) * 0.42 * Math.exp(-since * 0.42) : 0;
+    const swing = Math.floor((since * 3.4) / Math.PI);
+    if (since < 6 && swing > chimes.current && swing % 2 === 0) {
+      chimes.current = swing;
+      ambience.bell(Math.exp(-since * 0.5));
+    }
   });
 
   return (
     <>
-      <SubstanceProp name="bell-tower" position={base} rotation={rotation} scale={1.25} />
+      <SubstanceProp name="bell-tower" position={base} rotation={rotation} scale={1.25} onModel={onModel} onClick={ring} />
       <group ref={light} position={[hillX, base[1] + 6.05, hillZ]}>
         <mesh>
           <sphereGeometry args={[0.32, 12, 10]} />
