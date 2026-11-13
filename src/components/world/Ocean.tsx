@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { useFrame, type ThreeEvent } from '@react-three/fiber';
 import { Color, ShaderMaterial, Vector2, Vector3, Vector4 } from 'three';
 import { homeIsland, islands } from '@/data/islands';
@@ -9,6 +9,7 @@ import { skyState } from '@/lib/sky';
 import { useWorld } from '@/lib/store';
 import { QUALITY_LEVELS } from '@/lib/quality';
 import { WAVE_GLSL } from '@/lib/waves';
+import { loadSubstanceMap } from '@/lib/materials/substance-material';
 
 const OCEAN_SIZE = 1200;
 const SHOAL_COUNT = 7;
@@ -102,6 +103,13 @@ uniform float uIntroRadius;
 uniform float uIntroFeather;
 uniform float uIntroGlow;
 uniform vec4 uShoals[${SHOAL_COUNT}];
+uniform float uStrokes;
+#ifdef OCEAN_TEX
+  // « Stylized Ocean Water » (Substance 3D Assets) : normales des vaguelettes et, dans le
+  // canal G (rugosité), le masque des traits d'écume peints.
+  uniform sampler2D uWaveNormal;
+  uniform sampler2D uWaveOrm;
+#endif
 varying vec3 vWorld;
 varying float vHeight;
 varying vec2 vSlope;
@@ -134,6 +142,31 @@ void main() {
     : 0.5;
   vec2 microSlope = vec2(dFdx(microA + microB), dFdy(microA + microB)) * 0.12;
   vec3 normal = normalize(vec3(-vSlope.x - microSlope.x, 1.0, -vSlope.y - microSlope.y));
+
+  // Traits de vagues peints : deux couches qui défilent en sens croisés. Les traits sont
+  // couchés le long des crêtes de la houle principale (axe z) et s'effacent au loin, où la
+  // répétition du motif deviendrait visible.
+  float cameraDistance = length(uCameraPos.xz - vWorld.xz);
+  float strokeFade = (1.0 - smoothstep(38.0, 120.0, cameraDistance)) * uStrokes;
+  vec2 strokeUvA = vWorld.zx / 7.5 + vec2(uTime * 0.011, uTime * 0.004);
+  vec2 rotated = mat2(0.906, -0.423, 0.423, 0.906) * vWorld.zx;
+  vec2 strokeUvB = rotated / 11.0 + vec2(-uTime * 0.007, uTime * 0.005);
+  float strokes = 0.0;
+  #ifdef OCEAN_TEX
+    float strokeA = texture2D(uWaveOrm, strokeUvA).g;
+    float strokeB = texture2D(uWaveOrm, strokeUvB).g;
+    strokes = max(smoothstep(0.46, 0.56, strokeA), smoothstep(0.5, 0.6, strokeB) * 0.75);
+    vec3 waveA = texture2D(uWaveNormal, strokeUvA).xyz * 2.0 - 1.0;
+    vec3 waveB = texture2D(uWaveNormal, strokeUvB).xyz * 2.0 - 1.0;
+    // Repère tangent : u suit z, v suit x (voir strokeUvA).
+    normal = normalize(normal + (vec3(waveA.y, 0.0, waveA.x) + vec3(waveB.y, 0.0, waveB.x) * 0.7) * 0.32 * strokeFade);
+  #else
+    float streakA = valueNoise(vec2(strokeUvA.x * 2.2, strokeUvA.y * 9.0));
+    float streakB = valueNoise(vec2(strokeUvB.x * 2.0, strokeUvB.y * 8.0) + 17.0);
+    strokes = max(smoothstep(0.76, 0.8, streakA), smoothstep(0.78, 0.82, streakB) * 0.7);
+  #endif
+  // Plus denses sur les crêtes, presque absents dans les creux.
+  strokes *= smoothstep(-0.25, 0.25, vHeight + (microA - 0.5) * 0.3) * strokeFade;
 
   float edge = 1e4;
   for (int i = 0; i < ${SHOAL_COUNT}; i++) {
@@ -191,6 +224,7 @@ void main() {
   float foamBreakup = uQuality > 0.25
     ? smoothstep(0.30, 0.72, valueNoise(vWorld.xz * 0.62 + uTime * 0.025))
     : 0.62;
+  water = mix(water, uFoam * mix(1.0, 0.92, uDayNight), strokes * 0.62);
   // Assombrissement nocturne : l'eau devient très sombre, l'écume reste claire.
   water *= mix(vec3(1.0), vec3(0.18, 0.24, 0.32), uDayNight);
   // La couleur appréciée de l'océan reste intacte partout ailleurs. Dans le
@@ -289,6 +323,9 @@ export function Ocean() {
       uIntroRadius: { value: 22 },
       uIntroFeather: { value: 6.5 },
       uIntroGlow: { value: 1.2 },
+      uStrokes: { value: 1 },
+      uWaveNormal: { value: null },
+      uWaveOrm: { value: null },
       uShoals: {
         value: [
           new Vector4(homeIsland.position[0], homeIsland.position[1], homeIsland.radius, 0),
@@ -298,6 +335,25 @@ export function Ocean() {
     }),
     [],
   );
+
+  // Cartes Substance de l'eau : le shader passe du motif procédural aux traits peints dès
+  // qu'elles sont chargées (jeu Adobe si présent, sinon rien : le procédural reste).
+  useEffect(() => {
+    let cancelled = false;
+    void Promise.all([loadSubstanceMap('ocean_water', 'normal'), loadSubstanceMap('ocean_water', 'orm')]).then(
+      ([normal, orm]) => {
+        const target = material.current;
+        if (cancelled || !target || !normal || !orm) return;
+        target.uniforms.uWaveNormal.value = normal;
+        target.uniforms.uWaveOrm.value = orm;
+        target.defines = { ...target.defines, OCEAN_TEX: '' };
+        target.needsUpdate = true;
+      },
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useFrame((state, dt) => {
     if (!material.current) return;
@@ -334,6 +390,7 @@ export function Ocean() {
     u.uIntroCenter.value.set(introCenter[0], introCenter[1]);
     u.uIntroRadius.value = introRadius;
     u.uIntroGlow.value = introGlow;
+    u.uStrokes.value = (1 - ecologyState.stormCover * 0.7) * (reveal > 0.2 ? 1 : 0.35);
     u.uStorm.value = ecologyState.stormWaves;
     u.uStormColor.value = ecologyState.stormCover;
     u.uMonsterWake.value = ecologyState.monsterWake;

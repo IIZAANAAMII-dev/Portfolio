@@ -47,7 +47,7 @@ export const SUBSTANCE_TEXTURES: Partial<Record<SubstanceId, SubstanceTextureSet
     "normal": true,
     "orm": true,
     "alpha": false,
-    "version": "8bebdc56"
+    "version": "ffce6844"
   },
   "earth_and_grass": {
     "size": 512,
@@ -103,7 +103,7 @@ export const SUBSTANCE_TEXTURES: Partial<Record<SubstanceId, SubstanceTextureSet
     "normal": true,
     "orm": true,
     "alpha": false,
-    "version": "1c3ec753"
+    "version": "06e44ef6"
   },
   "ocean_spray_swept_wood_planks": {
     "size": 1024,
@@ -127,7 +127,7 @@ export const SUBSTANCE_TEXTURES: Partial<Record<SubstanceId, SubstanceTextureSet
     "normal": true,
     "orm": true,
     "alpha": false,
-    "version": "060a6db2"
+    "version": "48288a06"
   },
   "wood_beam": {
     "size": 512,
@@ -135,7 +135,7 @@ export const SUBSTANCE_TEXTURES: Partial<Record<SubstanceId, SubstanceTextureSet
     "normal": true,
     "orm": true,
     "alpha": false,
-    "version": "4edc3e71"
+    "version": "cfce0f45"
   },
   "wood_flooring": {
     "size": 1024,

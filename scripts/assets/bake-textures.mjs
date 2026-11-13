@@ -31,6 +31,12 @@ const CATALOGUE = JSON.parse(readFileSync(path.join(ROOT, 'src/lib/materials/sub
 const EXPORTS = path.join(ROOT, 'assets-src/substance/textures');
 const OUT = path.join(ROOT, 'public/textures/substance');
 const MANIFEST = path.join(ROOT, 'src/lib/materials/generated-textures.ts');
+/**
+ * Cartes issues des exports Adobe : dossier séparé, hors Git tant que le dépôt est public
+ * (licence Substance 3D Assets). Le site le charge s'il existe, sinon il garde le jeu procédural.
+ */
+const OUT_ADOBE = path.join(ROOT, 'public/textures/substance-adobe');
+const ADOBE_MANIFEST = path.join(OUT_ADOBE, 'manifest.json');
 
 const GENERATORS = { wood, stone, grass, sand, plaster, iron };
 
@@ -39,12 +45,12 @@ const GENERATORS = { wood, stone, grass, sand, plaster, iron };
  * utilisés par la scène sont produits (voir src/lib/materials/model-materials.ts).
  */
 const RECIPES = {
-  ocean_spray_swept_wood: { generator: 'wood', out: 1024, options: { rows: 7, splits: 1, lines: 4, weathering: 0.45, cracks: 0.45, secondary: { color: '#6b4a2e', chance: 0.35, amount: 0.3 }, seed: 6 } },
+  ocean_spray_swept_wood: { generator: 'wood', rotate: true, out: 1024, options: { rows: 7, splits: 1, lines: 4, weathering: 0.45, cracks: 0.45, secondary: { color: '#6b4a2e', chance: 0.35, amount: 0.3 }, seed: 6 } },
   wood_flooring: { generator: 'wood', out: 1024, options: { rows: 5, splits: 2, lines: 4, carve: 0.1, knots: 3, secondary: { color: '#4e6d6e', chance: 0.3, amount: 0.4 }, seed: 2 } },
   ocean_spray_swept_wood_planks: { generator: 'wood', out: 1024, options: { rows: 6, splits: 2, lines: 5, weathering: 0.6, cracks: 0.55, seed: 4 } },
-  wood_barrier: { generator: 'wood', out: 512, options: { rows: 4, splits: 2, lines: 3, carve: 0.14, knots: 4, seed: 8 } },
-  wood_beam: { generator: 'wood', out: 512, options: { seams: false, rows: 2, lines: 7, carve: 0.12, knots: 2, seed: 10 } },
-  driftwood: { generator: 'wood', out: 512, options: { seams: false, rows: 3, lines: 6, carve: 0.16, cracks: 0.8, weathering: 0.8, seed: 12 } },
+  wood_barrier: { generator: 'wood', rotate: true, out: 512, options: { rows: 4, splits: 2, lines: 3, carve: 0.14, knots: 4, seed: 8 } },
+  wood_beam: { generator: 'wood', rotate: true, out: 512, options: { seams: false, rows: 2, lines: 7, carve: 0.12, knots: 2, seed: 10 } },
+  driftwood: { generator: 'wood', rotate: true, out: 512, options: { seams: false, rows: 3, lines: 6, carve: 0.16, cracks: 0.8, weathering: 0.8, seed: 12 } },
   island_cliff: { generator: 'stone', out: 512, options: { cellsX: 3, cellsY: 10, top: '#c49a82', topAmount: 0.7, seed: 3 } },
   mossy_island_cliff: { generator: 'stone', out: 512, options: { cellsX: 3, cellsY: 9, top: '#a77655', moss: '#5f7a35', mossAmount: 0.85, seed: 5 } },
   blocky_stone_cliff: { generator: 'stone', out: 512, options: { cellsX: 3, cellsY: 6, bevel: 0.12, top: '#b3a796', seed: 7 } },
@@ -127,17 +133,39 @@ async function fromExport(id, files, size) {
     orm[i * 3 + 1] = rough ? rough[i] : Math.round(CATALOGUE[id].roughness * 255);
     orm[i * 3 + 2] = metal ? metal[i] : 0;
   }
-  return { rgba, alpha: Boolean(opacity), normal, orm, source: `export Substance, normales ${convention}` };
+  return { rgba, alpha: Boolean(opacity), normal, orm, source: `normales ${convention}` };
 }
 
 /* ------------------------------------------------------------------------------------ */
 /* Génération                                                                            */
 /* ------------------------------------------------------------------------------------ */
 
+/** Quart de tour (sens horaire) d'un champ carré à `channels` composantes. */
+function rotate90(source, size, channels = 1) {
+  const out = new source.constructor(source.length);
+  for (let y = 0; y < size; y++) {
+    for (let x = 0; x < size; x++) {
+      const from = (y * size + x) * channels;
+      const to = (x * size + (size - 1 - y)) * channels;
+      for (let c = 0; c < channels; c++) out[to + c] = source[from + c];
+    }
+  }
+  return out;
+}
+
 async function generate(id, recipe) {
   const out = recipe.out;
   const genSize = Math.min(1024, out * 2);
   const result = GENERATORS[recipe.generator](genSize, CATALOGUE[id], recipe.options);
+  if (recipe.rotate) {
+    // Même orientation que l'export Adobe correspondant (fil du bois vertical) : les deux
+    // jeux restent interchangeables sous les mêmes réglages de matériau.
+    result.height = rotate90(result.height, genSize);
+    result.color = rotate90(result.color, genSize, 3);
+    result.roughness = rotate90(result.roughness, genSize);
+    result.ao = rotate90(result.ao, genSize);
+    if (result.metallic) result.metallic = rotate90(result.metallic, genSize);
+  }
   const normalRaw = normalMap(result.height, genSize, result.normalStrength);
   const orm = Buffer.alloc(genSize * genSize * 3);
   for (let i = 0; i < genSize * genSize; i++) {
@@ -163,8 +191,6 @@ async function generate(id, recipe) {
     alpha: false,
     normal: await resize(normalRaw, 3),
     orm: await resize(orm, 3),
-    heightPreview: result.height,
-    source: 'procédural',
   };
 }
 
@@ -174,18 +200,17 @@ async function writeWebp(file, buffer, size, channels, quality) {
     .toFile(file);
 }
 
-async function bake(id, recipe) {
-  const size = recipe.out;
-  const exported = findExport(id);
-  if (!exported && !recipe.generator) throw new Error(`${id} : ni export Substance ni recette procédurale`);
-  const maps = exported ? await fromExport(id, exported, size) : await generate(id, recipe);
-  const dir = path.join(OUT, id);
+async function writeSet(dir, maps, size) {
   mkdirSync(dir, { recursive: true });
   await writeWebp(path.join(dir, 'basecolor.webp'), maps.alpha ? maps.rgba : stripAlpha(maps.rgba, size), size, maps.alpha ? 4 : 3, 86);
   if (maps.normal) await writeWebp(path.join(dir, 'normal.webp'), maps.normal, size, 3, 90);
   await writeWebp(path.join(dir, 'orm.webp'), maps.orm, size, 3, 86);
   const hash = createHash('sha1').update(maps.rgba).update(maps.normal ?? '').update(maps.orm).digest('hex').slice(0, 8);
-  return { size, basecolor: true, normal: Boolean(maps.normal), orm: true, alpha: maps.alpha, version: hash, source: maps.source };
+  return { size, basecolor: true, normal: Boolean(maps.normal), orm: true, alpha: maps.alpha, version: hash };
+}
+
+function folderKb(dir) {
+  return readdirSync(dir).reduce((sum, file) => sum + readFileSync(path.join(dir, file)).length, 0) / 1024;
 }
 
 function stripAlpha(rgba, size) {
@@ -234,22 +259,43 @@ export const SUBSTANCE_TEXTURES: Partial<Record<SubstanceId, SubstanceTextureSet
 }
 
 async function main() {
-  const only = process.argv.slice(2);
+  const args = process.argv.slice(2);
+  const adobeOnly = args.includes('--adobe');
+  const proceduralOnly = args.includes('--procedural');
+  const only = args.filter((arg) => !arg.startsWith('--'));
   const exported = existsSync(EXPORTS) ? readdirSync(EXPORTS).filter((id) => id in CATALOGUE) : [];
   const ids = [...new Set([...Object.keys(RECIPES), ...exported])].filter((id) => only.length === 0 || only.includes(id));
-  const manifest = readManifest();
+  const procedural = readManifest();
+  const adobe = existsSync(ADOBE_MANIFEST) ? JSON.parse(readFileSync(ADOBE_MANIFEST, 'utf8')) : {};
   let total = 0;
   for (const id of ids) {
-    const started = Date.now();
-    const entry = await bake(id, RECIPES[id] ?? { generator: null, out: 512, options: {} });
-    const { source, ...rest } = entry;
-    manifest[id] = rest;
-    const dir = path.join(OUT, id);
-    const kb = readdirSync(dir).reduce((sum, file) => sum + readFileSync(path.join(dir, file)).length, 0) / 1024;
-    total += kb;
-    console.log(`${id.padEnd(32)} ${entry.size}px  ${kb.toFixed(0).padStart(5)} Ko  ${((Date.now() - started) / 1000).toFixed(1)} s  ${source}`);
+    const recipe = RECIPES[id];
+    if (recipe && !adobeOnly) {
+      const started = Date.now();
+      procedural[id] = await writeSet(path.join(OUT, id), await generate(id, recipe), recipe.out);
+      const kb = folderKb(path.join(OUT, id));
+      total += kb;
+      console.log(`${id.padEnd(32)} procédural  ${recipe.out}px  ${kb.toFixed(0).padStart(5)} Ko  ${((Date.now() - started) / 1000).toFixed(1)} s`);
+    }
+    const files = proceduralOnly ? null : findExport(id);
+    if (files) {
+      const started = Date.now();
+      // Jamais plus grand que l'export, ni que la taille utile prévue par la recette.
+      const exportSize = (await sharp(files.basecolor ?? files.normal).metadata()).width ?? 512;
+      const size = Math.min(exportSize, recipe?.out ?? 512);
+      const maps = await fromExport(id, files, size);
+      adobe[id] = await writeSet(path.join(OUT_ADOBE, id), maps, size);
+      const kb = folderKb(path.join(OUT_ADOBE, id));
+      total += kb;
+      console.log(`${id.padEnd(32)} Adobe       ${size}px  ${kb.toFixed(0).padStart(5)} Ko  ${((Date.now() - started) / 1000).toFixed(1)} s  ${maps.source}`);
+    }
   }
-  writeManifest(manifest);
+  writeManifest(procedural);
+  if (Object.keys(adobe).length) {
+    mkdirSync(OUT_ADOBE, { recursive: true });
+    const sorted = Object.fromEntries(Object.keys(adobe).sort().map((key) => [key, adobe[key]]));
+    writeFileSync(ADOBE_MANIFEST, `${JSON.stringify(sorted, null, 2)}\n`);
+  }
   console.log(`\n${ids.length} matériaux, ${total.toFixed(0)} Ko.`);
 }
 

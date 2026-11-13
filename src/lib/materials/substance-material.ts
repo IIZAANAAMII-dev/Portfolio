@@ -12,7 +12,7 @@ import {
   Vector4,
   type WebGLProgramParametersWithUniforms,
 } from 'three';
-import { SUBSTANCE_TEXTURES } from './generated-textures';
+import { SUBSTANCE_TEXTURES, type SubstanceTextureSet } from './generated-textures';
 import { SUBSTANCES, type SubstanceId, type SubstanceKind } from './substances';
 
 /**
@@ -42,6 +42,11 @@ export interface SubstanceOptions {
   uvDensity?: number;
   /** Facteur sur la taille physique du motif (2 = motif deux fois plus grand). */
   scale?: number;
+  /**
+   * Rotation du motif en mode `uv` (radians) : oriente le fil du bois selon le dépliage du
+   * modèle (planches de coque horizontales, lames de pont de la proue à la poupe…).
+   */
+  rotation?: number;
   /** Teinte multiplicative. */
   tint?: string;
   /** Recoloration qui conserve le détail (luminance) de la texture. */
@@ -363,20 +368,39 @@ type MapName = 'basecolor' | 'normal' | 'orm';
 const loader = new TextureLoader();
 const textureCache = new Map<string, Promise<Texture | null>>();
 
-export function substanceTextureUrl(id: SubstanceId, map: MapName) {
-  const set = SUBSTANCE_TEXTURES[id];
-  return `/textures/substance/${id}/${map}.webp${set ? `?v=${set.version}` : ''}`;
+/**
+ * Deux jeux de cartes :
+ *  - `/textures/substance-adobe/` : exports des .sbsar Adobe (licence Substance 3D Assets),
+ *    présents seulement là où le dépôt peut les contenir — listés par un manifest.json ;
+ *  - `/textures/substance/` : jeu procédural du projet, toujours livré (repli).
+ * Le manifeste Adobe est lu une seule fois ; son absence (404) n'est pas une erreur.
+ */
+type TextureSource = { base: string; set: SubstanceTextureSet };
+
+let adobeManifest: Promise<Partial<Record<SubstanceId, SubstanceTextureSet>>> | null = null;
+
+function loadAdobeManifest() {
+  adobeManifest ??= fetch('/textures/substance-adobe/manifest.json', { cache: 'no-cache' })
+    .then((response) => (response.ok ? response.json() : {}))
+    .catch(() => ({}));
+  return adobeManifest;
+}
+
+async function textureSource(id: SubstanceId): Promise<TextureSource | null> {
+  const adobe = (await loadAdobeManifest())[id];
+  if (adobe) return { base: `/textures/substance-adobe/${id}`, set: adobe };
+  const procedural = SUBSTANCE_TEXTURES[id];
+  return procedural ? { base: `/textures/substance/${id}`, set: procedural } : null;
 }
 
 function loadMap(id: SubstanceId, map: MapName): Promise<Texture | null> {
-  const set = SUBSTANCE_TEXTURES[id];
-  if (!set || !set[map]) return Promise.resolve(null);
   const key = `${id}/${map}`;
   let pending = textureCache.get(key);
   if (!pending) {
-    pending = loader
-      .loadAsync(substanceTextureUrl(id, map))
-      .then((texture) => {
+    pending = textureSource(id)
+      .then(async (source) => {
+        if (!source || !source.set[map]) return null;
+        const texture = await loader.loadAsync(`${source.base}/${map}.webp?v=${source.set.version}`);
         texture.wrapS = RepeatWrapping;
         texture.wrapT = RepeatWrapping;
         texture.colorSpace = map === 'basecolor' ? SRGBColorSpace : NoColorSpace;
@@ -394,11 +418,20 @@ function loadMap(id: SubstanceId, map: MapName): Promise<Texture | null> {
   return pending;
 }
 
-/** Copie qui partage l'image (une seule copie GPU) mais porte sa propre répétition. */
-function repeated(texture: Texture, repeat: number) {
-  if (Math.abs(repeat - 1) < 1e-4) return texture;
+/**
+ * Accès direct aux cartes d'un matériau Substance (jeu Adobe s'il est présent, sinon
+ * procédural), pour les shaders sur mesure comme l'océan. `null` si la carte n'existe pas.
+ */
+export function loadSubstanceMap(id: SubstanceId, map: MapName) {
+  return loadMap(id, map);
+}
+
+/** Copie qui partage l'image (une seule copie GPU) mais porte sa propre répétition et rotation. */
+function repeated(texture: Texture, repeat: number, rotation = 0) {
+  if (Math.abs(repeat - 1) < 1e-4 && rotation === 0) return texture;
   const copy = texture.clone();
   copy.repeat.set(repeat, repeat);
+  copy.rotation = rotation;
   copy.needsUpdate = true;
   return copy;
 }
@@ -592,14 +625,15 @@ async function attachTextures(
     // Répétitions par unité UV : le motif mesure `tile` mètres, le modèle porte
     // `uvDensity` unités UV par mètre.
     const repeat = options.uvDensity ? 1 / (options.uvDensity * tile) : 1;
-    if (basecolor) material.map = repeated(basecolor, repeat);
+    const rotation = options.rotation ?? 0;
+    if (basecolor) material.map = repeated(basecolor, repeat, rotation);
     if (normal) {
-      material.normalMap = repeated(normal, repeat);
+      material.normalMap = repeated(normal, repeat, rotation);
       const strength = options.normalStrength ?? 1;
       material.normalScale.set(strength, strength);
     }
     if (orm) {
-      const packed = repeated(orm, repeat);
+      const packed = repeated(orm, repeat, rotation);
       material.roughnessMap = packed;
       material.metalnessMap = packed;
       material.aoMap = packed;

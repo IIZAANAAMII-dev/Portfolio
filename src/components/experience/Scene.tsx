@@ -17,6 +17,10 @@ import { Birds } from '@/components/world/Birds';
 import { BoundaryStorm } from '@/components/world/BoundaryStorm';
 import { NightGlow } from '@/components/world/NightGlow';
 import { substanceTexturesSettled } from '@/lib/materials/substance-material';
+import { applyToonShading } from '@/lib/toon';
+
+// Cel-shading de tous les matériaux standard, avant la compilation du premier shader.
+applyToonShading();
 import { useWorldReveal } from '@/hooks/useWorldReveal';
 import { useWorld } from '@/lib/store';
 import { QUALITY_LEVELS } from '@/lib/quality';

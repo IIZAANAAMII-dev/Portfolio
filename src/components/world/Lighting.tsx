@@ -106,7 +106,7 @@ export function Lighting({ shadows }: { shadows: boolean }) {
       const mx = boatState.position.x + forwardX * 9 + sideX * 3;
       const mz = boatState.position.z + forwardZ * 9 + sideZ * 3;
       pool.current.position.set(mx, 7.2, mz);
-      pool.current.intensity = damp(pool.current.intensity, 100 * stillIntro, 3, dt);
+      pool.current.intensity = damp(pool.current.intensity, 58 * stillIntro, 3, dt);
       pool.current.distance = 42;
     }
   }, -10);

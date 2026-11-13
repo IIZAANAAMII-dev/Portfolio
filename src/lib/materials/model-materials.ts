@@ -60,8 +60,8 @@ export const PAINT = {
   flagOchre: '#e0a93f',
   flagTeal: '#3f8f8a',
   flagCream: '#efe2c4',
-  petal: '#f4a6a0',
-  petalInner: '#fff6e8',
+  petal: '#e58f88',
+  petalInner: '#efe2cc',
   pollen: '#f2c14e',
   leaf: '#6f8f4a',
   coral: '#e07a52',
@@ -78,6 +78,8 @@ export const MODEL_MATERIALS: Record<SubstanceModelName, Record<string, SlotSpec
     boat_body: {
       substance: 'ocean_spray_swept_wood',
       options: {
+        // Le fil du bois Substance est vertical : un quart de tour le couche le long de la coque.
+        rotation: Math.PI / 2,
         recolor: PAINT.hull,
         recolorAmount: 0.82,
         band: { color: PAINT.antifouling, below: 0.62, softness: 0.012 },
@@ -85,7 +87,7 @@ export const MODEL_MATERIALS: Record<SubstanceModelName, Record<string, SlotSpec
       },
     },
     // Pont : bois marin patiné par les embruns, sans peinture.
-    floor: { substance: 'ocean_spray_swept_wood_planks', options: { normalStrength: 0.9 } },
+    floor: { substance: 'ocean_spray_swept_wood_planks', options: { normalStrength: 0.9, rotation: Math.PI / 2 } },
     cabin: { substance: 'wood_barrier', options: { recolor: PAINT.cabin, recolorAmount: 0.88 } },
     bunker: { substance: 'wood_beam' },
     cabin_interior: { substance: 'wood_beam', options: { tint: '#8a7464' } },

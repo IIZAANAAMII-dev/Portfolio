@@ -4,7 +4,6 @@ import { useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { Group } from 'three';
 import { Dock } from '@/components/islands/Dock';
-import { Palms } from '@/components/islands/decor';
 import { SubstanceProp, SubstanceScatter } from '@/components/islands/bell-island';
 import { Terrain } from '@/components/islands/Terrain';
 import { createHeightSampler, groundAt, terrainFeatures, type TerrainShape } from '@/components/islands/terrain-shape';
@@ -96,8 +95,6 @@ export function HomeIsland() {
           sink={0}
           shadows={false}
         />
-        {/* Le palmier reste le point de repère de la toute première image. */}
-        <Palms radius={radius} seed={21} count={2} />
       </AssetBoundary>
 
       {/* Petite lanterne au bout du ponton : c'est elle qui accroche l'œil dans le noir. */}
