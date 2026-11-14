@@ -99,7 +99,10 @@ export function bridgeEnds() {
 /* ------------------------------------------------------------- Vieux-Port */
 
 /** Bassin du Vieux-Port, côté Marseille, à l'embouchure avant du chenal. */
-export const PORT = { u0: 6.6, v1: 6.4, quay: 0.82, floor: -1.1, quayWidth: 2.5 };
+export const PORT = { u0: 6.6, v1: 6.4, quay: 0.82, quayWidth: 2.5 };
+
+/** Fond du chenal et du bassin. */
+export const FLOOR = -1.25;
 
 /** Distance signée au bord du bassin (négative dans l'eau), coins arrondis. */
 export function portDistance(u: number, v: number) {
@@ -132,7 +135,7 @@ export function calanqueDistance(u: number, v: number) {
 /* ------------------------------------------------------------ crique bretonne */
 
 /** Crique de sable sur la rive bretonne du chenal, où le canot est tiré au sec. */
-export const COVE = { u: 8.6, halfLength: 2.4 };
+export const COVE = { u: 5.9, halfLength: 2.0 };
 
 /* ------------------------------------------------------------------- côtes */
 
@@ -190,7 +193,7 @@ export function bretonPlateau(u: number, v: number) {
 /** Garrigue marseillaise : sous le seuil de l'herbe automatique (pas de vert tendre). */
 export function provencePlateau(u: number, v: number) {
   const base = 2.25 + Math.sin(u * 0.33 - 0.4) * Math.cos(v * 0.29 + 0.5) * 0.08;
-  const hill = bump(u, v, GARDE.u, GARDE.v, GARDE.radius);
+  const hill = bump(u, v, GARDE.u, GARDE.v, GARDE.radius) + bump(u, v, GARDE.u + 2.2, GARDE.v + 1.6, 2.6) * 0.45;
   // Le piton a un sommet aplani pour la basilique.
   return base + Math.min(hill * 3.6, 3.15);
 }
@@ -203,13 +206,13 @@ export function provencePlateau(u: number, v: number) {
  * dallée qui monte dans le Panier.
  */
 export const TRAIL_BRETON: [number, number][] = [
-  [9.4, -3.4],
-  [7.6, -5.6],
-  [5.4, -6.6],
-  [2.6, -6.6],
-  [0.2, -6.2],
-  [-1.5, -5.0],
-  [-1.2, -3.7],
+  [6.6, -2.9],
+  [5.6, -4.7],
+  [3.6, -6.3],
+  [1.0, -6.9],
+  [-1.3, -6.0],
+  [-1.7, -4.4],
+  [-1.1, -3.3],
   [BRIDGE_U, -2.9],
 ];
 
@@ -252,7 +255,7 @@ export function journeyHeight(x: number, z: number) {
   const dChan = Math.abs(dv) - channelHalfWidth(u);
   let bank: number;
   if (dChan < 0) {
-    bank = Math.max(-1.35, 0.1 + dChan * 1.1);
+    bank = Math.max(FLOOR, 0.1 + dChan * 1.1);
   } else {
     const steep = mix(0.1, top, smooth(0, breton ? 1.9 : 1.3, dChan));
     const landing = dChan < 0.9
@@ -272,13 +275,13 @@ export function journeyHeight(x: number, z: number) {
     // Chemin creux : la lande s'abaisse doucement le long du sentier.
     if (height > 2) {
       const dTrail = polylineDistance(TRAIL_BRETON, u, v);
-      height -= (1 - smooth(0.45, 1.3, dTrail)) * Math.min(0.4, height - 2.1);
+      height -= (1 - smooth(0.3, 0.85, dTrail)) * Math.min(0.38, height - 2.1);
     }
   } else {
     // Vieux-Port : bassin à quai, promenade plate, puis la ville qui monte.
     const dPort = portDistance(u, v);
     let port: number;
-    if (dPort < 0) port = mix(PORT.quay, PORT.floor, smooth(-0.05, -0.6, dPort));
+    if (dPort < 0) port = mix(PORT.quay, FLOOR, smooth(-0.05, -0.6, dPort));
     else if (dPort < PORT.quayWidth) port = PORT.quay;
     else port = mix(PORT.quay, top, smooth(PORT.quayWidth, PORT.quayWidth + 4.8, dPort));
     height = Math.min(height, port);
@@ -291,3 +294,18 @@ export function journeyHeight(x: number, z: number) {
   }
   return height;
 }
+
+/* ------------------------------------------------------------ les étapes */
+
+/** Emplacement de chaque étape (repère u, v), dans l'ordre du voyage. */
+export const STEP_SPOTS: Record<string, [number, number]> = {
+  origines: [5.0, -3.15],
+  apprentissage: [-0.2, -7.6],
+  marseille: [BRIDGE_U + 0.52, 0.25],
+  feeder: [1.2, 10.7],
+  horizon: [-4.9, 9.05],
+};
+
+/** Grandes emprises du décor (u, v, rayon) : la végétation les évite. */
+export const COTTAGE = { u: -3.7, v: -8.7 };
+export const TECH = { u: -1.6, v: 12.7 };

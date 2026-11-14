@@ -1,93 +1,171 @@
 'use client';
 
-import { useCallback, useRef } from 'react';
-import { useFrame, useThree, type ThreeEvent } from '@react-three/fiber';
-import { Group, Mesh, MeshStandardMaterial, Object3D, PointLight, Vector3 } from 'three';
-import { ambience } from '@/lib/audio/ambience';
-import { logbook } from '@/lib/logbook';
-import { useWorld } from '@/lib/store';
+import { useEffect, useMemo } from 'react';
+import { useFrame } from '@react-three/fiber';
+import { AdditiveBlending, BoxGeometry, BufferAttribute, BufferGeometry, PointsMaterial } from 'three';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { skyState } from '@/lib/sky';
-import { SubstanceProp } from '../../bell-island';
-import { facingDock, on, type SceneProps } from '../../kit';
+import { useWorld } from '@/lib/store';
+import { updateWindows } from '@/lib/windows';
+import { ChimneySmoke } from '../../ChimneySmoke';
+import { glowTexture, type Vec3 } from '../../docks/parts';
+import {
+  LANTERN_GLASS,
+  LANTERN_GLASS_GEOMETRY,
+  LIGHT_POOL,
+  LIGHT_POOL_GEOMETRY,
+  PAINTED,
+  updateHarborLights,
+} from '../../docks/planks';
+import { ClearingAt, WindowPane, type SceneProps } from '../../kit';
+import { groundAt } from '../../terrain-shape';
+import { BeachBottles, DriftingBottle } from './Bottles';
+import { Bunting } from './Bunting';
+import {
+  bellPivot,
+  buildIsland,
+  buildPier,
+  CHIMNEYS,
+  COTTAGE_WINDOWS,
+  cottageMatrix,
+  DOOR_LAMP,
+  fromCottage,
+  glowSpots,
+  gullPerch,
+  HOUSE,
+  mailboxFrame,
+  PIER_DECK,
+  pierLanterns,
+  towerWindows,
+} from './build';
+import { BELL, COTTAGE, DOCK_SIDE, hillStairs, MAILBOX, onDockAxis, PIER, polar } from './layout';
+import { Gull } from './Gull';
+import { LighthouseLamp } from './LighthouseLamp';
+import { Mailbox } from './Mailbox';
+import { ShipBell } from './ShipBell';
 
 /**
- * ÎLE CONTACT — racine du décor.
+ * ÎLE CONTACT — « on se parle ? ». Un phare rouge et blanc au sommet de la butte, la maison
+ * du gardien et ses hortensias, un escalier qui monte du ponton, une longue jetée bordée de
+ * lanternes jusqu'à un banc tourné vers le couchant. La boîte aux lettres et la bouteille du
+ * large ouvrent le formulaire « bouteille à la mer » ; la cloche de bord sonne au clic.
+ *
+ * Draw calls : décor fusionné (1) + jetée (1) + lanterne du phare (≈5) + vitres (7) +
+ * lanternes de la jetée (3) + interactifs (≈10) + guirlande et fumée (2).
  */
-/* ------------------------------------------------------------------------------------ */
-/* CONTACT — le clocher : « sonnez, je réponds ». Un phare tourne à son sommet.          */
-/* ------------------------------------------------------------------------------------ */
+
+const GLOWS = new PointsMaterial({
+  map: glowTexture(),
+  color: '#ffc27a',
+  size: 1.9,
+  sizeAttenuation: true,
+  transparent: true,
+  depthWrite: false,
+  blending: AdditiveBlending,
+  opacity: 0,
+});
+const DOOR_LAMP_GEOMETRY = new BoxGeometry(0.15, 0.21, 0.15);
+
 export default function ContactScene({ island, sampler, features }: SceneProps) {
-  const { hillX, hillZ } = features;
-  const light = useRef<Group>(null);
-  const point = useRef<PointLight>(null);
-  const lamp = useRef<MeshStandardMaterial>(null);
   const quality = useWorld((state) => state.quality);
-  const base = on(sampler, hillX, hillZ, 1.6, 0.15);
-  const rotation = facingDock(island, hillX, hillZ);
-  const dockX = Math.cos(island.dockAngle) * island.radius * 0.62;
-  const dockZ = Math.sin(island.dockAngle) * island.radius * 0.62;
-
-  const bell = useRef<Object3D | null>(null);
-  const struck = useRef(-100);
-  const chimes = useRef(0);
-  const clock = useThree((state) => state.clock);
-
-  // La grosse cloche pend à son joug : on l'accroche à un pivot placé en haut de la cloche.
-  const onModel = useCallback((model: Object3D) => {
-    if (bell.current) return;
-    let found: Mesh | null = null;
-    model.traverse((child) => {
-      if (!found && (child as Mesh).isMesh && child.name.startsWith('main_bell')) found = child as Mesh;
-    });
-    const mesh = found as Mesh | null;
-    if (!mesh || !mesh.parent) return;
-    if (!mesh.geometry.boundingBox) mesh.geometry.computeBoundingBox();
-    const box = mesh.geometry.boundingBox!;
-    const pivotAt = new Vector3((box.min.x + box.max.x) / 2, box.max.y, (box.min.z + box.max.z) / 2);
-    mesh.updateMatrix();
-    pivotAt.applyMatrix4(mesh.matrix);
-    const pivot = new Object3D();
-    pivot.position.copy(pivotAt);
-    mesh.parent.add(pivot);
-    pivot.updateMatrixWorld(true);
-    pivot.attach(mesh);
-    bell.current = pivot;
+  const built = useMemo(() => buildIsland(sampler, features), [features, sampler]);
+  const pier = useMemo(() => buildPier(), []);
+  const pierLights = useMemo(() => {
+    const spots = pierLanterns();
+    return {
+      glass: mergeGeometries(spots.map(([x, y, z]) => LANTERN_GLASS_GEOMETRY.clone().translate(x, y + 0.005, z)))!,
+      pools: mergeGeometries(spots.map(([x, , z]) => LIGHT_POOL_GEOMETRY.clone().translate(x, PIER_DECK + 0.03, z * 0.25)))!,
+    };
   }, []);
+  const glows = useMemo(() => {
+    const geometry = new BufferGeometry();
+    geometry.setAttribute('position', new BufferAttribute(new Float32Array(glowSpots(sampler).flat()), 3));
+    return geometry;
+  }, [sampler]);
 
-  const ring = useCallback((event: ThreeEvent<MouseEvent>) => {
-    event.stopPropagation();
-    struck.current = clock.elapsedTime;
-    chimes.current = 1;
-    ambience.bell();
-    logbook.stamp('bell');
-  }, [clock]);
+  useEffect(() => () => built.geometry.dispose(), [built]);
+  useEffect(() => () => pier.dispose(), [pier]);
+  useEffect(() => () => {
+    pierLights.glass.dispose();
+    pierLights.pools.dispose();
+  }, [pierLights]);
+  useEffect(() => () => glows.dispose(), [glows]);
+
+  const { frame, doorAngle, bottles } = built;
+  const cottage = useMemo(() => cottageMatrix(sampler), [sampler]);
+  const cottageGround = groundAt(sampler, COTTAGE.x, COTTAGE.z, 1.1) - 0.04;
+  const windows = useMemo(() => towerWindows(frame, doorAngle), [doorAngle, frame]);
+
+  // Guirlande : du balcon du phare à la cheminée la plus proche ; la fumée sort de l'autre.
+  const garland = useMemo(() => {
+    const tops = CHIMNEYS.map(([cx]) => fromCottage(cottage, [cx, HOUSE.wall + HOUSE.roof + 0.74, 0]));
+    const distance = (point: Vec3) => Math.hypot(point[0] - frame.x, point[2] - frame.z);
+    const near = distance(tops[0]) < distance(tops[1]) ? 0 : 1;
+    const dirX = tops[near][0] - frame.x;
+    const dirZ = tops[near][2] - frame.z;
+    const length = Math.hypot(dirX, dirZ) || 1;
+    const from: Vec3 = [frame.x + (dirX / length) * 1.16, frame.galleryTop + 0.44, frame.z + (dirZ / length) * 1.16];
+    const smoke = fromCottage(cottage, [CHIMNEYS[1 - near][0], HOUSE.wall + HOUSE.roof + 0.82, 0.1]);
+    return { from, to: tops[near], smoke };
+  }, [cottage, frame]);
+
+  const mailbox = useMemo(() => mailboxFrame(sampler), [sampler]);
+  const bell = useMemo(() => bellPivot(sampler), [sampler]);
+  const stairs = hillStairs(features.hillX, features.hillZ);
+  const sea = polar(1.27, 14.8);
+  const perch = gullPerch();
 
   useFrame((state) => {
-    if (light.current) light.current.rotation.y = state.clock.elapsedTime * 0.8;
-    if (point.current) point.current.intensity = skyState.dayNight * 26;
-    if (lamp.current) lamp.current.emissiveIntensity = 0.35 + skyState.dayNight * 2.15;
-    // Volée amortie ; la cloche retinte à chaque aller-retour, de plus en plus doucement.
-    const since = state.clock.elapsedTime - struck.current;
-    if (bell.current) bell.current.rotation.z = since < 9 ? Math.sin(since * 3.4) * 0.42 * Math.exp(-since * 0.42) : 0;
-    const swing = Math.floor((since * 3.4) / Math.PI);
-    if (since < 6 && swing > chimes.current && swing % 2 === 0) {
-      chimes.current = swing;
-      ambience.bell(Math.exp(-since * 0.5));
-    }
+    const night = skyState.dayNight;
+    // Les vitres partagées s'allument une à une (rien d'autre ne les met à jour pour l'instant).
+    updateWindows(night);
+    updateHarborLights(state.clock.elapsedTime, night);
+    GLOWS.opacity = night * 0.9;
   });
 
   return (
     <>
-      <SubstanceProp name="bell-tower" position={base} rotation={rotation} scale={1.25} onModel={onModel} onClick={ring} />
-      <group ref={light} position={[hillX, base[1] + 6.05, hillZ]}>
-        <mesh>
-          <sphereGeometry args={[0.32, 12, 10]} />
-          <meshStandardMaterial ref={lamp} color="#fff3d6" emissive="#ffd9a0" emissiveIntensity={0.35} />
-        </mesh>
-        {quality === 'high' && <pointLight ref={point} color="#ffd9a0" intensity={0} distance={44} decay={2} />}
+      <ClearingAt x={frame.x} z={frame.z} radius={2.3} />
+      <ClearingAt x={COTTAGE.x} z={COTTAGE.z} radius={2.45} />
+      <ClearingAt x={onDockAxis(8.7).x} z={onDockAxis(8.7).z} radius={1.25} />
+      <ClearingAt x={onDockAxis(7.5).x} z={onDockAxis(7.5).z} radius={1.0} />
+      <ClearingAt x={frame.x + stairs.dirX * 3.9} z={frame.z + stairs.dirZ * 3.9} radius={1.0} />
+      <ClearingAt x={frame.x + stairs.dirX * 5.6} z={frame.z + stairs.dirZ * 5.6} radius={0.8} />
+      <ClearingAt x={MAILBOX.x} z={MAILBOX.z} radius={0.55} />
+      <ClearingAt x={BELL.x} z={BELL.z} radius={0.6} />
+      <ClearingAt x={onDockAxis(7.2, -1.1).x} z={onDockAxis(7.2, -1.1).z} radius={0.7} />
+
+      {/* Tout le statique : phare, maison, escaliers, rochers, canot… (un draw call). */}
+      <mesh geometry={built.geometry} material={PAINTED} castShadow receiveShadow raycast={() => null} />
+
+      {/* La longue jetée, ses lanternes et leurs flaques de lumière. */}
+      <group rotation-y={-PIER.angle}>
+        <mesh geometry={pier} material={PAINTED} castShadow receiveShadow raycast={() => null} />
+        <mesh geometry={pierLights.glass} material={LANTERN_GLASS} raycast={() => null} />
+        <mesh geometry={pierLights.pools} material={LIGHT_POOL} renderOrder={4} raycast={() => null} />
       </group>
-      <SubstanceProp name="cymbal" position={on(sampler, dockX, dockZ, 0.8)} rotation={facingDock(island, dockX, dockZ) + Math.PI / 2} />
+      {quality !== 'low' && <points geometry={glows} material={GLOWS} renderOrder={8} raycast={() => null} />}
+
+      <LighthouseLamp frame={frame} />
+      {windows.map((window) => (
+        <WindowPane key={window.seed} seed={window.seed} width={0.24} height={0.36} position={window.position} rotation={window.rotation} />
+      ))}
+
+      {/* Maison du gardien : vitres, lampe de porte, fumée. */}
+      <group position={[COTTAGE.x, cottageGround, COTTAGE.z]} rotation-y={COTTAGE.yaw}>
+        {COTTAGE_WINDOWS.map((window) => (
+          <WindowPane key={window.seed} seed={window.seed} width={window.width} height={window.height} position={window.position} rotation={window.rotation} />
+        ))}
+        <mesh geometry={DOOR_LAMP_GEOMETRY} material={LANTERN_GLASS} position={DOOR_LAMP} raycast={() => null} />
+      </group>
+      <ChimneySmoke position={garland.smoke} />
+      {quality !== 'low' && <Bunting from={garland.from} to={garland.to} />}
+
+      <Mailbox position={mailbox.position} yaw={mailbox.yaw} />
+      <ShipBell pivot={bell} yaw={Math.atan2(DOCK_SIDE.x, DOCK_SIDE.z)} />
+      <BeachBottles bottles={bottles} />
+      <DriftingBottle origin={island.position} at={[sea.x, sea.z]} />
+      {quality !== 'low' && <Gull position={perch.position} yaw={perch.yaw} />}
     </>
   );
 }
-

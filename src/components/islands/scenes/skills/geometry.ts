@@ -5,10 +5,12 @@ import {
   Color,
   CylinderGeometry,
   Euler,
+  LatheGeometry,
   Matrix4,
   Quaternion,
   SphereGeometry,
   TorusGeometry,
+  Vector2,
   Vector3,
 } from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
@@ -95,6 +97,19 @@ export class Merger {
     return this;
   }
 
+  /** Ajoute une pièce déjà peinte (attribut `color` fourni par l'appelant). */
+  addPainted(geometry: BufferGeometry, matrix?: Matrix4) {
+    const piece = geometry.index ? geometry.toNonIndexed() : geometry.clone();
+    geometry.dispose();
+    for (const name of Object.keys(piece.attributes)) {
+      if (name !== 'position' && name !== 'normal' && name !== 'color') piece.deleteAttribute(name);
+    }
+    if (!piece.attributes.normal) piece.computeVertexNormals();
+    piece.applyMatrix4(matrix ? this.frame.clone().multiply(matrix) : this.frame);
+    this.parts.push(piece);
+    return this;
+  }
+
   box(size: Vec3, paint: Paint, at?: Vec3, rotation?: Vec3, shade?: number) {
     return this.add(new BoxGeometry(size[0], size[1], size[2]), paint, pose(at, rotation), shade);
   }
@@ -170,6 +185,26 @@ export function flatRing(inner: number, outer: number, segments: number, start =
   return geometry;
 }
 
+/** Retourne les faces (paroi vue de l'intérieur : bassin, cuve). */
+export function flipFaces(geometry: BufferGeometry) {
+  const flipped = geometry.index ? geometry.toNonIndexed() : geometry.clone();
+  geometry.dispose();
+  const positions = flipped.attributes.position;
+  const normals = flipped.attributes.normal;
+  for (let index = 0; index < positions.count; index += 3) {
+    for (const attribute of [positions, normals]) {
+      if (!attribute) continue;
+      const x = attribute.getX(index + 1);
+      const y = attribute.getY(index + 1);
+      const z = attribute.getZ(index + 1);
+      attribute.setXYZ(index + 1, attribute.getX(index + 2), attribute.getY(index + 2), attribute.getZ(index + 2));
+      attribute.setXYZ(index + 2, x, y, z);
+    }
+  }
+  if (normals) for (let index = 0; index < normals.count; index++) normals.setXYZ(index, -normals.getX(index), -normals.getY(index), -normals.getZ(index));
+  return flipped;
+}
+
 /** Ruban plat (face vers le ciel) le long d'une polyligne horizontale. */
 export function flatStrip(points: [number, number][], width: number, y = 0) {
   const positions: number[] = [];
@@ -189,4 +224,20 @@ export function flatStrip(points: [number, number][], width: number, y = 0) {
   geometry.setAttribute('position', new BufferAttribute(new Float32Array(positions), 3));
   geometry.computeVertexNormals();
   return geometry;
+}
+
+/** Fiole d'Erlenmeyer (verre), posée sur y = 0. */
+export function erlenmeyerGeometry(scale = 1) {
+  const profile = [
+    [0.0, 0.0], [0.085, 0.0], [0.09, 0.015], [0.06, 0.11], [0.029, 0.16], [0.029, 0.23], [0.035, 0.24],
+  ].map(([r, y]) => new Vector2(r * scale, y * scale));
+  return new LatheGeometry(profile, 12);
+}
+
+/** Liquide au fond d'une fiole d'Erlenmeyer. */
+export function liquidGeometry(scale = 1) {
+  const profile = [[0.0, 0.006], [0.08, 0.006], [0.084, 0.016], [0.066, 0.09], [0.0, 0.09]].map(
+    ([r, y]) => new Vector2(r * scale, y * scale),
+  );
+  return new LatheGeometry(profile, 12);
 }

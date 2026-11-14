@@ -14,9 +14,9 @@ export const TOWN = {
   /** Altitude du plateau arasé. */
   level: 3.95,
   /** Rayon jusqu'où le plateau est parfaitement plat. */
-  radius: 13.6,
+  radius: 13.9,
   /** Largeur du raccord avec la falaise d'origine. */
-  blend: 1.0,
+  blend: 0.9,
 };
 
 /** Escalier du port : de la place jusqu'au ponton (dockAngle de l'île). */
@@ -53,18 +53,26 @@ export const VIEWPOINT: [number, number] = [-30, 14];
 
 export type SiteId = 'tech-center' | 'gallery' | 'medical' | 'cyber' | 'workshops' | 'shipyard';
 
-/** Parcelle de chaque bâtiment : angle et distance au centre. */
-export const SITES: Record<SiteId, { angle: number; radius: number }> = {
-  'tech-center': { angle: -0.5, radius: 10.95 },
-  gallery: { angle: 0.7, radius: 10.9 },
-  medical: { angle: 1.92, radius: 10.9 },
-  cyber: { angle: 0, radius: 0 },
-  workshops: { angle: -1.62, radius: 10.9 },
-  shipyard: { angle: SHIPYARD.angle, radius: 15.35 },
+/**
+ * Parcelle de chaque bâtiment : angle et distance au centre, et `toward` : part de la
+ * façade tournée vers le centre de la place (0 : face au ponton, 1 : face à la place).
+ */
+export const SITES: Record<SiteId, { angle: number; radius: number; toward: number }> = {
+  'tech-center': { angle: -0.5, radius: 10.95, toward: 0.45 },
+  gallery: { angle: 0.7, radius: 10.9, toward: 0.8 },
+  medical: { angle: 1.92, radius: 10.9, toward: 0 },
+  cyber: { angle: 0, radius: 0, toward: 0 },
+  workshops: { angle: -1.62, radius: 11.2, toward: 0.6 },
+  shipyard: { angle: SHIPYARD.angle, radius: 15.35, toward: 0 },
 };
 
 export function sitePosition(id: SiteId): [number, number] {
   const { angle, radius } = SITES[id];
+  return [Math.cos(angle) * radius, Math.sin(angle) * radius];
+}
+
+/** Point d'un cercle de la ville (angle, rayon) : [x, z]. */
+export function polar(angle: number, radius: number): [number, number] {
   return [Math.cos(angle) * radius, Math.sin(angle) * radius];
 }
 
@@ -73,8 +81,8 @@ export function faceToward(x: number, z: number, tx: number, tz: number) {
   return Math.atan2(tx - x, tz - z);
 }
 
-/** Rotation d'une parcelle : moitié vers le centre de la place, moitié vers le ponton. */
-export function siteRotation(id: SiteId, towardCenter = 0.45) {
+/** Rotation d'une parcelle : entre le ponton (caméras d'accostage) et le centre de la place. */
+export function siteRotation(id: SiteId, towardCenter = SITES[id].toward) {
   const [x, z] = sitePosition(id);
   const toView = faceToward(x, z, VIEWPOINT[0], VIEWPOINT[1]);
   const toCenter = faceToward(x, z, 0, 0);

@@ -18,7 +18,7 @@ function angleGap(a: number, b: number) {
  * petit chantier naval occupe une plage élargie au sud.
  */
 const config: IslandSceneConfig = {
-  trees: 1,
+  trees: 0,
   grass: 0.55,
   grassPalette: ['#79ad4b', '#94c257', '#5d9440', '#b9cf63'],
   dressing: false,
@@ -44,7 +44,8 @@ const config: IslandSceneConfig = {
     const across = Math.abs(-x * Math.sin(STAIRS.angle) + z * Math.cos(STAIRS.angle));
     if (along > STAIRS.top - 0.6 && along < STAIRS.bottom + 1.2 && across < STAIRS.halfWidth + 0.7) {
       const t = Math.min(1, Math.max(0, (along - STAIRS.top) / (STAIRS.bottom - STAIRS.top)));
-      const ramp = TOWN.level + (STAIRS.foot - TOWN.level) * t;
+      // Un peu sous les marches : le relief ne traverse jamais l'escalier.
+      const ramp = TOWN.level + (STAIRS.foot - TOWN.level) * t - 0.35;
       const inside = ease(STAIRS.halfWidth + 0.7, STAIRS.halfWidth, across) * ease(STAIRS.top - 0.6, STAIRS.top, along);
       if (ramp < h) h += (ramp - h) * inside;
     }

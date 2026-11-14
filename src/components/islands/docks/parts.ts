@@ -47,9 +47,26 @@ export class Pieces {
    * ressortent comme sur un jouet peint, même dans l'ombre.
    */
   add(geometry: BufferGeometry, color: string | Color | Painter, matrix?: Matrix4, shade = 0) {
+    return this.paint(geometry, color, matrix, shade, false);
+  }
+
+  /**
+   * Comme `add`, mais la peinture est évaluée au centre de chaque triangle : bandes et
+   * quartiers aux bords nets (bouée rouge et blanche, liseré d'une coque…).
+   */
+  addFaceted(geometry: BufferGeometry, painter: Painter, matrix?: Matrix4, shade = 0) {
+    return this.paint(geometry, painter, matrix, shade, true, false);
+  }
+
+  /** Peinture par triangle, évaluée dans le repère propre de la pièce (avant la pose). */
+  addLocal(geometry: BufferGeometry, painter: Painter, matrix?: Matrix4, shade = 0) {
+    return this.paint(geometry, painter, matrix, shade, true, true);
+  }
+
+  private paint(geometry: BufferGeometry, color: string | Color | Painter, matrix: Matrix4 | undefined, shade: number, faceted: boolean, local = false) {
     const piece = geometry.index ? geometry.toNonIndexed() : geometry.clone();
     if (!piece.attributes.normal) piece.computeVertexNormals();
-    if (matrix) piece.applyMatrix4(matrix);
+    if (matrix && !local) piece.applyMatrix4(matrix);
     if (piece.attributes.uv) piece.deleteAttribute('uv');
     if (piece.attributes.uv1) piece.deleteAttribute('uv1');
     const positions = piece.attributes.position;
@@ -59,11 +76,23 @@ export class Pieces {
     for (let index = 0; index < positions.count; index++) {
       const ny = normals.getY(index);
       if (flat) tint.copy(flat);
-      else (color as Painter)(positions.getX(index), positions.getY(index), positions.getZ(index), ny, tint);
+      else if (faceted) {
+        const first = index - (index % 3);
+        let cx = 0;
+        let cy = 0;
+        let cz = 0;
+        for (let corner = first; corner < first + 3; corner++) {
+          cx += positions.getX(corner) / 3;
+          cy += positions.getY(corner) / 3;
+          cz += positions.getZ(corner) / 3;
+        }
+        (color as Painter)(cx, cy, cz, ny, tint);
+      } else (color as Painter)(positions.getX(index), positions.getY(index), positions.getZ(index), ny, tint);
       if (shade) tint.multiplyScalar(ny > 0.55 ? 1 + shade * 0.35 : ny < -0.55 ? 1 - shade * 1.3 : 1 - shade * 0.5);
       tint.toArray(colors, index * 3);
     }
     piece.setAttribute('color', new BufferAttribute(colors, 3));
+    if (matrix && local) piece.applyMatrix4(matrix);
     this.list.push(piece);
     return this;
   }

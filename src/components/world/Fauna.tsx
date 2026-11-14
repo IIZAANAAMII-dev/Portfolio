@@ -16,7 +16,7 @@ import {
   Vector3,
 } from 'three';
 import * as SkeletonUtils from 'three/examples/jsm/utils/SkeletonUtils.js';
-import { JELLYFISH_ZONES, RAY_ZONES, TURTLE_ZONES } from '@/data/zones';
+import { JELLYFISH_ZONES, RAY_ZONES, TURTLE_LAGOONS } from '@/data/zones';
 import { boatState } from '@/lib/boat-state';
 import { animalRevealScale } from '@/lib/cinematic';
 import { ecologyState } from '@/lib/ecology';
@@ -24,10 +24,8 @@ import { SOLIDS } from '@/lib/navigation';
 import { QUALITY_LEVELS } from '@/lib/quality';
 import { useWorld } from '@/lib/store';
 import { clamp, hash, shortestAngle } from '@/lib/utils/math';
-import { waveHeight } from '@/lib/waves';
 
 const RAY_URL = '/models/aquatic-quaternius/extra/manta-ray.glb';
-const DOLPHIN_URL = '/models/aquatic-quaternius/extra/dolphin.glb';
 const JELLY_URL = '/models/living-ocean/jellyfish.glb';
 const JELLY_DAY = new Color('#8dbbc2');
 const JELLY_NIGHT = new Color('#35e6ff');
@@ -205,7 +203,7 @@ function MantaRays({ mobile }: { mobile: boolean }) {
 function SeaTurtle() {
   const group = useRef<Group>(null);
   const flippers = useRef<Mesh[]>([]);
-  const zone = TURTLE_ZONES[0];
+  const zone = { center: [-30, 8] as const, radius: 30, seed: TURTLE_LAGOONS[0].seed };
   const agent = useRef<Wanderer>({
     x: zone.center[0],
     z: zone.center[1],
@@ -403,101 +401,6 @@ function JellyfishCluster({ center, radius, seed, geometry }: {
   );
 }
 
-/**
- * DAUPHINS — un petit événement, pas un décor permanent. À intervalle rare, un pod
- * de trois dauphins rejoint le bateau, marsouine à ses côtés puis repart au large.
- */
-function DolphinPod() {
-  const group = useRef<Group>(null);
-  const clones = useAnimatedClones(DOLPHIN_URL, 3, 2.7);
-  const mode = useRef<'idle' | 'follow' | 'leave'>('idle');
-  const timer = useRef(38 + hash(55.3) * 45); // première rencontre assez tôt
-  const podX = useRef(0);
-  const podZ = useRef(0);
-  const podHeading = useRef(0);
-
-  useFrame((state, delta) => {
-    if (!group.current) return;
-    const dt = Math.min(delta, 1 / 30);
-    const time = state.clock.elapsedTime;
-    const world = useWorld.getState();
-
-    if (mode.current === 'idle') {
-      group.current.visible = false;
-      // Le compteur n'avance que pendant la navigation active : voir des dauphins
-      // doit rester lié au fait de naviguer.
-      if (world.phase === 'playing' && boatState.speed > 3.5) timer.current -= dt;
-      if (timer.current <= 0) {
-        mode.current = 'follow';
-        timer.current = 19 + Math.random() * 7;
-        const behind = boatState.heading + Math.PI + (Math.random() - 0.5) * 0.9;
-        podX.current = boatState.position.x + Math.cos(behind) * 34;
-        podZ.current = boatState.position.z + Math.sin(behind) * 34;
-        podHeading.current = boatState.heading;
-      }
-      return;
-    }
-
-    group.current.visible = world.reveal > 0.75
-      && ecologyState.dayLarge * ecologyState.worldLife > 0.08;
-    timer.current -= dt;
-
-    // Cible du pod : le flanc tribord du bateau en mode follow, le large en mode leave.
-    let targetX: number;
-    let targetZ: number;
-    if (mode.current === 'follow') {
-      const side = boatState.heading - Math.PI * 0.5;
-      targetX = boatState.position.x + Math.cos(side) * 6 + Math.cos(boatState.heading) * 4;
-      targetZ = boatState.position.z + Math.sin(side) * 6 + Math.sin(boatState.heading) * 4;
-      if (timer.current <= 0 || world.phase !== 'playing') {
-        mode.current = 'leave';
-        timer.current = 9;
-      }
-    } else {
-      targetX = podX.current + Math.cos(podHeading.current) * 60;
-      targetZ = podZ.current + Math.sin(podHeading.current) * 60;
-      if (timer.current <= 0) {
-        mode.current = 'idle';
-        timer.current = 90 + Math.random() * 110; // rare : pas toutes les 20 secondes
-        return;
-      }
-    }
-
-    const dx = targetX - podX.current;
-    const dz = targetZ - podZ.current;
-    const distance = Math.hypot(dx, dz);
-    const desired = Math.atan2(dz, dx);
-    podHeading.current += clamp(shortestAngle(podHeading.current, desired), -1.6 * dt, 1.6 * dt);
-    const speed = mode.current === 'leave' ? 10.5 : clamp(distance * 0.9, 4, 15.5);
-    podX.current += Math.cos(podHeading.current) * speed * dt;
-    podZ.current += Math.sin(podHeading.current) * speed * dt;
-
-    clones.forEach(({ scene, mixer }, index) => {
-      mixer.update(dt * 1.35);
-      const lateral = podHeading.current + Math.PI * 0.5;
-      const offset = (index - 1) * 3.1;
-      const trail = Math.abs(index - 1) * 2.2;
-      const x = podX.current + Math.cos(lateral) * offset - Math.cos(podHeading.current) * trail;
-      const z = podZ.current + Math.sin(lateral) * offset - Math.sin(podHeading.current) * trail;
-
-      // Marsouinage : arcs sinusoïdaux qui sortent légèrement de l'eau.
-      const arc = Math.sin(time * 2.05 + index * 2.1);
-      const y = waveHeight(x, z, time) - 0.55 + Math.max(0, arc) * 1.15;
-      scene.position.set(x, y, z);
-      scene.rotation.y = -podHeading.current + Math.PI * 0.5;
-      scene.rotation.x = -Math.cos(time * 2.05 + index * 2.1) * 0.42 * Math.max(0, Math.sign(arc + 0.25));
-    });
-  });
-
-  return (
-    <group ref={group} visible={false}>
-      {clones.map(({ scene }, index) => (
-        <primitive key={index} object={scene} />
-      ))}
-    </group>
-  );
-}
-
 /** Predateur nocturne rare : deux baudroies animees, emissives, sans PointLight. */
 /**
  * Faune « spéciale » : raies, tortue, méduses, dauphins. Les bancs de poissons
@@ -511,7 +414,6 @@ export function Fauna({ mobile }: { mobile: boolean }) {
   return (
     <group>
       <MantaRays mobile={mobile} />
-      <DolphinPod />
       <SeaTurtle />
       {jellyZones.map((zone) => (
         <JellyfishCluster

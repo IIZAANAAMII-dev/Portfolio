@@ -53,11 +53,11 @@ export const BASIN_FLOOR = -0.95;
 
 export const HARBOR = {
   /** Haut de la falaise reculée derrière le quai (s). */
-  cliffTop: 10.9,
+  cliffTop: 10.4,
   /** Pied de cette falaise : début de l'esplanade du quai (s). */
-  quayBack: 11.7,
+  quayBack: 11.2,
   /** Mur de quai, bord du bassin (s). */
-  quayFront: 13.5,
+  quayFront: 12.9,
   /** Demi-largeur de l'esplanade (|t|). */
   quayHalf: 5.6,
   /** Demi-largeur du bassin (|t|). */
@@ -117,11 +117,11 @@ export const HOUSES: HousePlan[] = [
     id: 'capitaine',
     kind: 'capitaine',
     angle: 0.24,
-    radius: 8.4,
+    radius: 8.0,
     turn: 0.1,
     width: 4.5,
-    depth: 3.5,
-    wall: 3.9,
+    depth: 3.4,
+    wall: 3.7,
     paint: '#3c8a6e',
     chimneys: ['left', 'right'],
     smoke: ['left'],

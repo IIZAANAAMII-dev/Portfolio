@@ -37,8 +37,13 @@ const offset = new Vector3();
 const stretch = new Vector3();
 const tint = new Color();
 
+/**
+ * Matrice de pose. Ordre des rotations « YXZ » : la pièce est d'abord inclinée (X, Z)
+ * dans son propre repère, puis orientée (Y) — un dossier de banc incliné reste incliné
+ * vers l'arrière quel que soit le cap du banc.
+ */
 export function pose(at: V3 = [0, 0, 0], rotation: V3 = [0, 0, 0], scale: number | V3 = 1) {
-  euler.set(rotation[0], rotation[1], rotation[2]);
+  euler.set(rotation[0], rotation[1], rotation[2], 'YXZ');
   quaternion.setFromEuler(euler);
   offset.set(at[0], at[1], at[2]);
   if (typeof scale === 'number') stretch.setScalar(scale);

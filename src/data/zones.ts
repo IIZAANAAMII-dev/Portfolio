@@ -73,7 +73,6 @@ export const FISH_SCHOOLS: SchoolSpawn[] = [
   },
 
   // — Eau profonde (rare et impressionnant) —
-  { species: 'shark', center: [-82, 72], count: 1, radius: 25, depth: -1.5, seed: 83, scale: 0.42 }, // grand large nord-ouest
   {
     species: 'glow', center: [34, -66], count: 11, radius: 13, depth: -1.32, seed: 143,
     scale: 0.24, activity: 'night', travelSpeed: 0.25,
@@ -90,22 +89,63 @@ export interface DeepZone {
   center: Vec2;
   radius: number;
   seed: number;
+  /** Individus dans la zone (1 par défaut). */
+  count?: number;
 }
 
-/** Couloirs profonds où circulent les raies (près du fond, loin des côtes). */
+/** Couloirs profonds où planent les raies manta (loin des côtes, à mi-eau). */
 export const RAY_ZONES: DeepZone[] = [
-  { center: [-8, 44], radius: 22, seed: 5 },
-  { center: [44, -8], radius: 20, seed: 17 },
-  { center: [17, 16], radius: 18, seed: 29 },
+  { center: [17, 16], radius: 16, seed: 29, count: 2 }, // un couple, près de l'îlot de départ
+  { center: [-8, 44], radius: 20, seed: 5 },
+  { center: [44, -8], radius: 18, seed: 17 },
 ];
 
-/** Errance des tortues : de larges boucles entre les îles, en solitaire. */
-export const TURTLE_ZONES: DeepZone[] = [
-  { center: [-30, 8], radius: 30, seed: 9 },
+/**
+ * Lagons où glissent les tortues : chacune fait le tour d'une île à faible profondeur (eau
+ * turquoise, fond visible), juste au-delà du haut-fond — rayon = orbite, en mètres.
+ * `mobile: true` : gardée sur téléphone et en qualité basse.
+ */
+export interface TurtleLagoon {
+  center: Vec2;
+  radius: number;
+  /** +1 sens trigonométrique, -1 sens horaire. */
+  direction: 1 | -1;
+  seed: number;
+  mobile?: boolean;
+}
+
+export const TURTLE_LAGOONS: TurtleLagoon[] = [
+  { center: [0, 0], radius: 12.4, direction: 1, seed: 9, mobile: true }, // îlot de départ
+  { center: [0, 0], radius: 13.6, direction: -1, seed: 41 },
+  { center: [-56, -30], radius: 20.6, direction: -1, seed: 63, mobile: true }, // À propos
+  { center: [70, 26], radius: 26, direction: 1, seed: 77, mobile: true }, // Projets
+  { center: [-22, 66], radius: 22.6, direction: -1, seed: 89 }, // Expériences
+  { center: [52, -46], radius: 20.3, direction: 1, seed: 97 }, // Compétences
 ];
 
-/** Poches à méduses : deux criques seulement, jamais tout l'océan. */
+/** Poches à méduses : quelques criques seulement, jamais tout l'océan. */
 export const JELLYFISH_ZONES: DeepZone[] = [
-  { center: [34, -66], radius: 9, seed: 21 }, // fosse au sud, près de Contact
-  { center: [-52, 54], radius: 8, seed: 33 }, // crique entre Journey et Experience
+  { center: [14, 12], radius: 7, seed: 47, count: 7 }, // près de l'îlot de départ
+  { center: [34, -66], radius: 9, seed: 21, count: 9 }, // fosse au sud, près de Contact
+  { center: [-52, 54], radius: 8, seed: 33, count: 8 }, // crique entre Journey et Experience
+];
+
+/**
+ * Requin : un aileron qui tourne autour d'une île lointaine (Contact, au sud). Le cercle est
+ * décalé à l'écart de Compétences et loin du ponton ; l'ondulation (phase 0) l'écarte de
+ * l'étoile d'or au nord-est.
+ */
+export interface SharkZone {
+  center: Vec2;
+  radius: number;
+  /** Vitesse de croisière (m/s). */
+  speed: number;
+  direction: 1 | -1;
+  phase: number;
+  size: number;
+  seed: number;
+}
+
+export const SHARK_ZONES: SharkZone[] = [
+  { center: [14.5, -83.5], radius: 29.5, speed: 2.6, direction: -1, phase: 0, size: 1.15, seed: 83 },
 ];
