@@ -7,6 +7,12 @@ const output = 'docs/preview/captures';
 const islands = ['about', 'skills', 'projects', 'experience', 'journey', 'contact'];
 (async () => {
   fs.mkdirSync(output, {recursive:true});
+  const deadline = Date.now() + 180000;
+  while (true) {
+    try { const response = await fetch(base); if (response.ok) break; } catch {}
+    if (Date.now() > deadline) throw new Error('Next server did not become ready');
+    await new Promise(resolve => setTimeout(resolve, 1000));
+  }
   const browser = await chromium.launch({args:['--use-angle=swiftshader','--enable-unsafe-swiftshader']});
   const page = await browser.newPage({viewport:{width:1920,height:1080}});
   const report = {commit:execSync('git rev-parse HEAD').toString().trim(),renderer:'GitHub Actions Chromium / SwiftShader (software)',screenshots:[],errors:[]};
@@ -23,6 +29,16 @@ const islands = ['about', 'skills', 'projects', 'experience', 'journey', 'contac
     console.log('CAPTURED',name);
   }
   try {
+    if (process.env.CAPTURE_ISLAND) {
+      const id = process.env.CAPTURE_ISLAND;
+      if(id === 'static') await capture('desktop-yellow-static','solo=static&section=about&time=0.78&cam=61,23,59,86,5,82');
+      else {
+        await capture(`desktop-${id}`,`solo=${id}&section=${id}&time=0.45`);
+        await page.setViewportSize({width:390,height:844});
+        await capture(`mobile-${id}`,`solo=${id}&section=${id}&time=0.45`);
+      }
+      return;
+    }
     for (const id of islands) await capture(`desktop-${id}`,`solo=${id}&section=${id}&time=0.45`);
     await capture('desktop-yellow-static','solo=static&section=about&time=0.78&cam=61,23,59,86,5,82');
     await capture('desktop-contact-night','solo=contact&section=contact&time=0.85');

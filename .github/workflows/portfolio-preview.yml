@@ -11,6 +11,13 @@ jobs:
   capture:
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      max-parallel: 3
+      matrix:
+        island: [about, skills, projects, experience, journey, contact, static]
+    env:
+      CAPTURE_ISLAND: ${{ matrix.island }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -27,13 +34,15 @@ jobs:
           npm run dev -- --port 3000 > /tmp/portfolio-next.log 2>&1 &
           node scripts/qa/capture.cjs
       - name: Build
+        if: always() && matrix.island == 'about'
         run: npm run build
       - name: Lint
+        if: always() && matrix.island == 'about'
         run: npm run lint
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: portfolio-review-${{ github.event.pull_request.head.sha }}
+          name: portfolio-review-${{ matrix.island }}-${{ github.event.pull_request.head.sha }}
           path: |
             docs/preview/captures
             /tmp/portfolio-next.log

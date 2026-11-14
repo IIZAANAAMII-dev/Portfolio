@@ -36,7 +36,9 @@ export function PerformanceGovernor({ mobile }: { mobile: boolean }) {
 
   useFrame((_, delta) => {
     if (forced.current) return;
-    const dt = Math.min(delta, 0.25);
+    // Measure real wall time; clamping slow frames overstates the frame rate.
+    if (document.hidden) return;
+    const dt = delta;
     elapsed.current += dt;
     frames.current += 1;
     cooldown.current += dt;
