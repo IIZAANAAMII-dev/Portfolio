@@ -1,0 +1,40 @@
+name: Portfolio visual review
+on:
+  pull_request:
+    branches: ['claude/happy-lovelace-foxref']
+permissions:
+  contents: read
+concurrency:
+  group: portfolio-review-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+jobs:
+  capture:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm install --no-save --package-lock=false playwright
+      - run: npx playwright install --with-deps chromium
+      - name: Compile and capture the real WebGL scenes
+        run: |
+          npm run dev -- --port 3000 > /tmp/portfolio-next.log 2>&1 &
+          node scripts/qa/capture.cjs
+      - name: Build
+        run: npm run build
+      - name: Lint
+        run: npm run lint
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: portfolio-review-${{ github.event.pull_request.head.sha }}
+          path: |
+            docs/preview/captures
+            /tmp/portfolio-next.log
+          retention-days: 14
