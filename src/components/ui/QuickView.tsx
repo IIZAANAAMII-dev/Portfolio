@@ -84,7 +84,7 @@ export function QuickView() {
           </p>
           <p className="mx-auto mt-6 max-w-xl text-paper/75">{site.intro}</p>
           <div className="mt-8 flex flex-wrap justify-center gap-2">
-            <a className="ghost-button" href="#contact">
+            <a className="ghost-button" href="#quick-contact">
               Écrire un message
             </a>
             <a className="ghost-button" href={site.links.linkedin} target="_blank" rel="noreferrer">
@@ -119,7 +119,7 @@ export function QuickView() {
 
         <nav className="quick-toc" aria-label="Sommaire">
           {ORDER.map((id) => (
-            <a key={id} href={`#${id}`} style={{ ['--accent' as string]: islandById[id].accent }}>
+            <a key={id} href={`#quick-${id}`} style={{ ['--accent' as string]: islandById[id].accent }}>
               {islandById[id].label}
             </a>
           ))}
@@ -142,7 +142,7 @@ export function QuickView() {
               return (
                 <div
                   key={island.id}
-                  id={island.id}
+                  id={`quick-${island.id}`}
                   ref={(el) => {
                     itemsRef.current[index] = el;
                   }}

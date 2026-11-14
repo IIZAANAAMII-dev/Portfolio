@@ -239,7 +239,7 @@ function SharkCircling({ zone }: { zone: SharkZone }) {
       positions.setXYZ(index * 2 + 1, baseX + sideX * width, y, baseZ + sideZ * width);
     }
     positions.needsUpdate = true;
-    const u = material.uniforms;
+    const u = (ribbon.material as ShaderMaterial).uniforms;
     u.uTime.value = time;
     u.uStrength.value = exposure * reveal;
     u.uBio.value = ecologyState.plankton;

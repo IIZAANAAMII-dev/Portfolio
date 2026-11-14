@@ -21,6 +21,7 @@ function inkFor(accent: string) {
  */
 export function Panel() {
   const activeIsland = useWorld((s) => s.activeIsland);
+  const scenicMode = useWorld((s) => s.scenicMode);
   const close = useWorld((s) => s.close);
   const stamps = useLogbook((s) => s.stamps);
   const [displayed, setDisplayed] = useState<IslandId | null>(activeIsland);
@@ -47,18 +48,20 @@ export function Panel() {
 
   const island = islandById[displayed];
   const Content = islandContent[displayed];
-  const open = Boolean(activeIsland);
+  const open = Boolean(activeIsland) && !scenicMode;
   const stamp = STAMPS.find((entry) => entry.id === `island:${displayed}`);
   const visited = stamps.includes(`island:${displayed}`);
 
   return (
     <aside
-      className="fixed inset-x-0 bottom-0 z-30 transition-all duration-700 ease-[cubic-bezier(0.16,1,0.3,1)] md:inset-y-0 md:right-auto md:left-0 md:flex md:items-center md:p-8"
+      className="island-panel fixed inset-x-0 bottom-0 z-30 transition-all duration-700 ease-[cubic-bezier(0.16,1,0.3,1)] md:inset-y-0 md:right-auto md:left-0 md:flex md:items-center md:p-8"
       style={{
         opacity: open ? 1 : 0,
         transform: open ? 'translateY(0)' : 'translateY(24px)',
         pointerEvents: open ? 'auto' : 'none',
       }}
+      aria-label={`Escale : ${island.label}`}
+      inert={!open}
       aria-hidden={!open}
     >
       <div className="panel panel--page max-h-[62vh] overflow-y-auto rounded-b-none p-6 md:max-h-[78vh] md:w-[26rem] md:rounded-b-[20px] md:p-8">
