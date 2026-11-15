@@ -42,7 +42,7 @@ const CLOUD_LIT_DAY = new Color('#ffffff');
 const CLOUD_SHADE_DAY = new Color('#b9c2e2');
 const CLOUD_RIM_DAY = new Color('#fffaf0');
 const CLOUD_LIT_GOLDEN = new Color('#ffcf9f');
-const CLOUD_SHADE_GOLDEN = new Color('#8a7cb8');
+const CLOUD_SHADE_GOLDEN = new Color('#9a86c0');
 const CLOUD_RIM_GOLDEN = new Color('#fff0c0');
 const CLOUD_LIT_TWILIGHT = new Color('#e8908c');
 const CLOUD_SHADE_TWILIGHT = new Color('#3e3e6c');
@@ -147,7 +147,8 @@ export function updateSkyPalette(time: number, reveal: number) {
   u.uStorm.value = storm;
   // Étoiles : à la nuit tombée (pas en plein coucher), et dans le noir de l'intro.
   u.uNight.value = Math.max(smoothstep(0.45, 0.95, dayNight), 1 - smoothstep(0, 0.35, reveal));
-  u.uBrightness.value = 0.9 + 0.2 * reveal * (1 - dayNight * 0.4);
+  // Luminosité du dôme : celle que l'on connaît (0,9), à peine relevée après l'intro.
+  u.uBrightness.value = 0.9 + 0.04 * reveal * (1 - dayNight);
 
   // Brouillard : le lointain se fond dans la brume de l'horizon (perspective aérienne),
   // le proche garde ses couleurs.

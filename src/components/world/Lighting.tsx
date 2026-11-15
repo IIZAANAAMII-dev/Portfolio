@@ -28,14 +28,14 @@ const GOLDEN_SUN_COLOR = new Color('#ff9f5a');
 const NIGHT_SUN_COLOR = new Color('#a3c2e4');
 const DAY_SKY_COLOR = new Color('#c9cfff');
 const GOLDEN_SKY_COLOR = new Color('#d3b1ec');
-const TWILIGHT_SKY_COLOR = new Color('#6e76c4');
+const TWILIGHT_SKY_COLOR = new Color('#7088c4');
 const NIGHT_SKY_COLOR = new Color('#2b3258');
 const DAY_GROUND_COLOR = new Color('#3f7276');
-const TWILIGHT_GROUND_COLOR = new Color('#2c3a5c');
+const TWILIGHT_GROUND_COLOR = new Color('#28405a');
 const NIGHT_GROUND_COLOR = new Color('#1a2a3a');
 const DAY_AMBIENT = new Color('#a3a6e4');
 const GOLDEN_AMBIENT = new Color('#b59ad8');
-const TWILIGHT_AMBIENT = new Color('#4d4f90');
+const TWILIGHT_AMBIENT = new Color('#46598c');
 const NIGHT_AMBIENT = new Color('#2c3155');
 
 /**
@@ -105,7 +105,7 @@ export function Lighting({ shadows }: { shadows: boolean }) {
         sun.current.intensity,
         (0.2 + dayLight * 2.3 + stillIntro * 0.45 + golden * 0.15)
           * (1 - dayNight * 0.75)
-          * (1 - dusk * 0.55)
+          * (1 - dusk * 0.2)
           * (1 - storm * 0.78),
         1.6,
         lightDt,
@@ -116,14 +116,14 @@ export function Lighting({ shadows }: { shadows: boolean }) {
         .copy(DAY_SKY_COLOR)
         .lerp(GOLDEN_SKY_COLOR, golden * 0.7)
         .lerp(NIGHT_SKY_COLOR, dayNight)
-        .lerp(TWILIGHT_SKY_COLOR, dusk);
+        .lerp(TWILIGHT_SKY_COLOR, dusk * 0.7);
       sky.current.groundColor.copy(DAY_GROUND_COLOR).lerp(NIGHT_GROUND_COLOR, dayNight).lerp(TWILIGHT_GROUND_COLOR, dusk);
       sky.current.intensity = damp(
         sky.current.intensity,
         (0.18 + dayLight * 1.22 + stillIntro * 1.05)
           * (1 - dayNight * 0.5)
           * (1 - golden * 0.1)
-          * (1 + dusk * 0.55)
+          * (1 + dusk * 0.25)
           * (1 - storm * 0.58),
         1.6,
         lightDt,
@@ -134,7 +134,7 @@ export function Lighting({ shadows }: { shadows: boolean }) {
         .copy(DAY_AMBIENT)
         .lerp(GOLDEN_AMBIENT, golden * 0.6)
         .lerp(NIGHT_AMBIENT, dayNight)
-        .lerp(TWILIGHT_AMBIENT, dusk);
+        .lerp(TWILIGHT_AMBIENT, dusk * 0.7);
       ambient.current.intensity = damp(
         ambient.current.intensity,
         (0.22 + dayLight * 0.3 + stillIntro * 1.15) * (1 - storm * 0.44),

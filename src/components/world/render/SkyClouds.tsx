@@ -1,12 +1,13 @@
 'use client';
 
-import { useLayoutEffect, useMemo, useRef } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import {
   DoubleSide,
   InstancedBufferAttribute,
   Matrix4,
   PlaneGeometry,
+  ShaderMaterial,
   type InstancedMesh,
 } from 'three';
 import { ecologyState } from '@/lib/ecology';
@@ -177,6 +178,24 @@ export function SkyClouds() {
     plane.setAttribute('aCloud', new InstancedBufferAttribute(data, 4));
     return plane;
   }, []);
+  // Matériau construit ici : la prop `uniforms` de R3F figerait les valeurs numériques.
+  const material = useMemo(
+    () =>
+      new ShaderMaterial({
+        uniforms,
+        vertexShader,
+        fragmentShader,
+        transparent: true,
+        depthWrite: false,
+        side: DoubleSide,
+        fog: false,
+      }),
+    [],
+  );
+  useEffect(() => () => {
+    geometry.dispose();
+    material.dispose();
+  }, [geometry, material]);
 
   useLayoutEffect(() => {
     const target = mesh.current;
@@ -200,20 +219,10 @@ export function SkyClouds() {
   return (
     <instancedMesh
       ref={mesh}
-      args={[geometry, undefined, CLOUDS.length]}
+      args={[geometry, material, CLOUDS.length]}
       frustumCulled={false}
       renderOrder={-1}
       raycast={() => null}
-    >
-      <shaderMaterial
-        uniforms={uniforms}
-        vertexShader={vertexShader}
-        fragmentShader={fragmentShader}
-        transparent
-        depthWrite={false}
-        side={DoubleSide}
-        fog={false}
-      />
-    </instancedMesh>
+    />
   );
 }

@@ -135,9 +135,12 @@ vec4 cumulusBank(vec3 dir, float azimuth, float cells, float drift, float base, 
   float under = 1.0 - smoothstep(-0.35, 0.25, normal2.y);
   color = mix(color, uCloudShade * 0.92, under * 0.45);
   // Liseré d'argent : contre-jour et bord tourné vers l'astre.
-  float towardSun = smoothstep(0.55, 0.98, dot(dir, uLightDir));
+  float facing = dot(dir, uLightDir);
+  float towardSun = smoothstep(0.55, 0.98, facing);
   float fringe = pow(1.0 - nz, 2.5);
-  color += uCloudRim * fringe * (towardSun * 1.1 + max(lambert, 0.0) * 0.35);
+  color += uCloudRim * fringe * (towardSun * (1.3 + 2.2 * pow(max(facing, 0.0), 24.0)) + max(lambert, 0.0) * 0.35);
+  // Contre-jour : tout le nuage s'illumine un peu près de l'astre (diffusion).
+  color = mix(color, uCloudRim, smoothstep(0.86, 0.995, facing) * 0.28);
   // Perspective aérienne : les bancs lointains se fondent dans l'horizon.
   color = mix(color, uHorizon, haze);
   return vec4(color, cover);
@@ -224,9 +227,9 @@ void main() {
   if (uCloudAmount > 0.001 && e > -0.03 && e < 0.4) {
     float azimuth = atan(dir.z, dir.x);
     vec3 tangent = normalize(vec3(-dir.z, 0.0, dir.x) + vec3(0.0, 0.0, 1e-5));
-    vec4 far = cumulusBank(dir, azimuth, 64.0, uTime * 0.0035, -0.004, 0.55, 0.78, 3.0, tangent, 0.42);
+    vec4 far = cumulusBank(dir, azimuth, 64.0, uTime * 0.0035, -0.004, 0.5, 0.7, 3.0, tangent, 0.42);
     sky = mix(sky, far.rgb, far.a * uCloudAmount);
-    vec4 near = cumulusBank(dir, azimuth, 30.0, -uTime * 0.0055, 0.006, 0.62, 0.42, 11.0, tangent, 0.12);
+    vec4 near = cumulusBank(dir, azimuth, 36.0, -uTime * 0.0055, 0.006, 0.46, 0.32, 11.0, tangent, 0.14);
     sky = mix(sky, near.rgb, near.a * uCloudAmount);
   }
 
