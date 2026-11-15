@@ -107,7 +107,8 @@ export function ZoneShell({
         }}
       >
         {children}
-        <PaintedSign lines={[zone.label]} position={[sign[0], 0, sign[1]]} rotation={0} accent={vivid(zone.accent, 0.9, 0.45)} width={1.6} post={0.5} />
+        {/* Panneau assez large pour se lire depuis le ponton (≈ 2,5 m une fois la zone à l'échelle). */}
+        <PaintedSign lines={[zone.label]} position={[sign[0], 0, sign[1]]} rotation={0} accent={vivid(zone.accent, 0.9, 0.45)} width={1.85} post={0.5} />
         {/* Volume de sélection : toute la zone répond au clic, sans lancer de rayon sur chaque pièce. */}
         <mesh visible={false} position-y={reach / 2 - 0.2}>
           <cylinderGeometry args={[spot.pad * 1.02, spot.pad * 1.02, reach, 8]} />

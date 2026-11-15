@@ -2,7 +2,21 @@
 
 import { useEffect, useMemo, useRef } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
-import { CylinderGeometry, Group, LatheGeometry, MeshStandardMaterial, SphereGeometry, TorusGeometry, Vector2 } from 'three';
+import {
+  AdditiveBlending,
+  CylinderGeometry,
+  DoubleSide,
+  Group,
+  LatheGeometry,
+  Mesh,
+  MeshBasicMaterial,
+  MeshStandardMaterial,
+  Quaternion,
+  RingGeometry,
+  SphereGeometry,
+  TorusGeometry,
+  Vector2,
+} from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { ambience } from '@/lib/audio/ambience';
 import { logbook } from '@/lib/logbook';
@@ -12,13 +26,20 @@ import { Hotspot } from '../../kit';
 /**
  * Cloche de bord en laiton, pendue à la potence de son poteau au pied du ponton. Un clic
  * la fait sonner : grande volée amortie, le battant suit avec un temps de retard et la
- * cloche retinte à chaque aller-retour, de plus en plus doucement. Tampon « Sonneur de
- * cloche » dans le carnet de bord.
+ * cloche retinte à chaque aller-retour, de plus en plus doucement, et chaque coup envoie
+ * deux ondes dorées qui s'élargissent (le son qu'on voit). Tampon « Sonneur de cloche ».
  */
 
 const BRASS = new MeshStandardMaterial({ color: '#dba842', roughness: 0.34, metalness: 0.32, emissive: '#3b2606', emissiveIntensity: 0.25 });
 const IRON = new MeshStandardMaterial({ color: '#3a3f46', roughness: 0.6, metalness: 0.2 });
 const ROPE = new MeshStandardMaterial({ color: '#efe2c0', roughness: 0.95, flatShading: true });
+
+/** Ondes sonores : deux anneaux face à la caméra, visibles seulement pendant la volée. */
+const WAVE = new RingGeometry(0.4, 0.47, 32);
+const WAVES = [0, 1].map(
+  () => new MeshBasicMaterial({ color: '#ffe2a0', transparent: true, opacity: 0, blending: AdditiveBlending, depthWrite: false, side: DoubleSide, toneMapped: false }),
+);
+const parentTurn = new Quaternion();
 
 function bellGeometry() {
   // Profil tourné, de la couronne à la lèvre, puis l'intérieur (cloche fermée).
@@ -42,6 +63,8 @@ export function ShipBell({ pivot, yaw }: { pivot: Vec3; yaw: number }) {
   const clapper = useRef<Group>(null);
   const struck = useRef(-100);
   const chimes = useRef(0);
+  const lastChime = useRef({ at: -100, strength: 0 });
+  const waves = useRef<(Mesh | null)[]>([]);
   const clock = useThree((state) => state.clock);
   const geometry = useMemo(() => bellGeometry(), []);
   const clapperRod = useMemo(() => new CylinderGeometry(0.012, 0.012, 0.3, 5).translate(0, -0.15, 0), []);
@@ -71,12 +94,26 @@ export function ShipBell({ pivot, yaw }: { pivot: Vec3; yaw: number }) {
     if (since < 6 && swingIndex > chimes.current && swingIndex % 2 === 0) {
       chimes.current = swingIndex;
       ambience.bell(Math.exp(-since * 0.5));
+      lastChime.current = { at: time, strength: Math.exp(-since * 0.5) };
     }
+    // Chaque coup : deux ondes qui s'élargissent et s'effacent, toujours face à la caméra.
+    const chime = lastChime.current;
+    waves.current.forEach((wave, index) => {
+      if (!wave) return;
+      const age = (time - chime.at - index * 0.16) / 0.95;
+      wave.visible = age > 0 && age < 1;
+      if (!wave.visible) return;
+      wave.scale.setScalar(0.45 + age * 1.5);
+      WAVES[index].opacity = (1 - age) * (1 - age) * 0.75 * chime.strength;
+      wave.parent?.getWorldQuaternion(parentTurn);
+      wave.quaternion.copy(parentTurn.invert().multiply(state.camera.quaternion));
+    });
   });
 
   const ring = () => {
     struck.current = clock.elapsedTime;
     chimes.current = 1;
+    lastChime.current = { at: clock.elapsedTime, strength: 1 };
     ambience.bell();
     logbook.stamp('bell');
   };
@@ -100,6 +137,20 @@ export function ShipBell({ pivot, yaw }: { pivot: Vec3; yaw: number }) {
           </mesh>
         </group>
       </Hotspot>
+      {WAVES.map((material, index) => (
+        <mesh
+          key={index}
+          ref={(element) => {
+            waves.current[index] = element;
+          }}
+          geometry={WAVE}
+          material={material}
+          position={[0, -0.22, 0]}
+          visible={false}
+          renderOrder={6}
+          raycast={() => null}
+        />
+      ))}
     </group>
   );
 }

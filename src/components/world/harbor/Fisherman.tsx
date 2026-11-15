@@ -100,7 +100,8 @@ function fishermanGeometries() {
   // Scion en trois tronçons, de plus en plus fins et courbés vers le bout.
   let at = new Vector3(0, -0.1 + Math.cos(1.0) * 0.21, 0.32 + Math.sin(1.0) * 0.21);
   let tilt = 1.0;
-  for (const [length, radius, bend] of [[0.8, 0.016, 0.06], [0.75, 0.012, 0.12], [0.6, 0.008, 0.2]] as const) {
+  // (Assez épais pour que le bout reste visible de loin : la ligne en part.)
+  for (const [length, radius, bend] of [[0.8, 0.018, 0.06], [0.75, 0.015, 0.12], [0.6, 0.012, 0.2]] as const) {
     tilt += bend;
     const dir = new Vector3(0, Math.cos(tilt), Math.sin(tilt));
     const center = at.clone().addScaledVector(dir, length / 2);

@@ -4,6 +4,7 @@ import { create } from 'zustand';
 import { ambience } from '@/lib/audio/ambience';
 import { boatState } from '@/lib/boat-state';
 import { logbook } from '@/lib/logbook';
+import { useWorld } from '@/lib/store';
 import {
   BITE_MAX,
   BITE_MIN,
@@ -45,8 +46,10 @@ interface GameplayState {
   /** La scène 3D du gameplay est montée (coins de pêche visibles, capture possible). */
   ready3D: boolean;
   hydrated: boolean;
-  /** Coin de pêche à portée du bateau arrêté, -1 sinon (mis à jour par la boucle du DOM). */
+  /** Coin de pêche à portée du bateau arrêté, -1 sinon (mis à jour par la boucle de la scène). */
   near: number;
+  /** Coin de pêche en vue (le bateau passe à proximité), -1 sinon : l'interface invite à s'arrêter. */
+  approach: number;
 
   phase: FishingPhase;
   spot: number;
@@ -77,10 +80,17 @@ interface GameplayState {
 
   photo: PhotoPhase;
   postcard: Postcard | null;
+  /** Cadrage choisi dans le viseur (0 trois-quarts, 1 ras de l'eau, 2 vue de la mouette). */
+  framing: number;
+  /** Bourriche dépliée (liste des prises). */
+  basketOpen: boolean;
 
   hydrate: () => void;
   set3D: (ready: boolean) => void;
   setNear: (index: number) => void;
+  setApproach: (index: number) => void;
+  setFraming: (index: number) => void;
+  setBasketOpen: (open: boolean) => void;
   cast: () => void;
   strike: () => void;
   tick: (now: number) => void;
@@ -96,6 +106,8 @@ interface GameplayState {
 }
 
 const STORAGE_KEY = 'kyliann-bourriche-v1';
+/** Nombre de cadrages proposés par le viseur. */
+export const FRAMINGS = 3;
 
 function loadBasket(): Basket {
   try {
@@ -134,6 +146,14 @@ function pickJoke(kind: MissKind, casts: number) {
   return list[casts % list.length];
 }
 
+/**
+ * Images vues pendant la touche : à moins de quelques images, la touche n'a pas encore pu
+ * s'afficher (appareil saturé, rendu logiciel) et la fenêtre reste ouverte. Sans effet à
+ * 30 ou 60 images par seconde (quelques dizaines de millisecondes sur plus d'une seconde).
+ */
+const MIN_BITE_FRAMES = 4;
+let biteFrames = 0;
+
 /** Phases où la ligne est à l'eau (le bateau doit rester sur place). */
 export function lineInWater(phase: FishingPhase) {
   return phase === 'cast' || phase === 'wait' || phase === 'bite';
@@ -148,6 +168,7 @@ export const useGameplay = create<GameplayState>((set, get) => ({
   ready3D: false,
   hydrated: false,
   near: -1,
+  approach: -1,
 
   phase: 'idle',
   spot: -1,
@@ -172,6 +193,8 @@ export const useGameplay = create<GameplayState>((set, get) => ({
 
   photo: 'off',
   postcard: null,
+  framing: 0,
+  basketOpen: false,
 
   hydrate: () => {
     if (get().hydrated) return;
@@ -180,6 +203,13 @@ export const useGameplay = create<GameplayState>((set, get) => ({
   set3D: (ready) => set({ ready3D: ready }),
   setNear: (index) => {
     if (get().near !== index) set({ near: index });
+  },
+  setApproach: (index) => {
+    if (get().approach !== index) set({ approach: index });
+  },
+  setFraming: (index) => set({ framing: ((index % FRAMINGS) + FRAMINGS) % FRAMINGS }),
+  setBasketOpen: (open) => {
+    if (get().basketOpen !== open) set({ basketOpen: open });
   },
 
   cast: () => {
@@ -271,10 +301,13 @@ export const useGameplay = create<GameplayState>((set, get) => ({
       set({ phase: 'wait', phaseAt: state.landAt });
       ambience.splash(0.16);
     } else if (phase === 'wait' && now >= state.biteAt) {
-      set({ phase: 'bite', phaseAt: state.biteAt });
+      // La fenêtre pour ferrer part de l'image où la touche est montrée : une image lente
+      // (téléphone chargé, onglet qui revient) ne la mange pas.
+      biteFrames = 0;
+      set({ phase: 'bite', phaseAt: now });
       ambience.splash(0.42);
       ambience.cue(988, 0.14);
-    } else if (phase === 'bite' && now >= state.biteAt + state.strikeWindow) {
+    } else if (phase === 'bite' && ++biteFrames > MIN_BITE_FRAMES && now >= state.phaseAt + state.strikeWindow) {
       set({ phase: 'missed', phaseAt: now, miss: 'late', joke: pickJoke('late', state.casts) });
       ambience.cue(196, 0.32);
     } else if (phase === 'reel' && now >= state.phaseAt + REEL_SECONDS && state.result) {
@@ -300,7 +333,11 @@ export const useGameplay = create<GameplayState>((set, get) => ({
 
   aim: () => {
     if (!get().ready3D) return;
-    set({ photo: 'aim' });
+    // À quai, la page du carnet se referme : le viseur prend tout l'écran.
+    const world = useWorld.getState();
+    if (world.phase === 'docked') world.close();
+    // La canne est rangée : la caméra ne peut pas suivre deux sujets à la fois.
+    set({ photo: 'aim', phase: 'idle', spot: -1, basketOpen: false });
   },
   shoot: () => {
     if (get().photo === 'aim') set({ photo: 'shoot' });

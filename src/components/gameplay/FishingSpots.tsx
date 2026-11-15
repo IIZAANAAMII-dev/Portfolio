@@ -153,7 +153,7 @@ export function FishingSpots() {
     const gulls = gullMesh.current;
     if (!glows || !ringsMesh || !bubblesMesh || !fishes || !gulls) return;
     const time = state.clock.elapsedTime;
-    const { stock, near } = useGameplay.getState();
+    const { stock, near, phase, spot: fishingSpot } = useGameplay.getState();
     const low = useWorld.getState().quality === 'low';
     const night = skyState.dayNight;
     const camera = state.camera.position;
@@ -167,7 +167,8 @@ export function FishingSpots() {
       surface.slopeX = (waveHeight(spot.x + 1, spot.z, time) - waveHeight(spot.x - 1, spot.z, time)) * 0.5;
       surface.slopeZ = (waveHeight(spot.x, spot.z + 1, time) - waveHeight(spot.x, spot.z - 1, time)) * 0.5;
       const rested = stock[index] <= 0;
-      const focus = near === index ? 1.55 : 1;
+      // Coin où l'on pêche : les bouillons s'apaisent pour que le bouchon se lise.
+      const focus = phase !== 'idle' && fishingSpot === index ? 0.7 : near === index ? 1.3 : 1;
       const calm = rested ? 0.35 : 1;
       const audible = Math.hypot(camera.x - spot.x, camera.z - spot.z) < SPLASH_RANGE;
       const tiltX = -Math.atan(surface.slopeZ);

@@ -172,14 +172,16 @@ attribute vec4 aSpark;
 uniform float uTime;
 varying vec2 vUv;
 varying float vOn;
+varying float vSeed;
 varying vec3 vTint;
 float sh(float n) { return fract(sin(n * 78.233) * 43758.5453); }
 void main() {
   vUv = uv;
   float seed = aSpark.w;
+  vSeed = seed;
   float tick = floor(uTime * (6.0 + sh(seed) * 8.0) + seed * 13.0);
   vOn = step(0.62, sh(tick + seed * 3.1));
-  vTint = sh(seed * 1.7) > 0.7 ? vec3(1.0) : sh(seed * 2.3) > 0.5 ? vec3(1.0, 0.85, 0.25) : vec3(0.95, 0.9, 0.55);
+  vTint = sh(seed * 1.7) > 0.8 ? vec3(0.95, 0.97, 1.0) : sh(seed * 2.3) > 0.5 ? vec3(1.0, 0.82, 0.22) : vec3(0.95, 0.88, 0.5);
   vec3 center = aSpark.xyz + vec3(0.0, sin(uTime * 0.9 + seed * 6.0) * 0.12, 0.0);
   vec3 right = vec3(viewMatrix[0][0], viewMatrix[1][0], viewMatrix[2][0]);
   vec3 up = vec3(viewMatrix[0][1], viewMatrix[1][1], viewMatrix[2][1]);
@@ -189,16 +191,26 @@ void main() {
 }
 `;
 
+// Un lambeau de « neige » analogique : gros pixels qui changent à chaque image de la bande,
+// lignes de balayage, bords rongés. Il se lit comme du static, pas comme un rectangle blanc.
 const SPARK_FRAGMENT = /* glsl */ `
 uniform float uNight;
+uniform float uTime;
 varying vec2 vUv;
 varying float vOn;
+varying float vSeed;
 varying vec3 vTint;
+float sh2(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
 void main() {
   if (vOn < 0.5) discard;
+  vec2 cell = floor(vUv * vec2(5.0, 3.0));
+  float frame = floor(uTime * 12.0);
+  float snow = sh2(cell + vec2(frame * 1.37, vSeed * 7.1));
   vec2 q = abs(vUv - 0.5) * 2.0;
-  float pixel = 1.0 - smoothstep(0.7, 1.0, max(q.x, q.y));
-  gl_FragColor = vec4(vTint * pixel * (0.9 + uNight * 1.6), 1.0);
+  float edge = step(sh2(cell * 3.1 + vSeed), 0.85 - max(q.x, q.y) * 0.35);
+  float scan = 0.7 + 0.3 * step(0.5, fract(vUv.y * 6.0 + uTime * 3.0));
+  float level = mix(0.18, 1.0, step(0.48, snow)) * scan * edge;
+  gl_FragColor = vec4(vTint * level * (0.75 + uNight * 1.5), 1.0);
 }
 `;
 

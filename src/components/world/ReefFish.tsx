@@ -13,6 +13,7 @@ import {
 import { homeIsland, islands } from '@/data/islands';
 import { islets } from '@/data/islets';
 import { boatState } from '@/lib/boat-state';
+import { ecologyState } from '@/lib/ecology';
 import { useWorld } from '@/lib/store';
 import { hash, smoothstep } from '@/lib/utils/math';
 
@@ -20,7 +21,9 @@ import { hash, smoothstep } from '@/lib/utils/math';
  * Poissons de récif : des bancs colorés qui tournent dans les lagons autour de chaque île,
  * visibles à travers l'eau claire. Tout le mouvement est calculé sur le GPU (orbite du
  * banc, ondulation de la queue, fuite devant le bateau) : un seul draw call pour près de
- * deux cents poissons, aucune donnée réécrite par image.
+ * deux cents poissons, aucune donnée réécrite par image. Au crépuscule, ils regagnent le
+ * récif un à un : la nuit, il n'en reste que quelques-uns (plus de taches sombres sous
+ * l'eau noire), et ils reviennent à l'aube.
  */
 
 const PALETTE = ['#ffd23f', '#ff8a3d', '#3fa7ff', '#ff6f9c', '#3fe0c5', '#b38cff'];
@@ -65,6 +68,7 @@ attribute vec4 aMotion;
 uniform float uTime;
 uniform vec2 uBoat;
 uniform float uPresence;
+uniform float uDay;
 vec3 fishTurn(vec3 p, float yaw) {
   float c = cos(yaw);
   float s = sin(yaw);
@@ -97,7 +101,9 @@ vec3 fishLocal = position;
 // Ondulation : la queue (x < 0) bat de plus en plus fort vers l'arrière, plus vite en fuite.
 float fishWiggle = sin(uTime * aMotion.z * (1.0 + fishFear * 1.5) + aMotion.y * 7.0) * 0.55;
 fishLocal.z += fishWiggle * max(-fishLocal.x, 0.0) * 0.9;
-fishLocal *= aMotion.w * uPresence;
+// Chaque poisson a son heure de coucher : le banc se vide peu à peu, sans s'éteindre d'un coup.
+float fishAwake = smoothstep(0.0, 0.12, uDay - fract(aMotion.y * 4.37) * 0.85);
+fishLocal *= aMotion.w * uPresence * fishAwake;
 vec3 transformed = fishTurn(fishLocal, fishYaw) + vec3(fishPos.x, aOrbit.w + sin(uTime * 1.3 + aMotion.y) * 0.08, fishPos.y);
 `;
 
@@ -111,7 +117,7 @@ function createFishMaterial(uniforms: Record<string, { value: unknown }>) {
       .replace('#include <beginnormal_vertex>', SWIM_NORMAL)
       .replace('#include <begin_vertex>', SWIM_POSITION);
   };
-  material.customProgramCacheKey = () => 'reef-fish-v1';
+  material.customProgramCacheKey = () => 'reef-fish-v2';
   return material;
 }
 
@@ -119,6 +125,7 @@ const fishUniforms = {
   uTime: { value: 0 },
   uBoat: { value: new Vector2() },
   uPresence: { value: 0 },
+  uDay: { value: 1 },
 };
 const FISH_MATERIAL = createFishMaterial(fishUniforms);
 const FISH_GEOMETRY = fishGeometry();
@@ -172,6 +179,8 @@ export function ReefFish() {
     fishUniforms.uTime.value = state.clock.elapsedTime;
     fishUniforms.uBoat.value.set(boatState.position.x, boatState.position.z);
     fishUniforms.uPresence.value = smoothstep(0.45, 1, reveal);
+    // Quelques noctambules restent : uDay ne descend pas tout à fait à zéro.
+    fishUniforms.uDay.value = 0.12 + ecologyState.dayFish * 0.88;
   });
 
   return (

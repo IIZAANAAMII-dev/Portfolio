@@ -15,8 +15,15 @@ import { useWorld } from '@/lib/store';
 import { QUALITY_LEVELS } from '@/lib/quality';
 import { damp } from '@/lib/utils/math';
 import { WAVE_GLSL } from '@/lib/waves';
-import { loadSubstanceMap } from '@/lib/materials/substance-material';
-import { CREST_STROKES_GLSL, SUN_GLITTER_GLSL, wakeTraceGlsl } from './ocean-strokes';
+import {
+  bakeCoastMap,
+  CREST_STROKES_GLSL,
+  emptyCoastMap,
+  SHORE_FOAM_GLSL,
+  SUN_GLITTER_GLSL,
+  wakeTraceGlsl,
+  type CoastMap,
+} from './ocean-strokes';
 
 const OCEAN_SIZE = 1200;
 const SHOAL_COUNT = 11;
@@ -24,9 +31,8 @@ const SHOAL_COUNT = 11;
 const TRAIL_POINTS = 6;
 const TRAIL_SPACING = 2.4;
 
-/** TEMPORAIRE (comparaisons avant / après) : `?water=old` rend l'ancienne eau. */
-const LEGACY_WATER =
-  typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('water') === 'old';
+/** Pleine mer partout, en attendant la carte du rivage (cuite après le montage). */
+const NO_COAST = emptyCoastMap();
 
 const DAY_DEEP = new Color('#07547a');
 const NIGHT_DEEP = new Color('#01060c');
@@ -55,6 +61,7 @@ void main() {
 const seabedFragmentShader = /* glsl */ `
 uniform float uTime;
 uniform float uReveal;
+uniform float uNight;
 varying vec3 vWorld;
 float hash21(vec2 p) {
   p = fract(p * vec2(123.34, 345.45));
@@ -69,12 +76,7 @@ float smoothGrain(vec2 p) {
              mix(hash21(i + vec2(0.0, 1.0)), hash21(i + 1.0), f.x), f.y);
 }
 void main() {
-  #ifdef LEGACY_WATER
-    float grain = hash21(floor(vWorld.xz * 0.42));
-  #else
-    // Même variation que l'ancien grain, sans ses carreaux.
-    float grain = smoothGrain(vWorld.xz * 0.42);
-  #endif
+  float grain = smoothGrain(vWorld.xz * 0.42);
   float dunes = 0.5 + 0.5 * sin(vWorld.x * 0.075 + sin(vWorld.z * 0.055) * 2.2);
   float causticA = sin(vWorld.x * 0.72 + uTime * 0.28) * sin(vWorld.z * 0.64 - uTime * 0.22);
   float causticB = sin((vWorld.x + vWorld.z) * 0.43 - uTime * 0.18);
@@ -82,6 +84,9 @@ void main() {
   vec3 sand = mix(vec3(0.16, 0.58, 0.62), vec3(0.34, 0.76, 0.70), dunes * 0.58 + grain * 0.08);
   sand += vec3(0.16, 0.20, 0.12) * caustics * 0.16;
   sand = mix(vec3(0.018, 0.075, 0.082), sand, smoothstep(0.12, 0.72, uReveal));
+  // La nuit, le fond s'éteint comme les pentes immergées des îles : pas d'anneau sombre
+  // autour des lagons, là où le relief laisse place au fond marin.
+  sand *= mix(1.0, 0.24, uNight);
   gl_FragColor = vec4(sand, 1.0);
   #include <colorspace_fragment>
 }
@@ -90,22 +95,17 @@ void main() {
 const vertexShader = /* glsl */ `
 uniform float uTime;
 varying vec3 vWorld;
-varying float vHeight;
-varying vec2 vSlope;
 ${WAVE_GLSL}
 
 void main() {
   vec4 world = modelMatrix * vec4(position, 1.0);
-  float h = waveHeight(world.xz, uTime);
-  world.y += h;
+  world.y += waveHeight(world.xz, uTime);
   vWorld = world.xyz;
-  vHeight = h;
-  vSlope = waveSlope(world.xz, uTime);
   gl_Position = projectionMatrix * viewMatrix * world;
 }
 `;
 
-/** Fonctions communes aux deux eaux (remous, distances). */
+/** Fonctions communes (bruit doux, ombres de nuages, remous, distances). */
 const SHARED_GLSL = /* glsl */ `
 float hash21(vec2 p) {
   p = fract(p * vec2(123.34, 456.21));
@@ -150,7 +150,37 @@ float segmentDistance(vec2 p, vec2 a, vec2 b) {
 }
 `;
 
-const SHARED_UNIFORMS = /* glsl */ `
+/** Bord des îles (cercles des hauts-fonds) : eaux peu profondes et lagon, couleurs d'origine. */
+const SHORE_GLSL = /* glsl */ `
+  float edge = 1e4;
+  for (int i = 0; i < ${SHOAL_COUNT}; i++) {
+    vec2 delta = vWorld.xz - uShoals[i].xy;
+    float reach = length(delta);
+    // La côte ondule d'au plus 8 % : une île trop loin pour compter (au-delà des 22 m du
+    // dégradé, ou derrière une plus proche) n'a pas besoin de son angle.
+    if (reach - uShoals[i].z * 1.08 > min(edge, 23.0)) continue;
+    float angle = atan(delta.y, delta.x);
+    float brokenCoast = sin(angle * 5.0 + float(i) * 1.7) * 0.055
+                      + sin(angle * 9.0 - float(i) * 0.9) * 0.025;
+    float radius = uShoals[i].z * (1.0 + brokenCoast);
+    edge = min(edge, reach - radius);
+  }
+
+  float shallow = 1.0 - smoothstep(0.0, 22.0, max(edge, 0.0));
+  float depthTexture = valueNoise(vWorld.xz * 0.045) * 0.12;
+  float lagoon = smoothstep(0.28, 0.94, shallow) * smoothstep(0.18, 0.72, depthTexture + 0.28);
+  vec3 water = mix(uDeep, uShallow, clamp(shallow * 0.94 + depthTexture * shallow, 0.0, 1.0));
+  water = mix(water, uLagoon, lagoon * 0.72);
+`;
+
+/**
+ * Eau dessinée : la houle est lisse (hauteur et pente analytiques au pixel, plus de facettes
+ * du maillage ni de micro-bruit), et l'écriture de la mer se limite à des traits de crête
+ * nets, des remous, de rares éclats de soleil et l'écume du rivage, posée sur la vraie
+ * ligne d'eau des îles. La nuit, la lune trace son chemin de paillettes et le plancton
+ * s'allume au bord des plages. Couleurs, lagons, nuit et tempête restent ceux d'origine.
+ */
+const fragmentShader = /* glsl */ `
 uniform float uTime;
 uniform vec3 uDeep;
 uniform vec3 uShallow;
@@ -175,125 +205,21 @@ uniform float uIntroGlow;
 uniform vec4 uShoals[${SHOAL_COUNT}];
 uniform float uStrokes;
 uniform float uCloudTime;
-varying vec3 vWorld;
-varying float vHeight;
-varying vec2 vSlope;
-`;
-
-/**
- * Fin commune : tempête, monstre, écume de rivage, fond, révélation d'intro, transparence.
- * Attend `water`, `normal`, `fresnel`, `shallow`, `lagoon`, `edge`, `depthTexture`,
- * `heightForFoam` et `extraAlpha` déjà calculés.
- */
-const SHARED_TAIL = /* glsl */ `
-  // Ombres de nuages qui glissent sur la mer (de jour).
-  water *= 1.0 - cloudShadow(vWorld.xz, uCloudTime) * 0.2 * (1.0 - uDayNight);
-  // Assombrissement nocturne : l'eau devient très sombre, l'écume reste claire.
-  water *= mix(vec3(1.0), vec3(0.18, 0.24, 0.32), uDayNight);
-  // Lueurs propres à chaque eau (plancton la nuit), posées sur l'eau assombrie.
-  water += bioLight;
-  // La couleur appréciée de l'océan reste intacte partout ailleurs. Dans le
-  // large interdit, la tempête absorbe presque entièrement la couleur et la transparence.
-  float forbidden = smoothstep(0.10, 0.92, uStormColor);
-  water = mix(water, vec3(0.0015, 0.005, 0.008), forbidden * 0.96);
-
-  // Une légère absorption vers le grand fond renforce la sensation de volume sans réfraction coûteuse.
-  water *= mix(0.92, 1.03, shallow);
-
-  // Une bande fine sur les crêtes, pas de grandes nappes turquoise pleines.
-  float stormHeight = smoothstep(0.16, 0.72, heightForFoam);
-  float stormRidge = 0.5 + 0.5 * sin(
-    vWorld.x * 0.42 + vWorld.z * 0.19 - uTime * 1.35
-    + valueNoise(vWorld.xz * 0.11) * 4.2
-  );
-  float stormCrest = smoothstep(0.88, 0.965, stormRidge) * stormHeight;
-  float stormBreakup = smoothstep(0.36, 0.68,
-    valueNoise(vWorld.xz * 0.34 + vec2(uTime * 0.09, -uTime * 0.04)));
-  float stormFoam = stormCrest * stormBreakup * uStorm * 0.042;
-  float monsterDistance = segmentDistance(vWorld.xz, uMonsterFrom, uMonsterTo);
-  float monsterBreakup = valueNoise(vWorld.xz * 0.42 + vec2(uTime * 0.18, -uTime * 0.11));
-  float monsterFoam = (1.0 - smoothstep(1.4, 5.8 + monsterBreakup * 2.4, monsterDistance))
-    * uMonsterWake * smoothstep(0.18, 0.78, monsterBreakup + 0.2);
-  float foamAmt = clamp(crest * 1.6 + stormFoam + monsterFoam * 0.48
-    + shoreBand * shorePulse * mix(0.35, 0.95, foamBreakup), 0.0, 0.88);
-  // Écume plus lumineuse la nuit, presque phosphorescente au bord des îles.
-  vec3 foamColor = uFoam * mix(1.0, 1.16, uDayNight);
-  foamColor = mix(foamColor, vec3(0.28, 0.82, 0.76), monsterFoam * uDayNight * 0.72);
-  water = mix(water, foamColor, foamAmt);
-
-  // La profondeur est simulée dans la couleur pour éviter les artefacts de tri d'un
-  // immense plan transparent. Les poissons sont composés au-dessus avec une teinte eau.
-  vec3 seabedTint = mix(vec3(0.08, 0.48, 0.55), vec3(0.36, 0.78, 0.68), depthTexture);
-  water = mix(
-    water,
-    seabedTint,
-    lagoon * 0.34 * (1.0 - fresnel) * (1.0 - uDayNight) * (1.0 - forbidden)
-  );
-  // Masque circulaire world-space de la révélation d'introduction.
-  float dIntro = length(vWorld.xz - uIntroCenter);
-  float introEdge = smoothstep(uIntroRadius - uIntroFeather, uIntroRadius, dIntro);
-  // L'intro reste presque noir à l'extérieur, lumineux au centre.
-  float localReveal = max(uReveal, 1.0 - introEdge);
-  water = mix(vec3(0.0), water, 0.02 + 0.98 * localReveal);
-
-  // Bord lumineux très visible autour du cercle de révélation.
-  float glow = exp(-pow((dIntro - uIntroRadius) / (uIntroFeather * 0.42), 2.0)) * uIntroGlow;
-  vec3 outWater = vec3(0.0, 0.001, 0.003);
-  float introMix = (1.0 - introEdge) + uReveal * introEdge;
-  water = mix(outWater, water, introMix);
-  water += vec3(1.0, 0.72, 0.34) * glow * 2.6;
-  water += vec3(0.4, 0.78, 1.0) * glow * 0.85;
-
-  // Le lagon laisse franchement voir le fond, tandis que le large conserve sa masse.
-  // Aux angles rasants le Fresnel rend naturellement la surface plus réfléchissante.
-  float baseAlpha = mix(0.74, 0.46, shallow);
-  baseAlpha = mix(baseAlpha, 0.94, fresnel);
-  baseAlpha += foamAmt * 0.16 + uDayNight * 0.18 + extraAlpha;
-  // Aucun fond marin ne transparaît dans la zone interdite : la surface devient
-  // une masse d'eau noire et opaque, progressivement avec la couverture nuageuse.
-  baseAlpha = mix(baseAlpha, 1.0, forbidden);
-  baseAlpha *= mix(0.98, 1.0, introMix);
-  gl_FragColor = vec4(water, clamp(baseAlpha, 0.55, 1.0));
-  #include <colorspace_fragment>
-`;
-
-/** Bord des îles : distance au rivage, eaux peu profondes, lagon (couleurs d'origine). */
-const SHORE_GLSL = /* glsl */ `
-  float edge = 1e4;
-  for (int i = 0; i < ${SHOAL_COUNT}; i++) {
-    vec2 delta = vWorld.xz - uShoals[i].xy;
-    float angle = atan(delta.y, delta.x);
-    float brokenCoast = sin(angle * 5.0 + float(i) * 1.7) * 0.055
-                      + sin(angle * 9.0 - float(i) * 0.9) * 0.025;
-    float radius = uShoals[i].z * (1.0 + brokenCoast);
-    edge = min(edge, length(delta) - radius);
-  }
-
-  float shallow = 1.0 - smoothstep(0.0, 22.0, max(edge, 0.0));
-  float depthTexture = valueNoise(vWorld.xz * 0.045) * 0.12;
-  float lagoon = smoothstep(0.28, 0.94, shallow) * smoothstep(0.18, 0.72, depthTexture + 0.28);
-  vec3 water = mix(uDeep, uShallow, clamp(shallow * 0.94 + depthTexture * shallow, 0.0, 1.0));
-  water = mix(water, uLagoon, lagoon * 0.72);
-`;
-
-/**
- * Eau dessinée : la houle est lisse (hauteur et pente analytiques au pixel, plus de facettes
- * du maillage ni de micro-bruit), et l'écriture de la mer se limite à des traits de crête
- * nets, des remous et de rares éclats de soleil. Couleurs, lagons, écume de rivage, nuit et
- * tempête sont strictement ceux de l'eau précédente.
- */
-const fragmentShader = /* glsl */ `
-${SHARED_UNIFORMS}
-${WAVE_GLSL}
-${SHARED_GLSL}
-${CREST_STROKES_GLSL}
-${SUN_GLITTER_GLSL}
-${wakeTraceGlsl(TRAIL_POINTS)}
 uniform float uPixelAngle;
 // Bateau : position (xy) et cap (zw = avant) ; force du sillage (vitesse) ; plancton (nuit).
 uniform vec4 uBoat;
 uniform float uWake;
 uniform float uBio;
+// Carte du rivage : distance signée à la ligne d'eau (m) ; rect = origine, côté, présence.
+uniform sampler2D uCoast;
+uniform vec4 uCoastRect;
+varying vec3 vWorld;
+${WAVE_GLSL}
+${SHARED_GLSL}
+${CREST_STROKES_GLSL}
+${SUN_GLITTER_GLSL}
+${SHORE_FOAM_GLSL}
+${wakeTraceGlsl(TRAIL_POINTS)}
 
 // Sens de propagation de la houle principale (voir lib/waves.ts : sin(k·x + ωt) avance
 // vers -d), et une seconde famille de traits à peine plus oblique : tout s'écoule dans le
@@ -314,6 +240,18 @@ void main() {
   float cameraDistance = length(uCameraPos.xz - p);
 
 ${SHORE_GLSL}
+
+  // Vraie ligne d'eau : distance au rivage, qui respire avec la houle (la mer monte et
+  // descend sur le sable). Le sable affleure en clair juste devant la plage.
+  float coastD = 40.0;
+  if (uCoastRect.w > 0.001) coastD = texture2D(uCoast, (p - uCoastRect.xy) / uCoastRect.z).r;
+  float coastDyn = coastD + height * 1.3;
+  float coastPx = max(fwidth(coastDyn), 1e-4);
+  // Au large (la grande majorité des pixels), pas d'écume de rivage à calculer.
+  vec2 shore = vec2(0.0);
+  if (coastDyn < 6.0) shore = shoreFoam(coastDyn, p, uTime, coastPx) * uCoastRect.w;
+  float shelf = (1.0 - smoothstep(0.3, 3.6, coastD)) * uCoastRect.w;
+  water = mix(water, uLagoon, shelf * 0.22);
 
   vec3 viewDir = normalize(uCameraPos - vWorld);
   float fresnel = 1.0 - max(dot(normal, viewDir), 0.0);
@@ -348,35 +286,36 @@ ${SHORE_GLSL}
   // Modelé de la houle : crêtes un peu plus claires, creux un peu plus denses.
   water *= 1.0 + clamp(height * 2.2, -1.0, 1.0) * 0.06 * (1.0 - uStormColor);
 
-  // Traînée du soleil, découpée en plaques par la houle (accentuée). Vue rasante : des
-  // tirets nets s'y couchent ; vue plongeante : seulement quelques étoiles. Rien hors de
-  // la traînée, rien de granuleux.
-  float glitterZone = smoothstep(0.3, 0.75, pow(max(dot(shadeNormal, halfDir), 0.0), 24.0))
-    * uSparkle * 2.5 * step(0.25, uQuality) * (1.0 - uStormColor);
+  // Traînée du soleil (ou de la lune), découpée en plaques par la houle (accentuée). Vue
+  // rasante : des tirets nets s'y couchent ; vue plongeante : seulement quelques étoiles.
+  // Rien hors de la traînée, rien de granuleux.
+  float glitterMask = smoothstep(0.3, 0.75, pow(max(dot(shadeNormal, halfDir), 0.0), 24.0))
+    * step(0.25, uQuality) * (1.0 - uStormColor);
+  float dayGlitter = glitterMask * uSparkle * 2.5 * (1.0 - uDayNight);
+  float nightGlitter = glitterMask * uDayNight;
   float grazing = smoothstep(0.62, 0.86, 1.0 - viewDir.y);
   float glitter = 0.0;
-  if (glitterZone > 0.003) {
+  float moonGlitter = 0.0;
+  if (dayGlitter + nightGlitter > 0.003) {
     vec2 sunH = normalize(uSun.xz + vec2(1e-4, 0.0));
     if (grazing > 0.001) {
       glitter = sunGlitter(p, sunH, cameraDistance, uCameraPos.y, uPixelAngle, uTime) * grazing;
     }
-    glitter = max(glitter, sunGlints(p, uTime, px) * (1.0 - grazing * 0.6));
+    // Sous la lune, les étoiles d'éclat restent discrètes : ce sont les tirets qui brillent.
+    float glints = sunGlints(p, uTime, px) * (1.0 - grazing * 0.6);
+    moonGlitter = max(glitter, glints * 0.3);
+    glitter = max(glitter, glints);
   }
   vec3 glitterColor = mix(vec3(1.0, 0.97, 0.88), uSkyHorizon * 1.25, 0.25);
-  water = mix(water, glitterColor, clamp(glitter * glitterZone, 0.0, 1.0));
+  water = mix(water, glitterColor, clamp(glitter * dayGlitter, 0.0, 1.0));
 
   float crestNoise = valueNoise(p * 0.5 - vec2(uTime * 0.12, 0.0));
-  float heightForFoam = height;
   float crestHeight = height + crestNoise * 0.055;
   float crest = smoothstep(0.48, 0.61, crestHeight)
     * (1.0 - smoothstep(0.72, 0.91, crestHeight)) * 0.028;
+  // Près du rivage, la mer est écrite par l'écume du bord : ni trait ni remous.
   float shoreBand = 1.0 - smoothstep(0.35, 3.2, max(edge, 0.0));
-  // Anneaux d'écume nets qui partent de la plage (bords francs, pas de dégradé mou).
-  float shorePulse = smoothstep(0.6, 0.66,
-    0.5 + 0.5 * sin(edge * 1.65 - uTime * 1.55 + valueNoise(p * 0.22) * 4.0));
-  float foamBreakup = uQuality > 0.25
-    ? smoothstep(0.30, 0.72, valueNoise(p * 0.62 + uTime * 0.025))
-    : 0.62;
+  float nearShore = mix(shoreBand, 1.0 - smoothstep(1.2, 5.8, coastD), uCoastRect.w);
 
   // Sillage net : autour de la coque et derrière la poupe, ni trait ni remous ne viennent
   // brouiller le sillage dessiné (Wake.tsx) ; la nuit, le plancton s'y allume doucement.
@@ -415,120 +354,120 @@ ${SHORE_GLSL}
       lines = max(lines, crestStroke(p, SWELL_B, vec2(12.0, 7.5), 0.3, uTime, 17.3, 0.3, 0.12, pxB) * 0.8 * sideOnB);
     }
   }
-  lines *= strokeFade * crestMask * (1.0 - lagoon * 0.5) * (1.0 - shoreBand);
+  lines *= strokeFade * crestMask * (1.0 - lagoon * 0.5) * (1.0 - nearShore);
   vec3 lineColor = mix(uFoam, uSkyHorizon * 1.12, 0.2) * mix(1.0, 0.92, uDayNight);
   water = mix(water, lineColor, lines * 0.72);
 
   // Remous au large, plus visibles près de la caméra, absents des lagons.
-  float swirl = swirlFoam(p + vec2(uTime * 0.25, uTime * 0.1), uTime)
-    * (1.0 - shallow) * (1.0 - smoothstep(60.0, 115.0, cameraDistance)) * step(0.25, uQuality)
-    * (1.0 - wakeLane);
+  float swirl = 0.0;
+  if (uQuality > 0.25 && cameraDistance < 115.0 && shallow < 0.999) {
+    swirl = swirlFoam(p + vec2(uTime * 0.25, uTime * 0.1), uTime)
+      * (1.0 - shallow) * (1.0 - smoothstep(60.0, 115.0, cameraDistance))
+      * (1.0 - wakeLane) * (1.0 - nearShore);
+  }
   water = mix(water, uFoam, swirl * 0.8);
   float extraAlpha = lines * 0.18;
 
-  // Nuit : plancton bioluminescent réveillé par la coque et le sillage ; les traits de
-  // crête et les remous en gardent un liseré turquoise.
+  // Nuit : plancton bioluminescent réveillé par la coque, le sillage et le ressac (liseré,
+  // anneaux et un halo doux le long des plages) ; les traits de crête et les remous en
+  // gardent un liseré turquoise. La lune pose sa traînée argentée : un reflet large et
+  // des paillettes, au-dessus de l'eau assombrie.
+  float shoreHalo = exp(-max(coastDyn, 0.0) * 0.75) * uCoastRect.w;
   vec3 bioLight = (vec3(0.03, 0.46, 0.42) * wakeGlow * 0.75
-    + vec3(0.1, 0.56, 0.5) * max(lines, swirl * 0.7) * 0.24) * uBio * (1.0 - uStormColor);
-${SHARED_TAIL}
-}
-`;
+    + vec3(0.1, 0.56, 0.5) * max(lines, swirl * 0.7) * 0.24
+    + vec3(0.05, 0.55, 0.5) * (shore.x * 0.42 + shore.y * 0.32 + shoreHalo * 0.1)) * uBio * (1.0 - uStormColor);
+  bioLight += vec3(0.6, 0.72, 0.9) * (pow(specBase, 70.0) * 0.3 + moonGlitter * nightGlitter * 0.85)
+    * uDayNight * (1.0 - uStormColor);
 
-/** L'eau précédente, conservée le temps des comparaisons (`?water=old`). */
-const legacyFragmentShader = /* glsl */ `
-${SHARED_UNIFORMS}
-uniform float uStorm;
-#ifdef OCEAN_TEX
-  // « Stylized Ocean Water » (Substance 3D Assets) : normales des vaguelettes et, dans le
-  // canal G (rugosité), le masque des traits d'écume peints.
-  uniform sampler2D uWaveNormal;
-  uniform sampler2D uWaveOrm;
-#endif
-${SHARED_GLSL}
+  // Ombres de nuages qui glissent sur la mer (de jour).
+  if (uDayNight < 0.995) water *= 1.0 - cloudShadow(vWorld.xz, uCloudTime) * 0.2 * (1.0 - uDayNight);
+  // Assombrissement nocturne : l'eau devient très sombre, l'écume reste claire.
+  water *= mix(vec3(1.0), vec3(0.18, 0.24, 0.32), uDayNight);
+  water += bioLight;
+  // La couleur appréciée de l'océan reste intacte partout ailleurs. Dans le
+  // large interdit, la tempête absorbe presque entièrement la couleur et la transparence.
+  float forbidden = smoothstep(0.10, 0.92, uStormColor);
+  water = mix(water, vec3(0.0015, 0.005, 0.008), forbidden * 0.96);
 
-void main() {
-  vec2 microUv = vWorld.xz * 0.34;
-  float microA = valueNoise(microUv + vec2(uTime * 0.07, -uTime * 0.05));
-  float microB = uQuality > 0.25
-    ? valueNoise(microUv * 1.83 + vec2(-uTime * 0.11, uTime * 0.08))
-    : 0.5;
-  vec2 microSlope = vec2(dFdx(microA + microB), dFdy(microA + microB)) * 0.12;
-  vec3 normal = normalize(vec3(-vSlope.x - microSlope.x, 1.0, -vSlope.y - microSlope.y));
+  // Une légère absorption vers le grand fond renforce la sensation de volume sans réfraction coûteuse.
+  water *= mix(0.92, 1.03, shallow);
 
-  float cameraDistance = length(uCameraPos.xz - vWorld.xz);
-  float strokeFade = (1.0 - smoothstep(38.0, 120.0, cameraDistance)) * uStrokes;
-  vec2 strokeUvA = vWorld.zx / 7.5 + vec2(uTime * 0.011, uTime * 0.004);
-  vec2 rotated = mat2(0.906, -0.423, 0.423, 0.906) * vWorld.zx;
-  vec2 strokeUvB = rotated / 11.0 + vec2(-uTime * 0.007, uTime * 0.005);
-  float strokes = 0.0;
-  #ifdef OCEAN_TEX
-    float strokeA = texture2D(uWaveOrm, strokeUvA).g;
-    float strokeB = texture2D(uWaveOrm, strokeUvB).g;
-    strokes = max(smoothstep(0.46, 0.56, strokeA), smoothstep(0.5, 0.6, strokeB) * 0.75);
-    vec3 waveA = texture2D(uWaveNormal, strokeUvA).xyz * 2.0 - 1.0;
-    vec3 waveB = texture2D(uWaveNormal, strokeUvB).xyz * 2.0 - 1.0;
-    normal = normalize(normal + (vec3(waveA.y, 0.0, waveA.x) + vec3(waveB.y, 0.0, waveB.x) * 0.7) * 0.32 * strokeFade);
-  #else
-    float streakA = valueNoise(vec2(strokeUvA.x * 2.2, strokeUvA.y * 9.0));
-    float streakB = valueNoise(vec2(strokeUvB.x * 2.0, strokeUvB.y * 8.0) + 17.0);
-    strokes = max(smoothstep(0.76, 0.8, streakA), smoothstep(0.78, 0.82, streakB) * 0.7);
-  #endif
-  strokes *= smoothstep(-0.25, 0.25, vHeight + (microA - 0.5) * 0.3) * strokeFade;
-
-${SHORE_GLSL}
-
-  vec3 viewDir = normalize(uCameraPos - vWorld);
-  float fresnel = 1.0 - max(dot(normal, viewDir), 0.0);
-  fresnel = 0.035 + 0.965 * pow(fresnel, 3.2);
-  vec3 sky = mix(uSkyHorizon, uSkyTop, smoothstep(0.0, 0.8, normal.y));
-  water = mix(water, sky, fresnel * 0.58);
-
-  float cloudReflection = 0.0;
-  if (uQuality > 0.75) {
-    vec2 cloudUv = vWorld.xz * 0.012 + vec2(uTime * 0.006, -uTime * 0.002);
-    float cloudField = valueNoise(cloudUv) * 0.65 + valueNoise(cloudUv * 2.1 + 7.3) * 0.35;
-    cloudReflection = smoothstep(0.62, 0.82, cloudField) * fresnel * 0.075;
+  // Tempête : une bande fine sur les crêtes, pas de grandes nappes turquoise pleines.
+  float stormFoam = 0.0;
+  if (uStorm > 0.001) {
+    float stormHeight = smoothstep(0.16, 0.72, height);
+    float stormRidge = 0.5 + 0.5 * sin(
+      vWorld.x * 0.42 + vWorld.z * 0.19 - uTime * 1.35
+      + valueNoise(vWorld.xz * 0.11) * 4.2
+    );
+    float stormCrest = smoothstep(0.88, 0.965, stormRidge) * stormHeight;
+    float stormBreakup = smoothstep(0.36, 0.68,
+      valueNoise(vWorld.xz * 0.34 + vec2(uTime * 0.09, -uTime * 0.04)));
+    stormFoam = stormCrest * stormBreakup * uStorm * 0.042;
   }
-  water = mix(water, vec3(0.72, 0.82, 0.84), cloudReflection);
+  float monsterFoam = 0.0;
+  if (uMonsterWake > 0.001) {
+    float monsterDistance = segmentDistance(vWorld.xz, uMonsterFrom, uMonsterTo);
+    float monsterBreakup = valueNoise(vWorld.xz * 0.42 + vec2(uTime * 0.18, -uTime * 0.11));
+    monsterFoam = (1.0 - smoothstep(1.4, 5.8 + monsterBreakup * 2.4, monsterDistance))
+      * uMonsterWake * smoothstep(0.18, 0.78, monsterBreakup + 0.2);
+  }
+  // Écume du rivage : liseré presque blanc, anneaux un peu plus légers ; la nuit, sur l'eau
+  // noire, les anneaux se font plus discrets (une lueur, pas des courbes de niveau).
+  float shoreAmt = max(shore.x * mix(0.94, 0.72, uDayNight), shore.y * mix(0.8, 0.4, uDayNight)) * (1.0 - forbidden);
+  float foamAmt = clamp(crest * 1.6 + stormFoam + monsterFoam * 0.48 + shoreAmt, 0.0, 0.94);
+  // Écume plus lumineuse la nuit, phosphorescente au bord des îles.
+  vec3 foamColor = uFoam * mix(1.0, 1.16, uDayNight);
+  foamColor = mix(foamColor, vec3(0.28, 0.82, 0.76), monsterFoam * uDayNight * 0.72);
+  foamColor = mix(foamColor, vec3(0.42, 0.95, 0.88), shoreAmt * uBio * 0.6);
 
-  float lambert = max(dot(normal, normalize(uSun)), 0.0);
-  float lit = mix(lambert, floor(lambert * 5.0) / 5.0, 0.38);
-  vec3 halfDir = normalize(normalize(uSun) + viewDir);
-  float roughness = mix(0.34, 0.62, microA);
-  float spec = pow(max(dot(normal, halfDir), 0.0), mix(54.0, 18.0, roughness));
-  spec *= 1.0 - uStormColor * 0.78;
-  water += vec3(1.0, 0.95, 0.84) * spec * mix(0.95, 0.45, roughness);
-  water *= 0.78 + lit * 0.52;
+  // La profondeur est simulée dans la couleur pour éviter les artefacts de tri d'un
+  // immense plan transparent. Les poissons sont composés au-dessus avec une teinte eau.
+  // (Avant l'écume : le fond teinte l'eau du lagon, jamais le trait d'écume.)
+  vec3 seabedTint = mix(vec3(0.08, 0.48, 0.55), vec3(0.36, 0.78, 0.68), depthTexture);
+  water = mix(
+    water,
+    seabedTint,
+    lagoon * 0.34 * (1.0 - fresnel) * (1.0 - uDayNight) * (1.0 - forbidden)
+  );
+  water = mix(water, foamColor, foamAmt);
+  // Masque circulaire world-space de la révélation d'introduction.
+  float dIntro = length(vWorld.xz - uIntroCenter);
+  float introEdge = smoothstep(uIntroRadius - uIntroFeather, uIntroRadius, dIntro);
+  // L'intro reste presque noir à l'extérieur, lumineux au centre.
+  float localReveal = max(uReveal, 1.0 - introEdge);
+  water = mix(vec3(0.0), water, 0.02 + 0.98 * localReveal);
 
-  float sparkleMask = hash21(floor(vWorld.xz * 2.8) + floor(uTime * 2.0));
-  float sparkle = smoothstep(0.78, 0.98, spec) * smoothstep(0.91, 1.0, sparkleMask)
-    * uSparkle * step(0.25, uQuality);
-  water = mix(water, vec3(1.0, 0.98, 0.88), sparkle * 0.8);
+  // Bord lumineux très visible autour du cercle de révélation.
+  float glow = exp(-pow((dIntro - uIntroRadius) / (uIntroFeather * 0.42), 2.0)) * uIntroGlow;
+  vec3 outWater = vec3(0.0, 0.001, 0.003);
+  float introMix = (1.0 - introEdge) + uReveal * introEdge;
+  water = mix(outWater, water, introMix);
+  water += vec3(1.0, 0.72, 0.34) * glow * 2.6;
+  water += vec3(0.4, 0.78, 1.0) * glow * 0.85;
 
-  float crestNoise = valueNoise(vWorld.xz * 0.5 - vec2(uTime * 0.12, 0.0));
-  float heightForFoam = vHeight;
-  float crestHeight = vHeight + crestNoise * 0.055;
-  float crest = smoothstep(0.48, 0.61, crestHeight)
-    * (1.0 - smoothstep(0.72, 0.91, crestHeight)) * 0.028;
-  float shoreBand = 1.0 - smoothstep(0.35, 3.2, max(edge, 0.0));
-  float shorePulse = smoothstep(0.6, 0.66,
-    0.5 + 0.5 * sin(edge * 1.65 - uTime * 1.55 + valueNoise(vWorld.xz * 0.22) * 4.0));
-  float foamBreakup = uQuality > 0.25
-    ? smoothstep(0.30, 0.72, valueNoise(vWorld.xz * 0.62 + uTime * 0.025))
-    : 0.62;
-  water = mix(water, uFoam * mix(1.0, 0.92, uDayNight), strokes * 0.62);
-  float swirl = swirlFoam(vWorld.xz + vec2(uTime * 0.25, uTime * 0.1), uTime)
-    * (1.0 - shallow) * (1.0 - smoothstep(60.0, 115.0, cameraDistance)) * step(0.25, uQuality);
-  water = mix(water, uFoam, swirl * 0.8);
-  float extraAlpha = 0.0;
-  vec3 bioLight = vec3(0.0);
-${SHARED_TAIL}
+  // Le lagon laisse franchement voir le fond, tandis que le large conserve sa masse.
+  // Aux angles rasants le Fresnel rend naturellement la surface plus réfléchissante.
+  float baseAlpha = mix(0.74, 0.46, shallow);
+  baseAlpha = mix(baseAlpha, 0.94, fresnel);
+  // L'écume du rivage est un trait opaque : elle ne se dilue pas dans l'eau claire du lagon.
+  baseAlpha += foamAmt * 0.16 + shoreAmt * 0.32 + uDayNight * 0.18 + extraAlpha - shelf * 0.08 * (1.0 - uDayNight);
+  // La nuit, le lagon n'a plus rien à montrer : il garde la masse du large au lieu de
+  // laisser voir les pentes sombres des îles (plus d'anneau noir autour des côtes).
+  baseAlpha = mix(baseAlpha, max(baseAlpha, 0.9), uDayNight);
+  // Aucun fond marin ne transparaît dans la zone interdite : la surface devient
+  // une masse d'eau noire et opaque, progressivement avec la couverture nuageuse.
+  baseAlpha = mix(baseAlpha, 1.0, forbidden);
+  baseAlpha *= mix(0.98, 1.0, introMix);
+  gl_FragColor = vec4(water, clamp(baseAlpha, 0.55, 1.0));
+  #include <colorspace_fragment>
 }
 `;
 
 export function Ocean() {
   const material = useRef<ShaderMaterial>(null);
   const seabedMaterial = useRef<ShaderMaterial>(null);
+  const coast = useRef<CoastMap | null>(null);
   const sailToPoint = useWorld((s) => s.sailToPoint);
   const quality = useWorld((state) => state.quality);
 
@@ -563,8 +502,8 @@ export function Ocean() {
       uTrail: { value: Array.from({ length: TRAIL_POINTS }, () => new Vector2(1e4, 1e4)) },
       uWake: { value: 0 },
       uBio: { value: 0 },
-      uWaveNormal: { value: null },
-      uWaveOrm: { value: null },
+      uCoast: { value: NO_COAST },
+      uCoastRect: { value: new Vector4(0, 0, 1, 0) },
       uShoals: {
         value: [
           new Vector4(homeIsland.position[0], homeIsland.position[1], homeIsland.radius, 0),
@@ -576,25 +515,17 @@ export function Ocean() {
     }),
     [],
   );
-  const seabedUniforms = useMemo(() => ({ uTime: { value: 0 }, uReveal: { value: 0 } }), []);
-  const legacyDefines = useMemo(() => (LEGACY_WATER ? { LEGACY_WATER: '' } : {}), []);
+  const seabedUniforms = useMemo(() => ({ uTime: { value: 0 }, uReveal: { value: 0 }, uNight: { value: 0 } }), []);
 
-  // Ancienne eau seulement : cartes Substance des traits peints (jeu Adobe local).
+  // Carte du rivage : cuite par tranches pendant les temps morts, puis l'écume apparaît.
   useEffect(() => {
-    if (!LEGACY_WATER) return;
-    let cancelled = false;
-    void Promise.all([loadSubstanceMap('ocean_water', 'normal'), loadSubstanceMap('ocean_water', 'orm')]).then(
-      ([normal, orm]) => {
-        const target = material.current;
-        if (cancelled || !target || !normal || !orm) return;
-        target.uniforms.uWaveNormal.value = normal;
-        target.uniforms.uWaveOrm.value = orm;
-        target.defines = { ...target.defines, OCEAN_TEX: '' };
-        target.needsUpdate = true;
-      },
-    );
+    const cancel = bakeCoastMap((map) => {
+      coast.current = map;
+    });
     return () => {
-      cancelled = true;
+      cancel();
+      coast.current?.texture.dispose();
+      coast.current = null;
     };
   }, []);
 
@@ -608,15 +539,22 @@ export function Ocean() {
         MathUtils.degToRad(camera.fov) / Math.max(state.gl.domElement.height, 1);
     }
     const reveal = useWorld.getState().reveal;
+    // Facteurs jour/nuit et heure dorée partagés (une seule vérité : lib/sky.ts).
+    const { dayNight, golden, sunAngle: angle, sunElevation } = skyState;
     if (seabedMaterial.current) {
       seabedMaterial.current.uniforms.uTime.value += Math.min(dt, 1 / 20);
       seabedMaterial.current.uniforms.uReveal.value = reveal;
+      seabedMaterial.current.uniforms.uNight.value = dayNight;
     }
 
-    // Facteurs jour/nuit et heure dorée partagés (une seule vérité : lib/sky.ts).
-    const { dayNight, golden, sunAngle: angle, sunElevation } = skyState;
-
     const u = material.current.uniforms;
+    const map = coast.current;
+    if (map && u.uCoast.value !== map.texture) {
+      u.uCoast.value = map.texture;
+      u.uCoastRect.value.set(map.rect[0], map.rect[1], map.rect[2], 0);
+    }
+    // Fondu d'apparition en temps réel (borné) : quelques secondes, même sur un appareil lent.
+    if (map) u.uCoastRect.value.w = damp(u.uCoastRect.value.w, 1, 1.6, Math.min(dt, 0.2));
     u.uDeep.value.copy(DAY_DEEP).lerp(NIGHT_DEEP, dayNight);
     u.uShallow.value.copy(DAY_SHALLOW).lerp(NIGHT_SHALLOW, dayNight);
     u.uLagoon.value.copy(DAY_LAGOON).lerp(NIGHT_LAGOON, dayNight);
@@ -683,7 +621,6 @@ export function Ocean() {
         <shaderMaterial
           ref={seabedMaterial}
           uniforms={seabedUniforms}
-          defines={legacyDefines}
           vertexShader={seabedVertexShader}
           fragmentShader={seabedFragmentShader}
         />
@@ -699,7 +636,7 @@ export function Ocean() {
           ref={material}
           uniforms={uniforms}
           vertexShader={vertexShader}
-          fragmentShader={LEGACY_WATER ? legacyFragmentShader : fragmentShader}
+          fragmentShader={fragmentShader}
           transparent
           depthWrite={false}
         />

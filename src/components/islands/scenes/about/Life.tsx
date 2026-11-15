@@ -127,36 +127,54 @@ function Gulls({ perches }: { perches: Perch[] }) {
 
 /* -------------------------------------------------------------------- moutons */
 
+/**
+ * Mouton vu de loin : un corps de laine allongé et bouclé (sphères lisses, pas de facettes
+ * qui le feraient passer pour un rocher), quatre pattes sombres bien visibles. Avant = +X.
+ */
 function sheepBody(dark: boolean) {
   const mesh = new Mesher(true, false);
   const fleece = new IcosahedronGeometry(1, 1);
-  const wool = dark ? '#3b3330' : '#f1ece2';
-  mesh.add(fleece, pose([0, 0.42, 0], [0, 0, 0], [0.36, 0.24, 0.22]), wool);
-  for (const [x, y, z] of [[0.18, 0.55, 0.08], [-0.14, 0.56, -0.07], [0.0, 0.6, 0.1], [-0.2, 0.5, 0.1]]) {
-    mesh.add(fleece, pose([x, y, z], [x, y, z], 0.13), wool);
+  const wool = dark ? '#3b3330' : '#f4f0e6';
+  const curl = dark ? '#4a403b' : '#fbf8f1';
+  mesh.add(fleece, pose([0, 0.4, 0], [0, 0, 0], [0.34, 0.2, 0.19]), wool);
+  // Boucles le long du dos et des flancs : la silhouette « nuage » d'un mouton.
+  for (const [x, y, z, r] of [
+    [0.2, 0.5, 0.06, 0.11], [0.06, 0.55, -0.07, 0.12], [-0.1, 0.55, 0.07, 0.12], [-0.24, 0.48, -0.03, 0.1],
+    [0.12, 0.42, 0.13, 0.09], [-0.12, 0.42, -0.13, 0.09],
+  ]) {
+    mesh.add(fleece, pose([x, y, z], [x * 3, y, z * 3], r), curl);
   }
-  for (const [x, z] of [[0.2, 0.1], [0.2, -0.1], [-0.2, 0.1], [-0.2, -0.1]]) {
-    mesh.rod([x, 0, z], [x, 0.3, z], 0.03, '#2a2422', 4);
+  for (const [x, z] of [[0.17, 0.09], [0.17, -0.09], [-0.18, 0.09], [-0.18, -0.09]]) {
+    mesh.rod([x, 0, z], [x, 0.3, z], 0.034, '#2a2422', 5);
   }
   fleece.dispose();
   return mesh.build()!;
 }
 
+/** Tête noire (race d'Ouessant, ou face noire des moutons de lande), oreilles, toupet. */
 function sheepHead(dark: boolean) {
   const mesh = new Mesher(true, false);
-  const face = dark ? '#2a2422' : '#3a3330';
-  mesh.add(new IcosahedronGeometry(1, 1), pose([0.1, -0.02, 0], [0, 0, -0.4], [0.13, 0.08, 0.075]), face);
-  for (const side of [-1, 1]) mesh.box([0.04, 0.03, 0.1], [0.02, 0.04, side * 0.09], [0.4 * side, 0, 0], face);
-  mesh.add(new IcosahedronGeometry(1, 0), pose([0.0, 0.05, 0]), dark ? '#3b3330' : '#f1ece2');
+  const face = dark ? '#1f1a19' : '#2f2827';
+  const skull = new IcosahedronGeometry(1, 1);
+  mesh.add(skull, pose([0.1, -0.03, 0], [0, 0, -0.45], [0.15, 0.09, 0.085]), face);
+  for (const side of [-1, 1]) mesh.box([0.05, 0.03, 0.13], [0.03, 0.04, side * 0.1], [0.45 * side, 0, 0], face);
+  mesh.add(skull, pose([0.0, 0.06, 0], [0, 0, 0], 0.07), dark ? '#4a403b' : '#fbf8f1');
+  skull.dispose();
   return mesh.build()!;
 }
 
+/**
+ * Le troupeau : chaque mouton broute autour de SA place du pré (jamais en tas), à son
+ * rythme, et l'un d'eux est noir.
+ */
 const FLOCK = [
-  { phase: 0.0, speed: 0.045, dark: false },
-  { phase: 2.1, speed: 0.038, dark: false },
-  { phase: 4.0, speed: 0.05, dark: true },
-  { phase: 5.3, speed: 0.033, dark: false },
-];
+  { home: [2.35, 3.35], phase: 0.0, speed: 0.11, dark: false },
+  { home: [1.55, 2.15], phase: 2.1, speed: 0.09, dark: false },
+  { home: [0.45, 2.8], phase: 4.0, speed: 0.12, dark: true },
+  { home: [1.3, 3.95], phase: 5.3, speed: 0.08, dark: false },
+  { home: [2.5, 2.3], phase: 1.2, speed: 0.1, dark: false },
+  { home: [0.4, 3.85], phase: 3.3, speed: 0.07, dark: false },
+] as const;
 
 function Sheep({ sampler }: { sampler: HeightSampler }) {
   const white = useRef<InstancedMesh>(null);
@@ -169,19 +187,19 @@ function Sheep({ sampler }: { sampler: HeightSampler }) {
     const time = state.clock.elapsedTime;
     let whiteIndex = 0;
     FLOCK.forEach((sheep) => {
-      // Une promenade lente en courbe de Lissajous dans le pré.
+      // Une lente promenade en courbe de Lissajous autour de sa place dans le pré.
       const t = time * sheep.speed + sheep.phase;
-      const x = PASTURE.center[0] + Math.sin(t * 1.0) * PASTURE.radius * 0.85;
-      const z = PASTURE.center[1] + Math.sin(t * 1.7 + 0.8) * PASTURE.radius * 0.6;
-      const vx = Math.cos(t) * 1.0;
-      const vz = Math.cos(t * 1.7 + 0.8) * 1.7 * 0.7;
+      const x = sheep.home[0] + Math.sin(t) * PASTURE.radius * 0.18;
+      const z = sheep.home[1] + Math.sin(t * 1.7 + 0.8) * PASTURE.radius * 0.12;
+      const vx = Math.cos(t) * 0.18;
+      const vz = Math.cos(t * 1.7 + 0.8) * 1.7 * 0.12;
       const y = sampler(x, z);
       // Broute (tête en bas), relève la tête et mâche, puis reprend.
       const graze = smoothstep(0.2, 0.5, Math.sin(time * 0.31 + sheep.phase * 3) * 0.5 + 0.5);
       const chew = Math.sin(time * 9 + sheep.phase) * 0.04 * (1 - graze);
       scratch.position.set(x, y - 0.02, z);
       scratch.rotation.set(0, Math.atan2(-vz, vx), 0);
-      scratch.scale.setScalar(1.15);
+      scratch.scale.setScalar(1.05);
       scratch.updateMatrix();
       head.position.set(0.36, 0.52 - graze * 0.24, 0);
       head.rotation.set(0, 0, -graze * 0.75 + chew);
@@ -201,19 +219,20 @@ function Sheep({ sampler }: { sampler: HeightSampler }) {
     }
   });
   const whites = FLOCK.filter((sheep) => !sheep.dark).length;
+  // Laine lisse (pas de facettes) : de loin, des moutons, pas des rochers.
   return (
     <group>
       <instancedMesh ref={white} args={[geometry.white, undefined, whites]} castShadow frustumCulled={false} raycast={() => null}>
-        <meshStandardMaterial vertexColors roughness={1} flatShading />
+        <meshStandardMaterial vertexColors roughness={1} />
       </instancedMesh>
       <instancedMesh ref={heads} args={[geometry.head, undefined, whites]} frustumCulled={false} raycast={() => null}>
-        <meshStandardMaterial vertexColors roughness={1} flatShading />
+        <meshStandardMaterial vertexColors roughness={0.9} />
       </instancedMesh>
       <instancedMesh ref={dark} args={[geometry.dark, undefined, 1]} castShadow frustumCulled={false} raycast={() => null}>
-        <meshStandardMaterial vertexColors roughness={1} flatShading />
+        <meshStandardMaterial vertexColors roughness={1} />
       </instancedMesh>
       <instancedMesh ref={darkHead} args={[geometry.darkHead, undefined, 1]} frustumCulled={false} raycast={() => null}>
-        <meshStandardMaterial vertexColors roughness={1} flatShading />
+        <meshStandardMaterial vertexColors roughness={0.9} />
       </instancedMesh>
     </group>
   );

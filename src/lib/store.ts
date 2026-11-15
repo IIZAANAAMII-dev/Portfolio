@@ -62,6 +62,8 @@ interface WorldState {
   sailToPoint: (point: Vec2) => void;
   arrive: () => void;
   close: () => void;
+  /** Mettre en panne : le bateau s'arrête en pleine mer (pause de la visite guidée). */
+  heaveTo: () => void;
   hover: (id: IslandId | null) => void;
   toggleSound: () => void;
   toggleDayNight: () => void;
@@ -128,6 +130,7 @@ export const useWorld = create<WorldState>((set, get) => ({
     logbook.stamp(`island:${destination}`);
   },
   close: () => set({ phase: 'playing', activeIsland: null }),
+  heaveTo: () => set((s) => (s.phase === 'playing' ? { destination: null, freeTarget: null } : {})),
 
   hover: (id) => set({ hovered: id }),
   toggleSound: () => set((s) => ({ soundOn: !s.soundOn })),

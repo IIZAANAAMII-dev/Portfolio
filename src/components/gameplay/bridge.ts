@@ -25,5 +25,12 @@ export const probe = {
   viewZ: -1,
 };
 
-/** Instantané du canvas WebGL, déposé par la scène juste après un rendu (mode carte postale). */
-export const darkroom: { snapshot: HTMLCanvasElement | null } = { snapshot: null };
+/**
+ * Chambre noire de la carte postale : `capture` (fourni par la scène) rend l'image et copie le
+ * canvas WebGL aussitôt, dans la même tâche — au clic, sans attendre la prochaine image,
+ * même quand le rendu est très lent. `snapshot` reçoit la copie.
+ */
+export const darkroom: { snapshot: HTMLCanvasElement | null; capture: (() => void) | null } = {
+  snapshot: null,
+  capture: null,
+};

@@ -5,26 +5,39 @@ import { useFrame } from '@react-three/fiber';
 import {
   BufferAttribute,
   BufferGeometry,
+  Euler,
   InstancedBufferAttribute,
   InstancedMesh,
   MeshStandardMaterial,
+  Quaternion,
   Vector2,
+  Vector3,
+  Vector4,
 } from 'three';
+import { boatMotion } from '@/components/boat/motion';
+import { ROOF_TOP } from '@/components/boat/breton/parts';
+import { BOAT_VARIANT } from '@/components/boat/variant';
+import { DECK, seeded } from '@/components/islands/docks/planks';
 import { homeIsland, islands } from '@/data/islands';
+import { MAX_SPEED } from '@/hooks/useBoatNavigation';
 import { boatState } from '@/lib/boat-state';
 import { ecologyState } from '@/lib/ecology';
+import { preview } from '@/lib/preview';
 import { useWorld } from '@/lib/store';
-import { hash, smoothstep } from '@/lib/utils/math';
-import { WAVE_GLSL } from '@/lib/waves';
+import { clamp, hash, smoothstep } from '@/lib/utils/math';
+import { waveHeight, WAVE_GLSL } from '@/lib/waves';
 
 /**
- * Mouettes : elles tournent au-dessus des îles, trois escortent le bateau et quelques-unes
- * se reposent sur l'eau. Tout le vol est calculé sur le GPU, un seul draw call : orbite à
- * vitesse variable, battements quand l'oiseau remonte et planés quand il redescend,
- * roulis tiré de la courbure réelle de la trajectoire, tangage, léger rebond du corps, aile
- * en deux segments (bras, main) qui se replie à la remontée. Celles qui flottent dansent
- * sur la houle et s'envolent quand le bateau approche. Elles rentrent la nuit et
- * n'apparaissent qu'après l'intro.
+ * Mouettes : elles tournent au-dessus des îles, quatre escortent le bateau, quelques-unes
+ * se reposent sur l'eau et d'autres guettent sur les pieux des pontons. Tout le vol est
+ * calculé sur le GPU, un seul draw call : orbite à vitesse variable, battements quand
+ * l'oiseau remonte et planés quand il redescend, roulis tiré de la courbure réelle de la
+ * trajectoire, tangage, léger rebond du corps, aile en deux segments (bras, main) qui se
+ * replie à la remontée. Celles qui flottent dansent sur la houle et s'envolent quand le
+ * bateau approche ; celles des pieux font de temps en temps le tour du port et s'envolent
+ * quand le bateau manœuvre au ponton ; l'une des escortes vient se poser sur le toit de la
+ * timonerie dès que le bateau s'arrête, et repart quand il reprend la mer. Les mouettes en
+ * vol rentrent la nuit (celles des pieux y dorment) ; aucune n'apparaît avant l'intro.
  */
 
 type V3 = [number, number, number];
@@ -169,7 +182,21 @@ uniform float uTime;
 uniform vec2 uBoat;
 uniform vec2 uBoatVel;
 uniform float uPresence;
+uniform float uSeated;
+uniform float uCalm;
+// Toit de la timonerie (monde) et cap de la mouette posée ; assiette du bateau et
+// avancement de l'atterrissage (0 en vol, 1 posée).
+uniform vec4 uPerch;
+uniform vec3 uPerchTilt;
 ${WAVE_GLSL}
+
+// Trajectoire courante : centre (xz), rayon, altitude (celle de l'instance, ou décalée).
+vec4 gullPathData;
+
+// Interpolation d'angles par le plus court chemin (jamais de tour complet).
+float gullAngleMix(float a, float b, float t) {
+  return a + (mod(b - a + 3.14159265, 6.2831853) - 3.14159265) * t;
+}
 
 // Tangage (autour de z), roulis (autour de l'axe du corps x), cap (autour de y).
 vec3 gullTurn(vec3 p, float pitch, float bank, float yaw) {
@@ -187,14 +214,19 @@ vec3 gullTurn(vec3 p, float pitch, float bank, float yaw) {
 // Orbite d'un oiseau : rayon qui respire, altitude qui ondule.
 vec3 gullOrbit(float a) {
   float wobble = sin(a * 2.3 + aMotion.y) * 0.16;
-  vec2 ground = aPath.xy + vec2(cos(a), sin(a)) * aPath.z * (1.0 + wobble);
-  return vec3(ground.x, aPath.w + sin(a * 1.7 + aMotion.y * 2.0) * 1.3, ground.y);
+  vec2 ground = gullPathData.xy + vec2(cos(a), sin(a)) * gullPathData.z * (1.0 + wobble);
+  return vec3(ground.x, gullPathData.w + sin(a * 1.7 + aMotion.y * 2.0) * 1.3, ground.y);
 }
 `;
 
 const FLIGHT_NORMAL = /* glsl */ `
-float gullFollow = abs(aFollow - 1.0) < 0.5 ? 1.0 : 0.0;
-float gullRest = aFollow > 1.5 ? 1.0 : 0.0;
+// Modes : 0 île, 1 escorte, 2 posée sur l'eau, 3 pieu de ponton, 4 escorte qui se pose à bord.
+float gullRider = abs(aFollow - 4.0) < 0.5 ? 1.0 : 0.0;
+float gullFollow = abs(aFollow - 1.0) < 0.5 ? 1.0 : gullRider;
+float gullRest = abs(aFollow - 2.0) < 0.5 ? 1.0 : 0.0;
+float gullPost = abs(aFollow - 3.0) < 0.5 ? 1.0 : 0.0;
+// Les envols d'une mouette de pieu tournent autour du ponton, 4,5 m au-dessus de son pieu.
+gullPathData = gullPost > 0.5 ? vec4(aPath.xyz, aPath.w + 4.5) : aPath;
 float gullDir = aMotion.x < 0.0 ? -1.0 : 1.0;
 // Vitesse qui respire : l'oiseau ralentit, accélère, jamais au même rythme que son voisin.
 float gullA = aMotion.x * uTime + aMotion.y + 0.33 * sin(uTime * 0.21 + aMotion.y * 4.0) * gullDir;
@@ -237,6 +269,50 @@ if (gullRest > 0.5) {
   gullFolded = 1.0 - smoothstep(0.0, 0.25, gullStartle);
 }
 
+if (gullPost > 0.5) {
+  // Sur son pieu : elle s'envole quand le bateau manœuvre tout près (puis se repose dès
+  // qu'il est amarré), et fait de temps en temps le tour du port. La nuit, elle dort.
+  vec2 gullPostAt = aPath.xy;
+  float gullNear = (1.0 - smoothstep(6.0, 9.5, length(gullPostAt - uBoat)))
+    * smoothstep(0.8, 2.2, length(uBoatVel));
+  float gullCycle = fract(uTime / (46.0 + fract(aMotion.y * 3.7) * 22.0) + fract(aMotion.y * 0.61));
+  float gullTrip = smoothstep(0.0, 0.03, gullCycle) * (1.0 - smoothstep(0.15, 0.19, gullCycle)) * (1.0 - uCalm);
+  float gullAir = smoothstep(0.0, 1.0, max(gullNear, gullTrip));
+  float gullSit = 1.0 - smoothstep(0.0, 0.45, gullAir);
+  // Posée : tête au vent, qui pivote de temps en temps pour surveiller le port.
+  float gullGlance = fract(uTime * 0.09 + aMotion.y);
+  float gullLook = aMotion.y * 2.0 + sin(uTime * 0.21 + aMotion.y * 5.0) * 0.45
+    + smoothstep(0.62, 0.66, gullGlance) * (1.0 - smoothstep(0.93, 0.97, gullGlance)) * 0.9;
+  gullCentre = mix(vec3(gullPostAt.x, aPath.w + 0.07, gullPostAt.y), gullCentre, gullAir);
+  gullYaw = gullAngleMix(gullYaw, gullLook, gullSit);
+  gullPitch = mix(0.1 + sin(uTime * 0.7 + aMotion.y) * 0.03, gullPitch, gullAir);
+  gullBank *= gullAir;
+  // Décollage et posé : de grands battements, puis le vol ordinaire.
+  float gullLift = smoothstep(0.0, 0.12, gullAir) * (1.0 - smoothstep(0.6, 1.0, gullAir));
+  gullFlap = max(gullFlap * smoothstep(0.35, 0.85, gullAir), gullLift);
+  gullFolded = gullSit;
+}
+
+if (gullRider > 0.5) {
+  // L'escorte vient se poser sur le toit de la timonerie : elle pique vers le bateau en
+  // plané, cabre et bat des ailes pour freiner, puis replie ses ailes et suit le roulis.
+  float gullLand = uPerchTilt.z;
+  vec2 gullToSeat = uPerch.xz - gullCentre.xz;
+  gullYaw = gullAngleMix(gullYaw, atan(gullToSeat.y, gullToSeat.x), smoothstep(0.06, 0.32, gullLand));
+  gullYaw = gullAngleMix(gullYaw, uPerch.w, smoothstep(0.86, 0.99, gullLand));
+  gullCentre = mix(gullCentre, uPerch.xyz, smoothstep(0.0, 1.0, gullLand));
+  float gullFlare = smoothstep(0.72, 0.9, gullLand) * (1.0 - smoothstep(0.95, 1.0, gullLand));
+  float gullSeated = smoothstep(0.96, 1.0, gullLand);
+  gullFlap = mix(gullFlap * (1.0 - smoothstep(0.08, 0.4, gullLand)), 1.0, gullFlare);
+  gullPitch = mix(gullPitch, -0.28, smoothstep(0.12, 0.5, gullLand) * (1.0 - gullFlare));
+  gullPitch = mix(gullPitch, 0.6, gullFlare);
+  gullBank *= 1.0 - smoothstep(0.15, 0.55, gullLand);
+  gullPitch = mix(gullPitch, 0.08 + uPerchTilt.x, gullSeated);
+  gullBank = mix(gullBank, uPerchTilt.y, gullSeated);
+  gullFolded = gullSeated;
+  gullFlap *= 1.0 - gullSeated;
+}
+
 float gullBeat = uTime * aMotion.z + aMotion.y * 5.0;
 // Épaule : légère dièdre au plané, grand battement sinon ; la main suit avec retard et
 // retombe un peu au plané (silhouette en « M » de la mouette).
@@ -274,7 +350,10 @@ if (aWing > 0.5) {
   gullLocal.y = joint.y;
   gullLocal.z = side * joint.x;
 }
-gullLocal *= aMotion.w * uPresence;
+// Les mouettes posées (pieux, toit du bateau) restent à l'échelle du décor ; celles qui
+// volent au loin sont un peu grandies pour rester lisibles.
+float gullSize = gullRider > 0.5 ? mix(aMotion.w, 0.7, smoothstep(0.5, 0.95, uPerchTilt.z)) : aMotion.w;
+gullLocal *= gullSize * (gullPost > 0.5 ? uSeated : uPresence);
 vec3 transformed = gullTurn(gullLocal, gullPitch, gullBank, gullYaw) + gullCentre;
 `;
 
@@ -283,6 +362,10 @@ const flight = {
   uBoat: { value: new Vector2() },
   uBoatVel: { value: new Vector2() },
   uPresence: { value: 0 },
+  uSeated: { value: 0 },
+  uCalm: { value: 0 },
+  uPerch: { value: new Vector4() },
+  uPerchTilt: { value: new Vector3() },
   uStorm: { value: 0 },
 };
 
@@ -296,7 +379,7 @@ function createGullMaterial() {
       .replace('#include <beginnormal_vertex>', FLIGHT_NORMAL)
       .replace('#include <begin_vertex>', FLIGHT_POSITION);
   };
-  material.customProgramCacheKey = () => 'gull-flight-v2';
+  material.customProgramCacheKey = () => 'gull-flight-v3';
   return material;
 }
 
@@ -306,13 +389,64 @@ const GULL_MATERIAL = createGullMaterial();
 interface Gull {
   center: [number, number];
   radius: number;
+  /** Altitude de vol ; pour une mouette de pieu, hauteur du sommet de son pieu. */
   altitude: number;
   speed: number;
-  /** 0 : tourne au-dessus d'une île ; 1 : escorte le bateau ; 2 : posée sur l'eau. */
-  mode: 0 | 1 | 2;
+  /**
+   * 0 : tourne au-dessus d'une île ; 1 : escorte le bateau ; 2 : posée sur l'eau ;
+   * 3 : guette sur un pieu de ponton ; 4 : escorte qui se pose à bord quand le bateau s'arrête.
+   */
+  mode: 0 | 1 | 2 | 3 | 4;
+  /** Gardée en qualité basse. */
+  keep?: boolean;
 }
 
-/** Deux ou trois mouettes par île, trois qui escortent le bateau, quelques-unes posées. */
+/**
+ * Sommets des pieux de chaque ponton (même tracé que CartoonDock : travées régulières,
+ * hauteurs tirées de la même graine), en coordonnées monde. On garde un pieu de
+ * l'avant-dernière travée : au-dessus de l'eau (la mouette se détache sur le bleu, pas sur
+ * un quai), à quelques mètres du bateau amarré au bout ; parfois son vis-à-vis aussi.
+ */
+function dockPerches() {
+  const solo = preview.solo;
+  const docks = [
+    ...(solo === null || solo === 'sea' ? [{ spot: homeIsland, end: homeIsland.radius + 4.35 }] : []),
+    ...islands
+      .filter((island) => solo === null || solo === island.id)
+      .map((island) => ({ spot: island, end: island.radius + 0.9 })),
+  ];
+  const perches: { x: number; z: number; top: number; second: boolean }[] = [];
+  docks.forEach(({ spot, end }, index) => {
+    const start = spot.radius * 0.74;
+    const span = end - start;
+    const r = seeded(start * 3.17 + end * 1.31);
+    const bents = Math.max(2, Math.round(span / 1.75) + 1);
+    const cos = Math.cos(spot.dockAngle);
+    const sin = Math.sin(spot.dockAngle);
+    const pile = (bent: number, side: number, second: boolean) => {
+      const k = bent * 2 + (side > 0 ? 1 : 0);
+      const px = start + 0.5 + (bent / (bents - 1)) * (span - 0.68);
+      const pz = side * 1.03;
+      const radius = 0.15 + r(k + 5.1) * 0.045;
+      perches.push({
+        x: spot.position[0] + px * cos - pz * sin,
+        z: spot.position[1] + px * sin + pz * cos,
+        top: DECK + 0.2 + r(k + 5.7) * 0.32 + radius * 0.97,
+        second,
+      });
+    };
+    const bent = Math.max(1, bents - 2);
+    pile(bent, 1, false);
+    // Le dernier pieu côté gauche porte la lanterne : pas de vis-à-vis sur cette travée-là.
+    if (bent < bents - 1 && hash(index * 4.7 + 1.3) > 0.45) pile(bent, -1, true);
+  });
+  return perches;
+}
+
+/**
+ * Deux ou trois mouettes par île, trois qui escortent le bateau (et une quatrième qui se
+ * pose à bord), quelques-unes posées sur l'eau, une ou deux sur les pieux de chaque ponton.
+ */
 function gulls(): Gull[] {
   const list: Gull[] = [];
   const spots = [homeIsland, ...islands];
@@ -326,6 +460,7 @@ function gulls(): Gull[] {
         altitude: 13 + hash(key + 1.1) * 10,
         speed: (0.16 + hash(key + 2.3) * 0.16) * (hash(key + 3.9) > 0.5 ? 1 : -1),
         mode: 0,
+        keep: bird === 0,
       });
     }
   });
@@ -336,8 +471,11 @@ function gulls(): Gull[] {
       altitude: 16 + bird * 2.2,
       speed: (0.3 - bird * 0.04) * (bird === 1 ? -1 : 1),
       mode: 1,
+      keep: bird !== 2,
     });
   }
+  // L'escorte la plus proche, un peu plus basse : c'est elle qui se pose à bord.
+  list.push({ center: [0, 0], radius: 7, altitude: 9.5, speed: -0.36, mode: 4, keep: true });
   // Posées dans le lagon, du côté opposé au ponton (le bateau ne les dérange qu'en passant).
   spots.forEach((spot, index) => {
     if (index % 2 === 1) return;
@@ -350,18 +488,66 @@ function gulls(): Gull[] {
         altitude: 0,
         speed: 0,
         mode: 2,
+        keep: bird === 0,
       });
     }
+  });
+  dockPerches().forEach((perch, index) => {
+    list.push({
+      center: [perch.x, perch.z],
+      radius: 5.5 + hash(index * 2.1) * 2,
+      altitude: perch.top,
+      speed: (0.36 + hash(index * 3.9) * 0.1) * (hash(index * 1.7) > 0.5 ? 1 : -1),
+      mode: 3,
+      keep: !perch.second,
+    });
   });
   return list;
 }
 
+/* --------------------------------------------------------- toit de la timonerie */
+
+/** Place de la mouette sur le toit (repère du bateau) : à l'avant, côté bâbord du mât. */
+const SEAT = new Vector3(1.38, ROOF_TOP + 0.055, -0.3);
+const seatEuler = new Euler(0, 0, 0, 'XYZ');
+const seatTurn = new Quaternion();
+const seatHeading = new Quaternion();
+const UP = new Vector3(0, 1, 0);
+const seatWorld = new Vector3();
+
+/**
+ * Pose du toit dans le monde : mêmes houle, dérive et assiette que le bateau (Boat.tsx),
+ * gîte lue directement sur le bateau. Écrit `uPerch` (position, cap) et `uPerchTilt`.
+ */
+function placeSeat(time: number, reducedMotion: boolean) {
+  const { position, heading, speed } = boatState;
+  const forwardX = Math.cos(heading);
+  const forwardZ = Math.sin(heading);
+  const drift = (Math.sin(time * 0.74) * 0.16 + Math.sin(time * 1.3 + 1.1) * 0.07 + Math.sin(time * 2.1 + 2.5) * 0.03)
+    * (reducedMotion ? 0.5 : 1);
+  const heave = waveHeight(position.x, position.z, time) + drift
+    + Math.sin(time * 1.35) * Math.min(Math.abs(speed) / MAX_SPEED, 1) * 0.055;
+  const ahead = waveHeight(position.x + forwardX * 2.45, position.z + forwardZ * 2.45, time);
+  const behind = waveHeight(position.x - forwardX * 2.45, position.z - forwardZ * 2.45, time);
+  const pitch = (ahead - behind) * 0.34 * (1 - Math.min(Math.abs(speed) / 14, 0.5)) + boatMotion.throttle * 0.028;
+  const yaw = Math.sin(time * 0.37) * 0.022 * (1 - boatMotion.throttle) * (reducedMotion ? 0.35 : 1);
+  seatEuler.set(boatMotion.roll, yaw, pitch, 'XYZ');
+  seatTurn.setFromEuler(seatEuler);
+  seatHeading.setFromAxisAngle(UP, -heading);
+  seatTurn.premultiply(seatHeading);
+  seatWorld.copy(SEAT).applyQuaternion(seatTurn);
+  flight.uPerch.value.set(position.x + seatWorld.x, heave + seatWorld.y, position.z + seatWorld.z, heading + 0.55);
+  flight.uPerchTilt.value.x = pitch;
+  flight.uPerchTilt.value.y = boatMotion.roll;
+}
+
 export function Birds() {
   const mesh = useRef<InstancedMesh>(null);
+  const landing = useRef({ still: 0, land: 0 });
   const quality = useWorld((state) => state.quality);
   const birds = useMemo(() => {
     const all = gulls();
-    return quality === 'low' ? all.filter((_, index) => index % 2 === 0) : all;
+    return quality === 'low' ? all.filter((bird) => bird.keep) : all;
   }, [quality]);
 
   const geometry = useMemo(() => {
@@ -376,7 +562,7 @@ export function Birds() {
         hash(index * 5.7) * Math.PI * 2,
         // Battement : de 1,1 à 1,5 Hz, chaque oiseau le sien.
         7 + hash(index * 8.3) * 2.4,
-        (bird.mode === 2 ? 0.85 : 0.95) + hash(index * 2.9) * 0.3,
+        bird.mode === 3 ? 0.68 + hash(index * 2.9) * 0.08 : (bird.mode === 2 ? 0.85 : 0.95) + hash(index * 2.9) * 0.3,
       ], index * 4);
       follow[index] = bird.mode;
     });
@@ -387,17 +573,35 @@ export function Birds() {
   }, [birds]);
   useEffect(() => () => geometry.dispose(), [geometry]);
 
-  useFrame((state) => {
-    const { reveal } = useWorld.getState();
-    flight.uTime.value = state.clock.elapsedTime;
+  useFrame((state, delta) => {
+    const { reveal, reducedMotion } = useWorld.getState();
+    const time = state.clock.elapsedTime;
+    // Les escales durent quelques secondes : on les compte en temps réel (borné), pour
+    // qu'un appareil lent ne les étire pas indéfiniment.
+    const dt = Math.min(delta, 0.2);
+    flight.uTime.value = time;
     flight.uBoat.value.set(boatState.position.x, boatState.position.z);
     flight.uBoatVel.value.set(
       Math.cos(boatState.heading) * boatState.speed,
       Math.sin(boatState.heading) * boatState.speed,
     );
     flight.uStorm.value = ecologyState.stormWaves;
-    flight.uPresence.value = ecologyState.birds * smoothstep(0.35, 0.95, reveal);
-    if (mesh.current) mesh.current.visible = flight.uPresence.value > 0.01;
+    const shown = smoothstep(0.35, 0.95, reveal);
+    flight.uPresence.value = ecologyState.birds * shown;
+    // Les mouettes des pieux restent la nuit (elles dorment) mais quittent la mer interdite.
+    flight.uSeated.value = shown * (0.35 + ecologyState.worldLife * 0.65) * (1 - ecologyState.stormCover);
+    flight.uCalm.value = 1 - ecologyState.birds;
+
+    // Escale : après quelques secondes d'arrêt, l'escorte descend (lentement) se poser
+    // sur le toit ; elle repart (vite) dès que le bateau reprend de la vitesse.
+    const memo = landing.current;
+    memo.still = Math.abs(boatState.speed) < 0.45 ? memo.still + dt : 0;
+    const wants = memo.still > 3.5 && ecologyState.birds > 0.5 && BOAT_VARIANT === 'breton';
+    memo.land = clamp(memo.land + (wants ? dt / 4.8 : -dt / 1.3), 0, 1);
+    placeSeat(time, reducedMotion);
+    flight.uPerchTilt.value.z = memo.land;
+
+    if (mesh.current) mesh.current.visible = Math.max(flight.uPresence.value, flight.uSeated.value) > 0.01;
   });
 
   return (

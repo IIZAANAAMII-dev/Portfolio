@@ -113,7 +113,13 @@ function CorkBoard({ position, size }: { position: [number, number, number]; siz
 }
 
 export function Workshop({ sampler }: { sampler: HeightSampler }) {
-  const placement = useMemo(() => housePose(sampler, WORKSHOP), [sampler]);
+  const placement = useMemo(() => {
+    // Posée sur son replat (config.ts) et non sur le point le plus bas de son emprise :
+    // l'escalier du port, taillé juste devant la façade, l'enfoncerait d'un demi-mètre.
+    const pose = housePose(sampler, WORKSHOP);
+    const [x, , z] = pose.position;
+    return { yaw: pose.yaw, position: [x, sampler(x, z) - 0.03, z] as [number, number, number] };
+  }, [sampler]);
   const built = useMemo(() => {
     const parts = sections();
     const info = buildHouse(WORKSHOP, (section) => parts[section], { door: -1.25, hinged: true });
@@ -150,7 +156,6 @@ export function Workshop({ sampler }: { sampler: HeightSampler }) {
   const screenMain = useRef<MeshBasicMaterial>(null);
   const embers = useRef<MeshBasicMaterial>(null);
   const interiorPaint = useRef<MeshStandardMaterial>(null);
-
   useFrame((state, delta) => {
     const dt = Math.min(delta, 1 / 30);
     const time = state.clock.elapsedTime;

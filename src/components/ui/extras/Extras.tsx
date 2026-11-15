@@ -10,6 +10,9 @@ import { AssetBoundary } from '@/components/world/AssetBoundary';
 const StaticDossier = dynamic(() => import('@/components/secret/StaticDossier'), { ssr: false });
 const MarineRadio = dynamic(() => import('./MarineRadio'), { ssr: false });
 const GameplayUI = dynamic(() => import('@/components/gameplay/GameplayUI'), { ssr: false });
+const GuidedTour = dynamic(() => import('@/components/tour/GuidedTour'), { ssr: false });
+// Paysage sonore vivant : composant minuscule, le moteur n'est chargé qu'à l'activation du son.
+const Soundscape = dynamic(() => import('@/components/audio/Soundscape'), { ssr: false });
 
 export function Extras() {
   return (
@@ -23,6 +26,8 @@ export function Extras() {
       <AssetBoundary>
         <GameplayUI />
       </AssetBoundary>
+      <AssetBoundary><GuidedTour /></AssetBoundary>
+      <AssetBoundary><Soundscape /></AssetBoundary>
     </>
   );
 }

@@ -11,6 +11,7 @@ import {
   ConeGeometry,
   Group,
   InstancedMesh,
+  Mesh,
   MeshBasicMaterial,
   MeshStandardMaterial,
   Object3D,
@@ -263,10 +264,13 @@ const _white = new Color();
 
 type Mode = 'swim' | 'dive' | 'hidden' | 'rise';
 
+const noRaycast = () => undefined;
+
 export function SeaSerpent() {
   const head = useRef<Group>(null);
   const body = useRef<Group>(null);
   const foam = useRef<InstancedMesh>(null);
+  const hit = useRef<Mesh>(null);
   const geometry = useMemo(() => bodyGeometry(), []);
   const material = useMemo(() => serpentMaterial(), []);
   const headShape = useMemo(() => headGeometry(), []);
@@ -307,6 +311,8 @@ export function SeaSerpent() {
     serpCenter(LENGTH / 2, _a);
     const visible = inSight(state.camera, _a.x, _a.z, 170);
     group.visible = visible;
+    // La cible de clic n'existe que tête hors de l'eau et en vue : jamais un trou dans la mer.
+    if (hit.current) hit.current.raycast = visible && s.submerge < 0.6 ? Mesh.prototype.raycast : noRaycast;
     if (!visible) return;
 
     // Distance du bateau au corps (quelques points le long du serpent).
@@ -445,7 +451,7 @@ export function SeaSerpent() {
         <Hotspot onActivate={greet} hoverScale={1.1}>
           <mesh geometry={headShape} material={paintMaterial()} raycast={() => null} />
           {/* Cible de clic généreuse : vue du bateau, la tête ne fait que quelques pixels. */}
-          <mesh visible={false} position={[0.35, 0.15, 0]}>
+          <mesh ref={hit} visible={false} position={[0.35, 0.15, 0]} raycast={noRaycast}>
             <sphereGeometry args={[1.6, 8, 6]} />
           </mesh>
         </Hotspot>

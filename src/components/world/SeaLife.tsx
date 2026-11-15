@@ -75,7 +75,9 @@ function FlyingFish() {
   const glides = useRef<Glide[]>(Array.from({ length: FLYERS }, () => ({
     start: -100, x: 0, z: 0, dirX: 1, dirZ: 0, length: 6, height: 1.4, duration: 1,
   })));
-  const memo = useRef({ next: 0, counter: 0, prev: -1e9 });
+  // Les exocets sortent par volées (3 à 6 vols serrés), puis plus rien pendant un moment :
+  // une rencontre, pas un effet continu.
+  const memo = useRef({ next: 0, counter: 0, prev: -1e9, burst: 0 });
 
   useFrame((state) => {
     const target = mesh.current;
@@ -89,10 +91,13 @@ function FlyingFish() {
     const fast = phase === 'playing' && boatState.speed > MAX_SPEED * 0.55 && ecologyState.dayFish > 0.3;
 
     // Nouveau vol, devant le bateau et un peu sur le côté.
+    if (!fast) m.burst = 0;
     if (fast && time > m.next) {
       m.counter += 1;
       const seed = m.counter * 7.13;
-      m.next = time + 0.45 + hash(seed) * 1.1;
+      if (m.burst <= 0) m.burst = 3 + Math.floor(hash(seed + 9.1) * 4);
+      m.burst -= 1;
+      m.next = time + (m.burst > 0 ? 0.25 + hash(seed) * 0.55 : 9 + hash(seed) * 12);
       const glide = glides.current.find((entry) => time - entry.start > entry.duration + 0.2);
       if (glide) {
         const fx = Math.cos(boatState.heading);

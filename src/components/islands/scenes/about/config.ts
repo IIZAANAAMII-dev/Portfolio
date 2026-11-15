@@ -1,6 +1,20 @@
 import { clamp, lerp, smoothstep } from '@/lib/utils/math';
 import type { IslandSceneConfig } from '../types';
-import { BASIN_FLOOR, HARBOR, HARBOR_STAIR, HILL_PATH, LIGHTHOUSE, QUAY_Y, VILLAGE_Y, rampHeight, toDock, type Ramp } from './layout';
+import {
+  BASIN_FLOOR,
+  HARBOR,
+  HARBOR_STAIR,
+  HILL_PATH,
+  LIGHTHOUSE,
+  QUAY_Y,
+  VILLAGE_Y,
+  WORKSHOP,
+  facing,
+  polar,
+  rampHeight,
+  toDock,
+  type Ramp,
+} from './layout';
 
 /**
  * Relief de l'île À propos : un hameau de pêcheurs breton.
@@ -12,6 +26,29 @@ import { BASIN_FLOOR, HARBOR, HARBOR_STAIR, HILL_PATH, LIGHTHOUSE, QUAY_Y, VILLA
 
 const LX = Math.cos(LIGHTHOUSE.angle);
 const LZ = Math.sin(LIGHTHOUSE.angle);
+
+/** L'atelier : centre et orientation de son plancher (repère de la maison, façade vers +Z). */
+const [WORKSHOP_X, WORKSHOP_Z] = polar(WORKSHOP.angle, WORKSHOP.radius);
+const WORKSHOP_YAW = facing(WORKSHOP.angle + WORKSHOP.turn);
+const WORKSHOP_COS = Math.cos(WORKSHOP_YAW);
+const WORKSHOP_SIN = Math.sin(WORKSHOP_YAW);
+
+/**
+ * Sol parfaitement plat sous l'atelier : une fois le toit levé et la façade abattue, on
+ * voit son plancher de bois — pas l'herbe d'un terrain qui remonterait au travers. Appliqué
+ * après les rampes : l'escalier du port, qui passe juste devant la façade, reste taillé
+ * (côté façade, le replat s'arrête net au pied du mur ; ailleurs il se fond en 0,8 m).
+ */
+function workshopFloor(x: number, z: number, h: number) {
+  const dx = x - WORKSHOP_X;
+  const dz = z - WORKSHOP_Z;
+  const across = Math.abs(dx * WORKSHOP_COS - dz * WORKSHOP_SIN) - (WORKSHOP.width / 2 + 0.3);
+  const lz = dx * WORKSHOP_SIN + dz * WORKSHOP_COS;
+  const along = lz > 0 ? (lz - WORKSHOP.depth / 2) * (0.8 / 0.35) : -lz - (WORKSHOP.depth / 2 + 0.3);
+  const outside = Math.max(across, along);
+  if (outside > 0.8) return h;
+  return lerp(h, VILLAGE_Y, 1 - smoothstep(0, 0.8, outside));
+}
 
 /** Secteur angulaire du village (du phare jusqu'au penty), fondu sur les bords. */
 function villageSector(angle: number) {
@@ -59,6 +96,7 @@ function sculpt(x: number, z: number, height: number) {
   // 3. L'escalier du port (vers l'atelier) et le chemin creux qui monte à la lande.
   h = ramp(x, z, h, HARBOR_STAIR);
   h = ramp(x, z, h, HILL_PATH);
+  h = workshopFloor(x, z, h);
 
   // 4. La pointe du phare : une langue de terre étroite qui descend vers son rocher.
   const along = x * LX + z * LZ;
