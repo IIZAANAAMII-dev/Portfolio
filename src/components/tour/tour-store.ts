@@ -2,6 +2,7 @@
 
 import { create } from 'zustand';
 import { useGameplay } from '@/components/gameplay/store';
+import { useRegatta } from '@/components/gameplay/regatta';
 import { ambience } from '@/lib/audio/ambience';
 import { useWorld } from '@/lib/store';
 import { TOUR_LENGTH, TOUR_STOPS } from './tour-script';
@@ -233,7 +234,9 @@ function evaluateGameplay(game: GameplaySnapshot) {
 /** Ce que fait le visiteur côté jeu (pêche, carte postale, bourriche) — lu par l'affichage. */
 export function gameplayActivity() {
   const game = useGameplay.getState();
-  return { playing: game.phase !== 'idle' || game.photo !== 'off', open: game.basketOpen };
+  // Une régate en cours compte comme une partie : la visite se met en retrait.
+  const racing = useRegatta.getState().phase !== 'off';
+  return { playing: game.phase !== 'idle' || game.photo !== 'off' || racing, open: game.basketOpen };
 }
 
 /** Branche la visite sur le monde le temps qu'elle tourne. Retourne la fonction de débranchement. */

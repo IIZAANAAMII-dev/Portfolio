@@ -99,8 +99,8 @@ void main() {
   float core = smoothstep(0.45, 0.8, body);
   vec3 color = mix(uShade, uLit, 0.3 + core * 0.7);
   float avoid = smoothstep(uAvoid.z, uAvoid.z + uAvoid.w, distance(vWorld.xz, uAvoid.xy));
-  float boat = smoothstep(4.0, 11.0, distance(vWorld.xz, uBoat.xz));
-  float alpha = body * (0.46 + core * 0.3) * uMist * vEdge * avoid * boat;
+  float boat = smoothstep(3.0, 8.0, distance(vWorld.xz, uBoat.xz));
+  float alpha = body * (0.55 + core * 0.3) * uMist * vEdge * avoid * boat;
   if (alpha < 0.004) discard;
   gl_FragColor = vec4(color, alpha);
   #include <colorspace_fragment>
@@ -184,7 +184,7 @@ export function DawnMist() {
     uniforms.uBoat.value.copy(boatState.position);
     const island = phase === 'docked' && activeIsland ? islandById[activeIsland] : null;
     // Les nappes enlacent le rivage de l'île de l'escale, sans jamais voiler l'île elle-même.
-    if (island) uniforms.uAvoid.value.set(island.position[0], island.position[1], island.radius * 0.85, 9);
+    if (island) uniforms.uAvoid.value.set(island.position[0], island.position[1], island.radius * 0.95, 6);
     else uniforms.uAvoid.value.set(0, 0, -100, 1);
   });
 

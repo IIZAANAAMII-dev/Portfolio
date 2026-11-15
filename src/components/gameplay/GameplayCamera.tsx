@@ -154,7 +154,13 @@ function develop(state: RootState) {
   const { gl, scene, camera } = state;
   const autoClear = gl.autoClear;
   const previous = gl.getRenderTarget();
+  // En qualité basse, le rendu est plafonné à 1 pixel par pixel CSS : le tirage, lui, se fait
+  // à la densité de l'écran (×2 au plus), le temps d'une image.
+  const ratio = gl.getPixelRatio();
+  const sharp = Math.min(window.devicePixelRatio || 1, 2);
+  const boost = sharp > ratio + 0.01;
   try {
+    if (boost) gl.setPixelRatio(sharp);
     gl.autoClear = true;
     gl.setRenderTarget(null);
     gl.render(scene, camera);
@@ -171,6 +177,7 @@ function develop(state: RootState) {
   } finally {
     gl.setRenderTarget(previous);
     gl.autoClear = autoClear;
+    if (boost) gl.setPixelRatio(ratio);
   }
   useGameplay.getState().captured();
 }

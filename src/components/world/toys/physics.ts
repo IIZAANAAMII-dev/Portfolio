@@ -634,7 +634,7 @@ function rotate(toy: Toy, dt: number, time: number, up: Vector3, grounded: boole
 function steerYaw(toy: Toy, dt: number) {
   let wanted = toy.yawHome;
   if (toy.shape === 'duck') {
-    wanted = toy.v.x * toy.v.x + toy.v.z * toy.v.z > 0.02 ? Math.atan2(-toy.v.z, toy.v.x) : Number.NaN;
+    wanted = toy.v.x * toy.v.x + toy.v.z * toy.v.z > 0.006 ? Math.atan2(-toy.v.z, toy.v.x) : Number.NaN;
   }
   if (Number.isNaN(wanted)) return;
   forward.set(1, 0, 0).applyQuaternion(toy.q);

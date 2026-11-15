@@ -33,6 +33,9 @@ export const squall = {
   z: 0,
   vx: 0,
   vz: 0,
+  /** Pente de la pluie poussée par le vent (m par m de chute). */
+  sx: 0,
+  sz: 0,
   /** Formation / dissipation, évitement compris (0 → 1). */
   presence: 0,
   rain: 0,
@@ -87,6 +90,13 @@ export function spawnSquall(camera: Camera, frozen = false) {
   squall.z = camera.position.z + fz * ahead + fx * lateral;
   squall.vx = fz * side * 1.45;
   squall.vz = -fx * side * 1.45;
+  // Pluie poussée par le vent : elle penche vers l'observateur et dans le sens de la dérive,
+  // le rideau sort ainsi de sous le nuage (vue plongeante) au lieu d'être caché par lui.
+  const toX = camera.position.x - squall.x;
+  const toZ = camera.position.z - squall.z;
+  const toLength = Math.hypot(toX, toZ) || 1;
+  squall.sx = (toX / toLength) * 0.55 + fz * side * 0.12;
+  squall.sz = (toZ / toLength) * 0.55 - fx * side * 0.12;
   squall.life = 88;
   squall.age = frozen ? 32 : 0;
   squall.hold = frozen;
