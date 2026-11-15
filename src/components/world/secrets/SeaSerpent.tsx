@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef } from 'react';
-import { useFrame } from '@react-three/fiber';
+import { useFrame, useThree } from '@react-three/fiber';
 import {
   AdditiveBlending,
   BufferAttribute,
@@ -18,6 +18,7 @@ import {
   SphereGeometry,
   Vector3,
 } from 'three';
+import { Hotspot } from '@/components/islands/kit';
 import { ripple } from '@/components/world/Flotsam';
 import { ambience } from '@/lib/audio/ambience';
 import { boatState } from '@/lib/boat-state';
@@ -36,7 +37,8 @@ import { at, inSight, merge, paintMaterial, piece } from './shared';
  * l'arc de la mer interdite ; au bout de son territoire il sonde, fait demi-tour sous
  * l'eau et réapparaît. Il est timide : si le bateau s'approche trop, il plonge. Le corps
  * entier est déformé sur le GPU (un seul dessin) ; la nuit, ses flancs s'illuminent de
- * points bioluminescents. Tampon « serpent » quand le bateau passe à moins de 35 m.
+ * points bioluminescents. Tampon « serpent » quand le bateau passe à moins de 35 m, ou
+ * d'un clic sur sa tête : il se dresse, hoche la tête et chante.
  */
 
 const LENGTH = 26;
@@ -282,7 +284,10 @@ export function SeaSerpent() {
     spotted: false,
     lastRipple: 0,
     lastBubbles: 0,
+    /** Dernier clic sur la tête : il se dresse, salue d'un hochement et souffle un jet. */
+    greetAt: -100,
   });
+  const clock = useThree((state) => state.clock);
 
   useEffect(() => exposeForDebug('serpent', { sim: sim.current, uniforms }), []);
 
@@ -369,8 +374,12 @@ export function SeaSerpent() {
     const curious = nearest < 45 ? Math.max(-0.9, Math.min(0.9, shortestAngle(yaw, toBoat))) : Math.sin(time * 0.6) * 0.35;
     s.look = damp(s.look, curious, 2, dt);
     const bob = Math.sin(time * 1.8) * 0.06;
-    headGroup.position.set(_a.x + Math.cos(yaw) * 0.25, _a.y + 0.18 + bob, _a.z + Math.sin(yaw) * 0.25);
-    headGroup.rotation.set(0, -(yaw + s.look), Math.atan2(fy, Math.hypot(fx, fz)) * 0.5 + Math.sin(time * 1.3) * 0.08, 'YZX');
+    // Salut (clic) : la tête se dresse d'un coup, hoche deux fois, puis se repose.
+    const greet = time - s.greetAt;
+    const rear = greet >= 0 && greet < 2.4 ? Math.sin(Math.min(1, greet / 0.35) * Math.PI * 0.5) * (1 - smooth(1.5, 2.4, greet)) : 0;
+    const nod = greet >= 0 && greet < 2.4 ? Math.sin(greet * 9) * 0.22 * rear : 0;
+    headGroup.position.set(_a.x + Math.cos(yaw) * 0.25, _a.y + 0.18 + bob + rear * 0.75, _a.z + Math.sin(yaw) * 0.25);
+    headGroup.rotation.set(0, -(yaw + s.look), Math.atan2(fy, Math.hypot(fx, fz)) * 0.5 + Math.sin(time * 1.3) * 0.08 + rear * 0.35 + nod, 'YZX');
 
     // Écume là où les bosses percent la surface, ronds dans l'eau autour de la tête.
     const foamMesh = foam.current;
@@ -416,11 +425,30 @@ export function SeaSerpent() {
     }
   });
 
+  // Un clic sur la tête (hors de l'eau) : il se dresse, chante, et c'est un tampon.
+  const greet = () => {
+    const s = sim.current;
+    if (!body.current?.visible || s.submerge > 0.6 || clock.elapsedTime - s.greetAt < 2.4) return;
+    s.greetAt = clock.elapsedTime;
+    serpCenter(0, _b);
+    ripple(_b.x, _b.z, clock.elapsedTime, 1.4);
+    emitBubbles(_b.x, -0.2, _b.z, 14, 0.9, 1.2);
+    ambience.splash(0.3);
+    ambience.whale();
+    logbook.stamp('serpent');
+  };
+
   return (
     <group ref={body} visible={false}>
       <mesh geometry={geometry} material={material} frustumCulled={false} raycast={() => null} />
       <group ref={head}>
-        <mesh geometry={headShape} material={paintMaterial()} raycast={() => null} />
+        <Hotspot onActivate={greet} hoverScale={1.1}>
+          <mesh geometry={headShape} material={paintMaterial()} raycast={() => null} />
+          {/* Cible de clic généreuse : vue du bateau, la tête ne fait que quelques pixels. */}
+          <mesh visible={false} position={[0.35, 0.15, 0]}>
+            <sphereGeometry args={[1.6, 8, 6]} />
+          </mesh>
+        </Hotspot>
       </group>
       <instancedMesh ref={foam} args={[foamGeometry, foamMaterial, FOAM]} frustumCulled={false} renderOrder={3} raycast={() => null} />
     </group>
