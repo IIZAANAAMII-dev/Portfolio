@@ -274,7 +274,28 @@ export function buildBoatGeometries() {
   for (const side of [1, -1]) {
     rod(shop, new Vector3(mx, 3.04, 0.34 * side), new Vector3(0.25, ROOF_TOP, 0.7 * side), 0.008, C.black);
   }
-  rod(shop, new Vector3(mx, my - 0.02, 0), new Vector3(rakeX(1, sheer(1), 0) - 0.04, sheer(1) + 0.04, 0), 0.008, C.black);
+  const stayFrom = new Vector3(mx, my - 0.02, 0);
+  const stayTo = new Vector3(rakeX(1, sheer(1), 0) - 0.04, sheer(1) + 0.04, 0);
+  rod(shop, stayFrom, stayTo, 0.008, C.black);
+  {
+    // Pavois de fête le long de l'étai : fanions triangulaires aux couleurs des pavillons de l'archipel.
+    const bunting: number[] = [];
+    const colors: string[] = [];
+    const palette = ['#c9553f', '#e0a93f', '#3f8f8a', '#efe2c4'];
+    const count = 9;
+    for (let index = 0; index < count; index++) {
+      const t0 = 0.1 + (index / count) * 0.84;
+      const t1 = t0 + 0.06;
+      const a = stayFrom.clone().lerp(stayTo, t0);
+      const b = stayFrom.clone().lerp(stayTo, t1);
+      const tip = a.clone().lerp(b, 0.5).add(new Vector3(-0.02, -0.17, 0));
+      const sway = (seeded(index * 1.7) - 0.5) * 0.06;
+      bunting.push(a.x, a.y, a.z, b.x, b.y, b.z, tip.x, tip.y, tip.z + sway);
+      bunting.push(a.x, a.y, a.z, tip.x, tip.y, tip.z + sway, b.x, b.y, b.z);
+      colors.push(palette[index % palette.length], palette[index % palette.length]);
+    }
+    shop.raw(bunting, (_x, _y, _z, face) => colors[face]);
+  }
   const [rx, ry] = ANCHORS.radar;
   shop.add(new BoxGeometry(0.16, ry - ROOF_TOP - 0.04, 0.16), C.navy, { at: [rx, (ry + ROOF_TOP) / 2 - 0.02, 0], flat: true });
   // Cheminée : fût rouge, bague blanche, manchon noir évasé.
