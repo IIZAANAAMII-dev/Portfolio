@@ -4,7 +4,9 @@ import { useMemo } from 'react';
 import { AssetBoundary } from '@/components/world/AssetBoundary';
 import { SubstanceScatter } from './bell-island';
 import type { SceneProps } from './kit';
+import { hash } from '@/lib/utils/math';
 import { BeachTreasures } from './props/Beach';
+import { Butterflies } from './props/Butterflies';
 import { FlowerScatter } from './props/Flowers';
 import { legacyProps } from './props/legacy';
 import { RockScatter, type RockGroup } from './props/Rocks';
@@ -13,8 +15,8 @@ import { sceneComponents, sceneConfigs } from './scenes/registry';
 /**
  * Habillage commun, entièrement procédural (identique en local et en production) :
  * galets et rochers de la grève, blocs moussus au pied des falaises, pierres dans l'herbe,
- * touffes de fleurs aux couleurs de l'île, étoiles de mer et coquillages. Six draw calls
- * en tout ; rochers et fleurs s'effacent sous les clairières des bâtiments.
+ * touffes de fleurs aux couleurs de l'île, étoiles de mer, coquillages et papillons. Six
+ * draw calls en tout ; rochers et fleurs s'effacent sous les clairières des bâtiments.
  */
 export function IslandDressing({ island, sampler, features, seed }: SceneProps & { seed: number }) {
   const { radius, dockAngle } = island;
@@ -27,10 +29,19 @@ export function IslandDressing({ island, sampler, features, seed }: SceneProps &
       { kind: 'stone', zone: { inner: radius * 0.3, outer: radius * 0.66, minHeight: plateau - 0.3, maxSlope: 0.25, ...avoid }, groups: Math.round(radius * 0.14), seed: seed + 29, size: [0.55, 0.95], satellites: [0, 1], moss: 0.9 },
     ];
   }, [dockAngle, plateau, radius, seed]);
+  // Trois papillons au-dessus du plateau.
+  const butterflies = useMemo(() => Array.from({ length: 3 }, (_, index): [number, number, number] => {
+    const angle = hash(seed * 1.7 + index * 3.1) * Math.PI * 2;
+    const spread = radius * (0.25 + hash(seed * 2.3 + index * 5.7) * 0.35);
+    const x = Math.cos(angle) * spread;
+    const z = Math.sin(angle) * spread;
+    return [x, sampler(x, z), z];
+  }), [radius, sampler, seed]);
   const avoid = { avoidAngle: dockAngle, avoidWidth: 0.42 };
   return (
     <>
       <RockScatter sampler={sampler} groups={rocks} />
+      <Butterflies spots={butterflies} seed={seed} />
       <FlowerScatter
         sampler={sampler}
         zone={{ inner: 0, outer: radius * 0.76, minHeight: plateau - 0.4, maxSlope: 0.22, ...avoid }}

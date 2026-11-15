@@ -90,26 +90,43 @@ vec3 tP = vTerrainPos;
 float tLarge = terrainFbm(tP * 0.17);
 float tSmall = terrainNoise(tP * 1.6);
 
-// Sable : sec et clair en haut de plage, mouillé près de l'eau, rides qui suivent la pente.
-float tWet = 1.0 - smoothstep(${WATERLINE_HEIGHT.toFixed(2)} - 0.1, ${WATERLINE_HEIGHT.toFixed(2)} + 0.5, tP.y + (tSmall - 0.5) * 0.14);
+// Sable : sec et clair en haut de plage, mouillé près de l'eau. La limite mouillée monte et
+// redescend au rythme du ressac, soulignée d'une dentelle d'écume ; le sable sec porte des
+// rides de vent et quelques grains de coquillages.
+float tSwash = sin(uCloudTime * 0.9 + atan(tP.z, tP.x) * 2.0 + tLarge * 6.0) * 0.06;
+float tWetLevel = tP.y + (tSmall - 0.5) * 0.14 - tSwash;
+float tWet = 1.0 - smoothstep(${WATERLINE_HEIGHT.toFixed(2)} - 0.1, ${WATERLINE_HEIGHT.toFixed(2)} + 0.5, tWetLevel);
 vec3 tSand = mix(uSandDry, uSandLight, smoothstep(0.38, 0.72, tLarge));
 float tRipple = smoothstep(0.8, 1.0, sin(tP.y * 24.0 + tLarge * 10.0) * 0.5 + 0.5) * (1.0 - tWet);
-tSand = mix(tSand, uSandLight * 1.05, tRipple * 0.3);
+float tWindRipple = smoothstep(0.84, 1.0, sin(dot(tP.xz, vec2(0.84, 0.54)) * 7.5 + tLarge * 9.0 + tSmall * 1.6) * 0.5 + 0.5)
+  * smoothstep(0.42, 0.62, terrainNoise(tP * 0.55 + 11.0)) * (1.0 - tWet);
+tSand = mix(tSand, uSandLight * 1.05, max(tRipple * 0.3, tWindRipple * 0.42));
 tSand = mix(tSand, uSandWet, tWet * 0.88);
+float tFoam = (1.0 - smoothstep(0.0, 0.035, abs(tWetLevel - ${(WATERLINE_HEIGHT + 0.33).toFixed(2)}))) * smoothstep(0.35, 0.6, terrainNoise(tP * 2.3));
+tSand = mix(tSand, vec3(0.97, 0.95, 0.9), tFoam * 0.55);
 tSand *= 1.0 - step(0.972, terrainHash(floor(tP * 8.0))) * 0.1;
+tSand = mix(tSand, vec3(0.96, 0.82, 0.78), step(0.988, terrainHash(floor(tP * 13.0) + 5.0)) * (1.0 - tWet) * 0.7);
 
-// Falaise : strates ondulées, bord de strate net, arêtes supérieures éclaircies.
+// Falaise : strates ondulées, bord de strate net, arêtes supérieures éclaircies. Chaque
+// strate est « brossée » de traînées horizontales, comme une peinture au pinceau sec.
 float tLayer = tP.y * 1.1 + tLarge * 0.85 + sin(atan(tP.z, tP.x) * 3.0 + tLarge * 2.0) * 0.14;
 float tBand = fract(tLayer);
 float tIndex = mod(floor(tLayer), 4.0);
 vec3 tRock = tIndex < 0.5 ? uRockA : tIndex < 1.5 ? uRockB : tIndex < 2.5 ? uRockC : uRockD;
 tRock *= 0.9 + smoothstep(0.0, 0.14, tBand) * 0.1 + (tSmall - 0.5) * 0.08;
+float tStroke = terrainNoise(vec3(tP.x * 0.8, tLayer * 9.0, tP.z * 0.8)) * 0.6 + terrainNoise(vec3(tP.x * 2.1, tLayer * 23.0, tP.z * 2.1)) * 0.4;
+tRock *= 0.93 + tStroke * 0.13;
+tRock *= 1.0 + smoothstep(0.86, 0.97, tBand) * 0.07;
 tRock = mix(tRock, tRock * 1.22 + vec3(0.025), smoothstep(0.32, 0.7, tN.y) * 0.55);
 tRock *= uRockTint;
 
-// Herbe : grandes taches de trois verts.
+// Herbe : grandes taches de trois verts, touches de pinceau (taches à bords francs) et
+// petites touches de lumière.
 vec3 tGrass = mix(uGrassA, uGrassB, smoothstep(0.32, 0.7, tLarge));
 tGrass = mix(tGrass, uGrassC, smoothstep(0.6, 0.8, terrainFbm(tP * 0.42 + 7.0)) * 0.65);
+float tDab = floor(terrainNoise(tP * 1.15 + 3.0) * 4.0) / 3.0;
+tGrass *= 0.95 + tDab * 0.08;
+tGrass = mix(tGrass, uGrassB * 1.18, step(0.94, terrainHash(floor(tP * 4.5) + 9.0)) * 0.5);
 
 float tGrassMask = smoothstep(0.7, 0.8, tN.y + (tSmall - 0.5) * 0.1)
   * smoothstep(${BEACH_HEIGHT.toFixed(2)} + 0.12, ${BEACH_HEIGHT.toFixed(2)} + 0.42, tP.y);
@@ -164,7 +181,7 @@ export function getPaintedTerrainMaterial(cliff: SubstanceId, top: SubstanceId, 
       .replace('#include <map_fragment>', FRAGMENT_COLOR)
       .replace('#include <normal_fragment_maps>', FRAGMENT_NORMAL);
   };
-  material.customProgramCacheKey = () => 'painted-terrain-v2';
+  material.customProgramCacheKey = () => 'painted-terrain-v3';
   cache.set(key, material);
   return material;
 }

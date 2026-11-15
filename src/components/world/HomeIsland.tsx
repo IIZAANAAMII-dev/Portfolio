@@ -10,6 +10,7 @@ import { Grass } from '@/components/islands/Grass';
 import { Trees } from '@/components/islands/Trees';
 import { Terrain } from '@/components/islands/Terrain';
 import { BeachTreasures } from '@/components/islands/props/Beach';
+import { Butterflies } from '@/components/islands/props/Butterflies';
 import { Bunting } from '@/components/islands/props/Bunting';
 import { FlagPole } from '@/components/islands/props/FlagPole';
 import { FlowerScatter } from '@/components/islands/props/Flowers';
@@ -85,15 +86,24 @@ function Post({ position }: { position: [number, number, number] }) {
 function HarborDressing({ sampler, plateau }: { sampler: HeightSampler; plateau: number }) {
   const plan = useMemo(() => harborPlan(sampler), [sampler]);
   const avoid = { avoidAngle: DOCK_ANGLE, avoidWidth: 0.55 };
-  const rocks = useMemo<RockGroup[]>(() => [
-    // Galets et rochers de la grève, en petits groupes.
-    { kind: 'pebble', zone: { inner: RADIUS * 0.84, outer: RADIUS * 1.1, minHeight: -0.5, maxHeight: 0.6, ...avoid }, groups: 5, seed: 3, size: [0.55, 1.05], satellites: [1, 3] },
-    // Blocs éboulés au pied de la falaise, un peu de mousse.
-    { kind: 'boulder', zone: { inner: RADIUS * 0.7, outer: RADIUS * 0.86, minHeight: 0.4, maxHeight: plateau - 0.25, ...avoid }, groups: 3, seed: 7, size: [0.95, 1.5], satellites: [1, 2], moss: 0.55 },
-    // Deux pierres moussues dans l'herbe du plateau.
-    { kind: 'stone', zone: { inner: RADIUS * 0.3, outer: RADIUS * 0.62, minHeight: plateau - 0.3, maxSlope: 0.25, ...avoid }, groups: 2, seed: 13, size: [0.5, 0.8], satellites: [0, 1], moss: 0.9 },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  ], [plateau]);
+  const rocks = useMemo<RockGroup[]>(() => {
+    const away = { avoidAngle: DOCK_ANGLE, avoidWidth: 0.55 };
+    return [
+      // Galets et rochers de la grève, en petits groupes.
+      { kind: 'pebble', zone: { inner: RADIUS * 0.84, outer: RADIUS * 1.1, minHeight: -0.5, maxHeight: 0.6, ...away }, groups: 5, seed: 3, size: [0.55, 1.05], satellites: [1, 3] },
+      // Blocs éboulés au pied de la falaise, un peu de mousse.
+      { kind: 'boulder', zone: { inner: RADIUS * 0.7, outer: RADIUS * 0.86, minHeight: 0.4, maxHeight: plateau - 0.25, ...away }, groups: 3, seed: 7, size: [0.95, 1.5], satellites: [1, 2], moss: 0.55 },
+      // Deux pierres moussues dans l'herbe du plateau.
+      { kind: 'stone', zone: { inner: RADIUS * 0.3, outer: RADIUS * 0.62, minHeight: plateau - 0.3, maxSlope: 0.25, ...away }, groups: 2, seed: 13, size: [0.5, 0.8], satellites: [0, 1], moss: 0.9 },
+    ];
+  }, [plateau]);
+  // Papillons : autour des hortensias de la capitainerie et au-dessus de deux massifs.
+  const butterflies = useMemo<[number, number, number][]>(() => [
+    [plan.porch[0] - 0.6, plan.kioskY, plan.porch[1] + 0.4],
+    [plan.porch[0] + 0.9, plan.kioskY, plan.porch[1] - 0.6],
+    [-1.6, sampler(-1.6, 2.6), 2.6],
+    [-3.2, sampler(-3.2, -0.6), -0.6],
+  ], [plan, sampler]);
   const { stairFrom, stairTo, stairTop, kioskX, kioskY, kioskZ, kioskYaw, porch, gable, mast, post } = plan;
   const mastTop: [number, number, number] = [mast[0], mast[1] + 4.35, mast[2]];
   return (
@@ -125,6 +135,7 @@ function HarborDressing({ sampler, plateau }: { sampler: HeightSampler; plateau:
         shells={6}
         seed={9}
       />
+      <Butterflies spots={butterflies} seed={4} />
     </>
   );
 }
