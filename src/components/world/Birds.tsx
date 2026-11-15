@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import {
   BufferAttribute,
@@ -30,7 +30,8 @@ import { WAVE_GLSL } from '@/lib/waves';
 type V3 = [number, number, number];
 
 const WHITE: V3 = [0.97, 0.97, 0.95];
-const MANTLE: V3 = [0.63, 0.68, 0.75];
+// Gris perle presque neutre : l'ombre teintée de violet du rendu « toon » le bleuit déjà.
+const MANTLE: V3 = [0.68, 0.7, 0.72];
 const UNDERWING: V3 = [0.9, 0.92, 0.94];
 const TIP: V3 = [0.13, 0.14, 0.17];
 const BEAK: V3 = [0.99, 0.78, 0.22];
@@ -358,8 +359,10 @@ function gulls(): Gull[] {
 export function Birds() {
   const mesh = useRef<InstancedMesh>(null);
   const quality = useWorld((state) => state.quality);
-  const all = useMemo(() => gulls(), []);
-  const birds = quality === 'low' ? all.filter((_, index) => index % 2 === 0) : all;
+  const birds = useMemo(() => {
+    const all = gulls();
+    return quality === 'low' ? all.filter((_, index) => index % 2 === 0) : all;
+  }, [quality]);
 
   const geometry = useMemo(() => {
     const result = GULL_GEOMETRY.clone();
@@ -382,6 +385,7 @@ export function Birds() {
     result.setAttribute('aFollow', new InstancedBufferAttribute(follow, 1));
     return result;
   }, [birds]);
+  useEffect(() => () => geometry.dispose(), [geometry]);
 
   useFrame((state) => {
     const { reveal } = useWorld.getState();

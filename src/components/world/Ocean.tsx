@@ -6,17 +6,23 @@ import { Color, MathUtils, PerspectiveCamera, ShaderMaterial, Vector2, Vector3, 
 import { homeIsland, islands } from '@/data/islands';
 import { islets } from '@/data/islets';
 import { yellowStaticIsland } from '@/data/yellow-static';
+import { BOAT_FRAME } from '@/components/boat/BoatModel';
+import { boatState } from '@/lib/boat-state';
 import { CLOUD_SHADOW_GLSL, cloudClock } from '@/lib/materials/cloud-shadow';
 import { ecologyState } from '@/lib/ecology';
 import { skyState } from '@/lib/sky';
 import { useWorld } from '@/lib/store';
 import { QUALITY_LEVELS } from '@/lib/quality';
+import { damp } from '@/lib/utils/math';
 import { WAVE_GLSL } from '@/lib/waves';
 import { loadSubstanceMap } from '@/lib/materials/substance-material';
-import { CREST_STROKES_GLSL, SUN_GLITTER_GLSL } from './ocean-strokes';
+import { CREST_STROKES_GLSL, SUN_GLITTER_GLSL, wakeTraceGlsl } from './ocean-strokes';
 
 const OCEAN_SIZE = 1200;
 const SHOAL_COUNT = 11;
+/** Trace récente de la poupe : 6 points espacés de 2,4 m, la longueur du sillage dessiné (Wake.tsx). */
+const TRAIL_POINTS = 6;
+const TRAIL_SPACING = 2.4;
 
 /** TEMPORAIRE (comparaisons avant / après) : `?water=old` rend l'ancienne eau. */
 const LEGACY_WATER =
@@ -184,6 +190,8 @@ const SHARED_TAIL = /* glsl */ `
   water *= 1.0 - cloudShadow(vWorld.xz, uCloudTime) * 0.2 * (1.0 - uDayNight);
   // Assombrissement nocturne : l'eau devient très sombre, l'écume reste claire.
   water *= mix(vec3(1.0), vec3(0.18, 0.24, 0.32), uDayNight);
+  // Lueurs propres à chaque eau (plancton la nuit), posées sur l'eau assombrie.
+  water += bioLight;
   // La couleur appréciée de l'océan reste intacte partout ailleurs. Dans le
   // large interdit, la tempête absorbe presque entièrement la couleur et la transparence.
   float forbidden = smoothstep(0.10, 0.92, uStormColor);
@@ -280,7 +288,12 @@ ${WAVE_GLSL}
 ${SHARED_GLSL}
 ${CREST_STROKES_GLSL}
 ${SUN_GLITTER_GLSL}
+${wakeTraceGlsl(TRAIL_POINTS)}
 uniform float uPixelAngle;
+// Bateau : position (xy) et cap (zw = avant) ; force du sillage (vitesse) ; plancton (nuit).
+uniform vec4 uBoat;
+uniform float uWake;
+uniform float uBio;
 
 // Sens de propagation de la houle principale (voir lib/waves.ts : sin(k·x + ωt) avance
 // vers -d), et une seconde famille de traits à peine plus oblique : tout s'écoule dans le
@@ -365,9 +378,28 @@ ${SHORE_GLSL}
     ? smoothstep(0.30, 0.72, valueNoise(p * 0.62 + uTime * 0.025))
     : 0.62;
 
+  // Sillage net : autour de la coque et derrière la poupe, ni trait ni remous ne viennent
+  // brouiller le sillage dessiné (Wake.tsx) ; la nuit, le plancton s'y allume doucement.
+  float wakeLane = 0.0;
+  float wakeGlow = 0.0;
+  vec2 fromBoat = p - uBoat.xy;
+  if (dot(fromBoat, fromBoat) < 576.0) {
+    vec2 trace = wakeTrace(p);
+    float wakeHalf = 1.0 + trace.y * 3.2;
+    float lane = (1.0 - smoothstep(wakeHalf, wakeHalf + 1.8, trace.x)) * uWake;
+    // Coque : ellipse dans le repère du bateau (x vers l'avant).
+    vec2 hull = vec2(dot(fromBoat, uBoat.zw), dot(fromBoat, vec2(-uBoat.w, uBoat.z)));
+    float hullDistance = length(hull / vec2(4.2, 1.9));
+    wakeLane = max(lane, 1.0 - smoothstep(0.75, 1.25, hullDistance));
+    wakeGlow = max(
+      exp(-trace.x * trace.x / (wakeHalf * wakeHalf)) * (1.0 - trace.y) * uWake,
+      (1.0 - smoothstep(0.55, 1.35, hullDistance)) * (0.3 + 0.7 * uWake)
+    );
+  }
+
   // Traits de crête dessinés : ils naissent sur le dos de la houle, avancent avec elle et
   // s'effacent au loin (où ils deviendraient plus fins qu'un pixel) et dans les lagons.
-  float strokeFade = (1.0 - smoothstep(45.0, 135.0, cameraDistance)) * uStrokes;
+  float strokeFade = (1.0 - smoothstep(45.0, 135.0, cameraDistance)) * uStrokes * (1.0 - wakeLane);
   float crestMask = smoothstep(-0.1, 0.2, height);
   // Un trait vu par le bout se raccourcit et ne montre plus que son ondulation (un
   // « ver ») : les traits alignés avec le regard s'effacent, les traits de travers restent.
@@ -383,15 +415,21 @@ ${SHORE_GLSL}
       lines = max(lines, crestStroke(p, SWELL_B, vec2(12.0, 7.5), 0.3, uTime, 17.3, 0.3, 0.12, pxB) * 0.8 * sideOnB);
     }
   }
-  lines *= strokeFade * crestMask * (1.0 - lagoon * 0.65) * (1.0 - shoreBand);
+  lines *= strokeFade * crestMask * (1.0 - lagoon * 0.5) * (1.0 - shoreBand);
   vec3 lineColor = mix(uFoam, uSkyHorizon * 1.12, 0.2) * mix(1.0, 0.92, uDayNight);
   water = mix(water, lineColor, lines * 0.72);
 
   // Remous au large, plus visibles près de la caméra, absents des lagons.
   float swirl = swirlFoam(p + vec2(uTime * 0.25, uTime * 0.1), uTime)
-    * (1.0 - shallow) * (1.0 - smoothstep(60.0, 115.0, cameraDistance)) * step(0.25, uQuality);
+    * (1.0 - shallow) * (1.0 - smoothstep(60.0, 115.0, cameraDistance)) * step(0.25, uQuality)
+    * (1.0 - wakeLane);
   water = mix(water, uFoam, swirl * 0.8);
   float extraAlpha = lines * 0.18;
+
+  // Nuit : plancton bioluminescent réveillé par la coque et le sillage ; les traits de
+  // crête et les remous en gardent un liseré turquoise.
+  vec3 bioLight = (vec3(0.03, 0.46, 0.42) * wakeGlow * 0.75
+    + vec3(0.1, 0.56, 0.5) * max(lines, swirl * 0.7) * 0.24) * uBio * (1.0 - uStormColor);
 ${SHARED_TAIL}
 }
 `;
@@ -483,6 +521,7 @@ ${SHORE_GLSL}
     * (1.0 - shallow) * (1.0 - smoothstep(60.0, 115.0, cameraDistance)) * step(0.25, uQuality);
   water = mix(water, uFoam, swirl * 0.8);
   float extraAlpha = 0.0;
+  vec3 bioLight = vec3(0.0);
 ${SHARED_TAIL}
 }
 `;
@@ -520,6 +559,10 @@ export function Ocean() {
       uIntroGlow: { value: 1.2 },
       uStrokes: { value: 1 },
       uPixelAngle: { value: 0.001 },
+      uBoat: { value: new Vector4(0, 0, 1, 0) },
+      uTrail: { value: Array.from({ length: TRAIL_POINTS }, () => new Vector2(1e4, 1e4)) },
+      uWake: { value: 0 },
+      uBio: { value: 0 },
       uWaveNormal: { value: null },
       uWaveOrm: { value: null },
       uShoals: {
@@ -601,6 +644,30 @@ export function Ocean() {
     u.uMonsterWake.value = ecologyState.monsterWake;
     u.uMonsterFrom.value.set(ecologyState.monsterFromX, ecologyState.monsterFromZ);
     u.uMonsterTo.value.set(ecologyState.monsterToX, ecologyState.monsterToZ);
+
+    // Sillage : même force (vitesse) que le sillage dessiné, et trace de la poupe.
+    const { position, heading, speed } = boatState;
+    const forwardX = Math.cos(heading);
+    const forwardZ = Math.sin(heading);
+    u.uBoat.value.set(position.x, position.z, forwardX, forwardZ);
+    u.uWake.value = damp(
+      u.uWake.value,
+      Math.min(Math.max((Math.abs(speed) - 0.35) / 7.15, 0), 1) * (1 - ecologyState.leviathanAttack),
+      4,
+      Math.min(dt, 1 / 30),
+    );
+    u.uBio.value = ecologyState.plankton;
+    const trail = u.uTrail.value as Vector2[];
+    const sternX = position.x - forwardX * BOAT_FRAME.stern * 0.92;
+    const sternZ = position.z - forwardZ * BOAT_FRAME.stern * 0.92;
+    const step = Math.hypot(sternX - trail[1].x, sternZ - trail[1].y);
+    if (step > TRAIL_SPACING * 3) {
+      // Premier passage ou bateau replacé (accostage direct) : trace repliée sur la poupe.
+      for (const point of trail) point.set(sternX, sternZ);
+    } else if (step >= TRAIL_SPACING) {
+      for (let index = TRAIL_POINTS - 1; index > 0; index--) trail[index].copy(trail[index - 1]);
+    }
+    trail[0].set(sternX, sternZ);
   });
 
   const onOceanClick = (event: ThreeEvent<MouseEvent>) => {

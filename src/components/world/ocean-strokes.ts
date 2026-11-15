@@ -96,7 +96,10 @@ float sunGlitter(vec2 p, vec2 sunH, float distance, float camHeight, float pixel
   return clamp(edge + 0.5, 0.0, 1.0);
 }
 
-/** Éclats isolés près de la caméra : petites étoiles à quatre branches. */
+/**
+ * Éclats isolés, près de la caméra et seulement dans la traînée du soleil : petites étoiles
+ * à quatre branches qui s'allument une à une.
+ */
 float sunGlints(vec2 p, float t, float px) {
   vec2 cell = vec2(3.1, 2.3);
   vec2 id = floor(p / cell);
@@ -112,3 +115,28 @@ float sunGlints(vec2 p, float t, float px) {
   return max(core, ray) * clamp(size / px, 0.0, 1.0);
 }
 `;
+
+/**
+ * Trace récente de la poupe (`uTrail[0]` : la poupe, puis de plus en plus ancien) : distance
+ * au plus proche segment (x) et âge le long de la trace (y : 0 à la poupe, 1 au bout).
+ */
+export function wakeTraceGlsl(points: number) {
+  return /* glsl */ `
+uniform vec2 uTrail[${points}];
+vec2 wakeTrace(vec2 p) {
+  float best = 1e4;
+  float age = 1.0;
+  for (int i = 0; i < ${points - 1}; i++) {
+    vec2 a = uTrail[i];
+    vec2 ab = uTrail[i + 1] - a;
+    float t = clamp(dot(p - a, ab) / max(dot(ab, ab), 1e-4), 0.0, 1.0);
+    float d = length(p - a - ab * t);
+    if (d < best) {
+      best = d;
+      age = (float(i) + t) / ${(points - 1).toFixed(1)};
+    }
+  }
+  return vec2(best, age);
+}
+`;
+}
