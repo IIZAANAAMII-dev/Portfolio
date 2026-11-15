@@ -261,7 +261,9 @@ export function AIZone({ zone, spot }: ZoneProps) {
     wantHeading.fill(Number.NaN);
     wantRaise.fill(0);
     for (let index = 0; index < CUBES; index++) {
-      const tau = (t + index * HOP * 1.5) % (HOP * 3);
+      // Modulo toujours positif : une horloge négative (captures image par image) ne doit
+      // jamais donner un robot d'indice -1.
+      const tau = (((t + index * HOP * 1.5) % (HOP * 3)) + HOP * 3) % (HOP * 3);
       const hop = Math.floor(tau / HOP);
       const s = tau - hop * HOP;
       const giver = hop % 3;

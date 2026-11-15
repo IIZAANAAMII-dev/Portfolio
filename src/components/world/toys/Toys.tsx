@@ -154,14 +154,18 @@ export function Toys() {
       pyramid,
       knock: (strength = 1) => knockNow(strength, frame.time),
       restack: () => restackNow(),
-      /** Lance le bateau droit dans la pyramide depuis `distance` mètres. */
-      charge: (distance = 16, heading = 0.67) => {
+      /** Lance le bateau dans la pyramide depuis `distance` mètres (décalé de `offset` à tribord). */
+      charge: (distance = 16, heading = 0.67, offset = 0.7) => {
         const world = useWorld.getState();
         if (world.phase === 'docked') world.close();
-        boatState.position.set(raft.p.x - Math.cos(heading) * distance, 0, raft.p.z - Math.sin(heading) * distance);
+        const fx = Math.cos(heading);
+        const fz = Math.sin(heading);
+        const sx = -fz * offset;
+        const sz = fx * offset;
+        boatState.position.set(raft.p.x - fx * distance + sx, 0, raft.p.z - fz * distance + sz);
         boatState.heading = heading;
         boatState.speed = 11;
-        useWorld.getState().sailToPoint([raft.p.x + Math.cos(heading) * 14, raft.p.z + Math.sin(heading) * 14]);
+        useWorld.getState().sailToPoint([raft.p.x + fx * 14 + sx, raft.p.z + fz * 14 + sz]);
       },
     };
     return () => {

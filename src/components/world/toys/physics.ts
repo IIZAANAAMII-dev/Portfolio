@@ -444,8 +444,18 @@ function collideBoat(toy: Toy, time: number) {
   const taper = along > HULL * 0.62 ? 1 - ((along - HULL * 0.62) / (HULL * 0.38)) * 0.6 : 1;
   const reach = BOAT_FRAME.halfBeam * taper + toy.radius;
   if (distance >= reach) return;
-  const nx = distance > 1e-4 ? dx / distance : boat.sx;
-  const nz = distance > 1e-4 ? dz / distance : boat.sz;
+  let nx = distance > 1e-4 ? dx / distance : boat.sx;
+  let nz = distance > 1e-4 ? dz / distance : boat.sz;
+  if (toy.mass >= 10) {
+    // Un radeau ne se laisse pas pousser droit devant : il glisse sur l'étrave et part de côté.
+    const lateral = (p.x - boat.x) * boat.sx + (p.z - boat.z) * boat.sz;
+    const side = lateral > 0.05 ? 1 : lateral < -0.05 ? -1 : Math.sin(time * 7.3) >= 0 ? 1 : -1;
+    nx += boat.sx * side * 0.9;
+    nz += boat.sz * side * 0.9;
+    const length = Math.hypot(nx, nz);
+    nx /= length;
+    nz /= length;
+  }
   p.x += nx * (reach - distance);
   p.z += nz * (reach - distance);
   const closing = -((v.x - boat.vx) * nx + (v.z - boat.vz) * nz);

@@ -21,7 +21,10 @@ const PIPE_TINT = new Color('#e9e5de');
 const dummy = new Object3D();
 const tip = new Vector3();
 const LIGHT = new Color('#f1eee8');
-const DARK = new Color('#5d5a57');
+/** Gris des bouffées de reprise : assez clair pour ne jamais passer pour des cailloux sur l'eau. */
+const DARK = new Color('#8e8982');
+/** Au plus quelques bouffées rattrapées par image : à bas FPS, le panache reste continu. */
+const CATCH_UP = 3;
 const tint = new Color();
 
 type Puff = { born: number; life: number; x: number; y: number; z: number; vx: number; vy: number; vz: number; size: number; spin: number };
@@ -57,20 +60,24 @@ export function StackSmoke({ anchor }: { anchor: RefObject<Object3D | null> }) {
     const push = Math.min(Math.max(boatMotion.accel / 6, 0), 1);
 
     // Cadence sur l'horloge (comme l'âge des bouffées) : même rythme quel que soit le FPS.
-    if (running && time >= timer.current) {
+    // Une image lente rattrape les bouffées manquées, posées là où était la cheminée à leur
+    // instant de naissance : un bateau lancé ne sème pas une file de blocs espacés.
+    if (running) stack.getWorldPosition(tip);
+    for (let spawned = 0; running && time >= timer.current && spawned < CATCH_UP; spawned++) {
+      const born = Math.max(timer.current, time - 0.3);
+      const lag = time - born;
       // Ralenti : une bouffée toutes les 0,6 s ; en route, un panache continu (bouffées jointives).
-      timer.current = time + Math.max(0.08, 0.6 - throttle * 0.48 - push * 0.15) * (0.85 + Math.random() * 0.3);
-      stack.getWorldPosition(tip);
+      timer.current = born + Math.max(0.08, 0.6 - throttle * 0.48 - push * 0.15) * (0.85 + Math.random() * 0.3);
       const index = cursor.current;
       cursor.current = (index + 1) % PUFFS;
       const puff = list[index];
       const forwardX = Math.cos(boatState.heading);
       const forwardZ = Math.sin(boatState.heading);
-      puff.born = time;
+      puff.born = born;
       puff.life = 2.7 - throttle * 0.9 + Math.random() * 0.4;
-      puff.x = tip.x;
+      puff.x = tip.x - forwardX * boatState.speed * lag;
       puff.y = tip.y + 0.05;
-      puff.z = tip.z;
+      puff.z = tip.z - forwardZ * boatState.speed * lag;
       // Montée, petite brise constante, et une part de l'élan du bateau (la bouffée « traîne »).
       puff.vx = 0.32 + forwardX * boatState.speed * 0.12 + (Math.random() - 0.5) * 0.18;
       puff.vy = 0.85 + push * 0.9 + Math.random() * 0.3;
@@ -144,7 +151,8 @@ export function StackSmoke({ anchor }: { anchor: RefObject<Object3D | null> }) {
 
   return (
     <instancedMesh ref={mesh} args={[undefined, undefined, PUFFS + PIPE]} frustumCulled={false} raycast={() => null}>
-      <icosahedronGeometry args={[1, 0]} />
+      {/* Subdivisé une fois : une bouffée ronde à facettes, pas un caillou à vingt faces. */}
+      <icosahedronGeometry args={[1, 1]} />
       <meshStandardMaterial color="#ffffff" roughness={1} flatShading />
     </instancedMesh>
   );
