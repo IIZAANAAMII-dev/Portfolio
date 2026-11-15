@@ -1,6 +1,7 @@
 'use client';
 
 import { AssetBoundary } from '@/components/world/AssetBoundary';
+import { hasSubstanceModel } from '@/lib/substance-models';
 import { SubstanceProp } from './bell-island';
 
 /** Repli procédural : quelques planches et deux pilotis. */
@@ -48,16 +49,21 @@ export function Dock({ angle, reach, end = reach + 0.9 }: { angle: number; reach
 
   return (
     <group rotation-y={-angle}>
-      <AssetBoundary fallback={<PlankDock reach={reach} />}>
-        {segments.map((x, index) => (
-          <SubstanceProp
-            key={x}
-            name="sea-dock"
-            position={[x, DECK_HEIGHT - DECK_TOP, (index % 2) * 0.04]}
-            rotation={Math.PI / 2 + (index % 2 === 0 ? 0 : Math.PI)}
-          />
-        ))}
-      </AssetBoundary>
+      {hasSubstanceModel('sea-dock') ? (
+        <AssetBoundary fallback={<PlankDock reach={reach} />}>
+          {segments.map((x, index) => (
+            <SubstanceProp
+              key={x}
+              name="sea-dock"
+              position={[x, DECK_HEIGHT - DECK_TOP, (index % 2) * 0.04]}
+              rotation={Math.PI / 2 + (index % 2 === 0 ? 0 : Math.PI)}
+            />
+          ))}
+        </AssetBoundary>
+      ) : (
+        // Modèle absent du build (GitHub Pages : collection sous licence) : les planches, sans requête.
+        <PlankDock reach={reach} />
+      )}
     </group>
   );
 }

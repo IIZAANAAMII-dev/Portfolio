@@ -13,13 +13,14 @@ import {
 } from 'three';
 import { Prop } from '@/components/islands/decor';
 import { WRECK_SITES } from '@/data/biomes';
+import { asset } from '@/lib/asset';
 import { boatState } from '@/lib/boat-state';
 import { MODEL } from '@/lib/models';
 import { skyState } from '@/lib/sky';
 import { useWorld } from '@/lib/store';
 import { hash } from '@/lib/utils/math';
 
-const WRECK_URL = '/models/living-ocean/ship-wreck.glb';
+const WRECK_URL = asset('/models/living-ocean/ship-wreck.glb');
 
 function nearBoat(center: readonly [number, number], distance: number) {
   return Math.hypot(boatState.position.x - center[0], boatState.position.z - center[1]) < distance;

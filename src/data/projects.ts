@@ -5,7 +5,8 @@ import type { Experiment, Project } from '@/types';
  * Règles : statut réel, aucun chiffre ni résultat inventé, aucun lien deviné.
  * Pour ajouter des captures réelles : déposer les images dans /public/projects/<id>/
  * puis lister leurs chemins dans `screenshots` (elles s'affichent sur les écrans 3D
- * et dans le panneau).
+ * et dans le panneau). Chemins bruts (`/projects/<id>/…`) : ceux qui les affichent les
+ * passent à `asset()` (lib/asset.ts), qui ajoute le préfixe de GitHub Pages.
  */
 export const projects: Project[] = [
   {

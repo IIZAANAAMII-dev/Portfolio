@@ -1,3 +1,5 @@
+import { asset } from '@/lib/asset';
+
 /**
  * Ambiance sonore : musique de fond + ressac généré + effets procéduraux.
  * Le contexte n'est créé qu'après un geste utilisateur, comme l'exigent les navigateurs.
@@ -118,8 +120,8 @@ class Ambience {
   private async loadWeather(context: AudioContext) {
     try {
       const [storm, thunder] = await Promise.all([
-        this.loadBuffer(context, '/audio/living-ocean/rain-pack/1.mp3'),
-        this.loadBuffer(context, '/audio/living-ocean/thunderclap.ogg'),
+        this.loadBuffer(context, asset('/audio/living-ocean/rain-pack/1.mp3')),
+        this.loadBuffer(context, asset('/audio/living-ocean/thunderclap.ogg')),
       ]);
       this.stormBuffer = storm;
       this.thunderBuffer = thunder;
@@ -131,7 +133,7 @@ class Ambience {
 
   private async loadMusic(context: AudioContext): Promise<AudioBuffer | null> {
     try {
-      const url = '/models/' + encodeURIComponent('Bateau sur l’équateur.mp3');
+      const url = asset(`/models/${encodeURIComponent('Bateau sur l’équateur.mp3')}`);
       const res = await fetch(url);
       if (!res.ok) throw new Error(`audio not found: ${res.status}`);
       const data = await res.arrayBuffer();

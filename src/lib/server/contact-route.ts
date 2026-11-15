@@ -3,6 +3,12 @@ import { site } from '@/data/site';
 /**
  * Bouteille à la mer : envoi réel du formulaire de contact.
  *
+ * Servie en `/api/contact` par `src/app/api/contact/route.server.ts` dès que le site tourne
+ * avec un serveur (`next dev`, Vercel…). EN SOMMEIL sur GitHub Pages (export statique,
+ * aucun serveur) : la route n'y est pas construite et le formulaire confie le message à
+ * la messagerie du visiteur — ou l'envoie à `NEXT_PUBLIC_CONTACT_ENDPOINT` (un service de
+ * formulaires comme Formspree) si cette variable est définie à la construction.
+ *
  * Fournisseurs, par ordre de priorité (variables d'environnement, jamais dans le code) :
  *  - RESEND_API_KEY      → e-mail via l'API Resend (CONTACT_FROM_EMAIL, CONTACT_TO_EMAIL facultatifs) ;
  *  - CONTACT_WEBHOOK_URL → POST JSON vers un webhook (Formspree, Slack, Discord, n8n…).

@@ -16,6 +16,7 @@ import {
 } from 'three';
 import { MODEL_MATERIALS, type SlotSpec, type SubstanceModelName } from './materials/model-materials';
 import { getSubstanceMaterial } from './materials/substance-material';
+import { asset } from './asset';
 
 /**
  * Accès aux modèles Substance 3D (collection Bell Island + bateau), produits par
@@ -25,10 +26,30 @@ import { getSubstanceMaterial } from './materials/substance-material';
  * nativement. Les matériaux d'origine sont neutres ; chaque emplacement est remplacé ici
  * par son habillage défini dans `lib/materials/model-materials.ts`.
  */
-const BASE = '/models/bell-island';
+const BASE = asset('/models/bell-island');
+
+/**
+ * Collection sous licence Adobe, absente du dépôt public (docs/ASSETS.md) : le build GitHub
+ * Pages relève les modèles réellement livrés (`NEXT_PUBLIC_BELL_ISLAND_MODELS`, voir
+ * next.config.ts) pour que les objets qui en dépendent prennent leur repli sans rien
+ * demander au réseau. Ailleurs (« * »), chaque modèle est tenté, AssetBoundary rattrape
+ * un fichier manquant.
+ */
+const SHIPPED = process.env.NEXT_PUBLIC_BELL_ISLAND_MODELS ?? '*';
+const shippedNames = new Set(SHIPPED.split(','));
+
+export function hasSubstanceModel(name: SubstanceModelName) {
+  return SHIPPED === '*' || shippedNames.has(name);
+}
 
 export function substanceModelUrl(name: SubstanceModelName) {
   return `${BASE}/${name}.glb`;
+}
+
+/** Adresse d'un modèle livré ; un modèle absent du build lève une erreur, rattrapée par AssetBoundary. */
+function shippedModelUrl(name: SubstanceModelName) {
+  if (!hasSubstanceModel(name)) throw new Error(`${name}.glb n’est pas livré avec ce site`);
+  return substanceModelUrl(name);
 }
 
 function isMesh(object: Object3D): object is Mesh {
@@ -110,7 +131,7 @@ export function resolveSlotMaterial(model: SubstanceModelName, source: Material)
  * Géométries et matériaux restent partagés entre clones.
  */
 export function useSubstanceModel(name: SubstanceModelName) {
-  const { scene } = useGLTF(substanceModelUrl(name));
+  const { scene } = useGLTF(shippedModelUrl(name));
   return useMemo(() => {
     const clone = scene.clone(true);
     clone.traverse((child) => {
@@ -163,7 +184,7 @@ function bakedGeometry(mesh: Mesh) {
  * pour l'instanciation : une géométrie et un matériau par pièce.
  */
 export function useSubstancePieces(name: SubstanceModelName): SubstancePiece[] {
-  const { scene } = useGLTF(substanceModelUrl(name));
+  const { scene } = useGLTF(shippedModelUrl(name));
   return useMemo(() => {
     scene.updateMatrixWorld(true);
     const pieces: SubstancePiece[] = [];
@@ -178,5 +199,5 @@ export function useSubstancePieces(name: SubstanceModelName): SubstancePiece[] {
 }
 
 export function preloadSubstanceModels(names: SubstanceModelName[]) {
-  names.forEach((name) => useGLTF.preload(substanceModelUrl(name)));
+  names.filter(hasSubstanceModel).forEach((name) => useGLTF.preload(substanceModelUrl(name)));
 }

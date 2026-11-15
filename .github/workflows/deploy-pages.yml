@@ -1,0 +1,41 @@
+name: Publier le portfolio (GitHub Pages)
+on:
+  push:
+    # La branche unique du dépôt. `main` est accepté d'avance, au cas où elle serait renommée.
+    branches: [Portfolio, main]
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: deploy-pages
+  cancel-in-progress: true
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      # Export statique servi sous https://iizaanaamii-dev.github.io/Portfolio/ (voir next.config.ts).
+      # Envoi direct du formulaire de contact : définir la variable de dépôt CONTACT_ENDPOINT
+      # (Settings → Secrets and variables → Actions → Variables), par exemple une adresse
+      # Formspree. Sans elle, le formulaire ouvre la messagerie du visiteur.
+      - run: npm run build
+        env:
+          PAGES: '1'
+          PAGES_BASE_PATH: /Portfolio
+          NEXT_PUBLIC_CONTACT_ENDPOINT: ${{ vars.CONTACT_ENDPOINT }}
+      - run: touch out/.nojekyll
+      # GitHub Pages sert la branche codex/github-pages (Settings → Pages) : on y publie le site compilé.
+      - name: Publier out/ sur la branche servie par GitHub Pages
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_branch: codex/github-pages
+          publish_dir: ./out
+          force_orphan: true
+          commit_message: 'Publication automatique'

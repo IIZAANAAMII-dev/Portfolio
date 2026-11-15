@@ -7,6 +7,7 @@ import { journey } from '@/data/journey';
 import { experiments, projects, STATUS_LABEL } from '@/data/projects';
 import { site } from '@/data/site';
 import { skillZones } from '@/data/skills';
+import { asset } from '@/lib/asset';
 import { useWorld } from '@/lib/store';
 import type { Experiment, IslandId, Project } from '@/types';
 import { fr } from './content';
@@ -194,7 +195,7 @@ function ProjectCard({ project }: { project: Project }) {
               const image = (
                 // eslint-disable-next-line @next/next/no-img-element -- captures statiques 1280 × 800
                 <img
-                  src={src}
+                  src={asset(src)}
                   alt={`Capture d’écran de ${project.title}${shots.length > 1 ? ` (${index + 1} sur ${shots.length})` : ''}`}
                   width={1280}
                   height={800}

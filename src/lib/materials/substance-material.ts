@@ -13,6 +13,7 @@ import {
   Vector4,
   type WebGLProgramParametersWithUniforms,
 } from 'three';
+import { asset } from '@/lib/asset';
 import { SUBSTANCE_TEXTURES, type SubstanceTextureSet } from './generated-textures';
 import { SUBSTANCES, type SubstanceId, type SubstanceKind } from './substances';
 
@@ -407,24 +408,32 @@ const textureCache = new Map<string, Promise<Texture | null>>();
  *  - `/textures/substance-adobe/` : exports des .sbsar Adobe (licence Substance 3D Assets),
  *    présents seulement là où le dépôt peut les contenir — listés par un manifest.json ;
  *  - `/textures/substance/` : jeu procédural du projet, toujours livré (repli).
- * Le manifeste Adobe est lu une seule fois ; son absence (404) n'est pas une erreur.
+ * Le manifeste Adobe est lu une seule fois ; son absence (404) n'est pas une erreur. Le
+ * build GitHub Pages sait s'il l'embarque (`NEXT_PUBLIC_ADOBE_TEXTURES`, relevé par
+ * next.config.ts) : sans lui, il ne le demande même pas.
  */
 type TextureSource = { base: string; set: SubstanceTextureSet };
+
+const ADOBE_BASE = asset('/textures/substance-adobe');
+const PROCEDURAL_BASE = asset('/textures/substance');
+const ADOBE_SHIPPED = process.env.NEXT_PUBLIC_ADOBE_TEXTURES !== '';
 
 let adobeManifest: Promise<Partial<Record<SubstanceId, SubstanceTextureSet>>> | null = null;
 
 function loadAdobeManifest() {
-  adobeManifest ??= fetch('/textures/substance-adobe/manifest.json', { cache: 'no-cache' })
-    .then((response) => (response.ok ? response.json() : {}))
-    .catch(() => ({}));
+  adobeManifest ??= ADOBE_SHIPPED
+    ? fetch(`${ADOBE_BASE}/manifest.json`, { cache: 'no-cache' })
+        .then((response) => (response.ok ? response.json() : {}))
+        .catch(() => ({}))
+    : Promise.resolve({});
   return adobeManifest;
 }
 
 async function textureSource(id: SubstanceId): Promise<TextureSource | null> {
   const adobe = (await loadAdobeManifest())[id];
-  if (adobe) return { base: `/textures/substance-adobe/${id}`, set: adobe };
+  if (adobe) return { base: `${ADOBE_BASE}/${id}`, set: adobe };
   const procedural = SUBSTANCE_TEXTURES[id];
-  return procedural ? { base: `/textures/substance/${id}`, set: procedural } : null;
+  return procedural ? { base: `${PROCEDURAL_BASE}/${id}`, set: procedural } : null;
 }
 
 function loadMap(id: SubstanceId, map: MapName): Promise<Texture | null> {

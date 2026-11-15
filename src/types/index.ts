@@ -75,7 +75,7 @@ export interface Project {
   parts?: SubProject[];
   /** Site public. Jamais inventé : absent si inconnu. */
   url?: string;
-  /** Captures réelles (chemins dans /public). Vide tant qu'aucune capture n'est fournie. */
+  /** Captures réelles (chemins dans /public, à passer à `asset()`). Vide tant qu'aucune capture n'est fournie. */
   screenshots?: string[];
   building: ProjectBuilding;
   accent: string;
