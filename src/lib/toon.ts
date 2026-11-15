@@ -52,6 +52,11 @@ const SHADOW_TINT = /* glsl */ `
     toonIndirectLum * toonShadowTint * 1.18,
     toonShade * 0.42
   );
+
+  // Liseré de ciel : les silhouettes captent un peu plus de lumière d'ambiance, comme le
+  // trait clair qu'un illustrateur laisse au bord des volumes. Surtout visible côté ombre.
+  float toonFresnel = smoothstep( 0.55, 0.95, 1.0 - saturate( dot( geometryNormal, geometryViewDir ) ) );
+  reflectedLight.indirectDiffuse *= 1.0 + toonFresnel * 0.45;
 }
 #endif
 `;

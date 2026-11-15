@@ -145,14 +145,15 @@ export function updateSkyPalette(time: number, reveal: number) {
 
   u.uTime.value = time;
   u.uStorm.value = storm;
-  u.uNight.value = Math.max(dayNight, 1 - smoothstep(0, 0.35, reveal));
+  // Étoiles : à la nuit tombée (pas en plein coucher), et dans le noir de l'intro.
+  u.uNight.value = Math.max(smoothstep(0.45, 0.95, dayNight), 1 - smoothstep(0, 0.35, reveal));
   u.uBrightness.value = 0.9 + 0.2 * reveal * (1 - dayNight * 0.4);
 
   // Brouillard : le lointain se fond dans la brume de l'horizon (perspective aérienne),
   // le proche garde ses couleurs.
   const fog = atmosphere.fogColor;
   fog.copy(INTRO_FOG).lerp(current.low, smoothstep(0, 0.35, reveal));
-  fog.lerp(current.high, dayLight * 0.35);
+  fog.lerp(current.zenith, dayLight * 0.35);
   fog.lerp(STORM_FOG, storm * 0.78);
   atmosphere.fogNear = 11 + lift * 39 - storm * 18;
   atmosphere.fogFar = 24
