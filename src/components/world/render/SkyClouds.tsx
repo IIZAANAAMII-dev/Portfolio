@@ -41,7 +41,7 @@ uniform float uTime;
 uniform float uWind;
 attribute vec4 aCloud;   // graine, largeur, vitesse, -
 varying vec2 vUv;
-varying float vSeed;
+flat varying float vSeed;
 varying vec3 vRight;
 varying vec3 vToCamera;
 varying float vDistance;
@@ -75,7 +75,7 @@ uniform vec3 uCloudRim;
 uniform vec3 uHorizon;
 uniform float uCloudAmount;
 varying vec2 vUv;
-varying float vSeed;
+flat varying float vSeed;
 varying vec3 vRight;
 varying vec3 vToCamera;
 varying float vDistance;
@@ -102,13 +102,15 @@ float valueNoise(vec2 p) {
 void main() {
   // Coordonnées du nuage : x ∈ [-0.5, 0.5], y ∈ [-0.11, 0.51], base plate à y = -0.07.
   vec2 p = vUv;
+  // Graine arrondie : le hachage amplifie la moindre erreur d'interpolation (traînées).
+  float seed = floor(vSeed * 10.0 + 0.5) * 0.1;
   float base = -0.07;
   float best = -1.0;
   vec2 normal2 = vec2(0.0, 1.0);
   for (int i = 0; i < 7; i++) {
     float fi = float(i);
-    float h1 = hash11(vSeed * 3.1 + fi * 1.7);
-    float h2 = hash11(vSeed * 5.3 + fi * 2.9);
+    float h1 = hash11(seed * 3.1 + fi * 1.7);
+    float h2 = hash11(seed * 5.3 + fi * 2.9);
     vec2 c;
     float r;
     if (i < 4) {
@@ -132,7 +134,7 @@ void main() {
       normal2 = d;
     }
   }
-  float edge = best + (valueNoise(p * 26.0 + vSeed * 7.0) - 0.5) * 0.08;
+  float edge = best + (valueNoise(p * 26.0 + seed * 7.0) - 0.5) * 0.08;
   float cover = smoothstep(0.0, 0.09, edge) * smoothstep(base - 0.005, base + 0.03, p.y);
   float alpha = cover * uCloudAmount * vFade;
   if (alpha < 0.004) discard;

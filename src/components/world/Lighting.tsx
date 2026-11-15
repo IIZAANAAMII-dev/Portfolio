@@ -27,14 +27,14 @@ const DAY_SUN_COLOR = new Color('#ffe8c6');
 const GOLDEN_SUN_COLOR = new Color('#ff9f5a');
 const NIGHT_SUN_COLOR = new Color('#a3c2e4');
 const DAY_SKY_COLOR = new Color('#c9cfff');
-const GOLDEN_SKY_COLOR = new Color('#d3b1ec');
+const GOLDEN_SKY_COLOR = new Color('#cba4ee');
 const TWILIGHT_SKY_COLOR = new Color('#7088c4');
 const NIGHT_SKY_COLOR = new Color('#2b3258');
 const DAY_GROUND_COLOR = new Color('#3f7276');
 const TWILIGHT_GROUND_COLOR = new Color('#28405a');
 const NIGHT_GROUND_COLOR = new Color('#1a2a3a');
 const DAY_AMBIENT = new Color('#a3a6e4');
-const GOLDEN_AMBIENT = new Color('#b59ad8');
+const GOLDEN_AMBIENT = new Color('#b394dc');
 const TWILIGHT_AMBIENT = new Color('#46598c');
 const NIGHT_AMBIENT = new Color('#2c3155');
 
@@ -114,7 +114,7 @@ export function Lighting({ shadows }: { shadows: boolean }) {
     if (sky.current) {
       sky.current.color
         .copy(DAY_SKY_COLOR)
-        .lerp(GOLDEN_SKY_COLOR, golden * 0.7)
+        .lerp(GOLDEN_SKY_COLOR, golden * 0.8)
         .lerp(NIGHT_SKY_COLOR, dayNight)
         .lerp(TWILIGHT_SKY_COLOR, dusk * 0.7);
       sky.current.groundColor.copy(DAY_GROUND_COLOR).lerp(NIGHT_GROUND_COLOR, dayNight).lerp(TWILIGHT_GROUND_COLOR, dusk);
