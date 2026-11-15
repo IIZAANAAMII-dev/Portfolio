@@ -2,20 +2,31 @@
 
 import { useEffect, useMemo, useRef } from 'react';
 import { useFrame, type ThreeEvent } from '@react-three/fiber';
-import { Color, ShaderMaterial, Vector2, Vector3, Vector4 } from 'three';
+import { Color, MathUtils, PerspectiveCamera, ShaderMaterial, Vector2, Vector3, Vector4 } from 'three';
 import { homeIsland, islands } from '@/data/islands';
 import { islets } from '@/data/islets';
 import { yellowStaticIsland } from '@/data/yellow-static';
+import { BOAT_FRAME } from '@/components/boat/BoatModel';
+import { boatState } from '@/lib/boat-state';
 import { CLOUD_SHADOW_GLSL, cloudClock } from '@/lib/materials/cloud-shadow';
 import { ecologyState } from '@/lib/ecology';
 import { skyState } from '@/lib/sky';
 import { useWorld } from '@/lib/store';
 import { QUALITY_LEVELS } from '@/lib/quality';
+import { damp } from '@/lib/utils/math';
 import { WAVE_GLSL } from '@/lib/waves';
 import { loadSubstanceMap } from '@/lib/materials/substance-material';
+import { CREST_STROKES_GLSL, SUN_GLITTER_GLSL, wakeTraceGlsl } from './ocean-strokes';
 
 const OCEAN_SIZE = 1200;
 const SHOAL_COUNT = 11;
+/** Trace récente de la poupe : 6 points espacés de 2,4 m, la longueur du sillage dessiné (Wake.tsx). */
+const TRAIL_POINTS = 6;
+const TRAIL_SPACING = 2.4;
+
+/** TEMPORAIRE (comparaisons avant / après) : `?water=old` rend l'ancienne eau. */
+const LEGACY_WATER =
+  typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('water') === 'old';
 
 const DAY_DEEP = new Color('#07547a');
 const NIGHT_DEEP = new Color('#01060c');
@@ -50,8 +61,20 @@ float hash21(vec2 p) {
   p += dot(p, p + 34.45);
   return fract(p.x * p.y);
 }
+float smoothGrain(vec2 p) {
+  vec2 i = floor(p);
+  vec2 f = fract(p);
+  f = f * f * (3.0 - 2.0 * f);
+  return mix(mix(hash21(i), hash21(i + vec2(1.0, 0.0)), f.x),
+             mix(hash21(i + vec2(0.0, 1.0)), hash21(i + 1.0), f.x), f.y);
+}
 void main() {
-  float grain = hash21(floor(vWorld.xz * 0.42));
+  #ifdef LEGACY_WATER
+    float grain = hash21(floor(vWorld.xz * 0.42));
+  #else
+    // Même variation que l'ancien grain, sans ses carreaux.
+    float grain = smoothGrain(vWorld.xz * 0.42);
+  #endif
   float dunes = 0.5 + 0.5 * sin(vWorld.x * 0.075 + sin(vWorld.z * 0.055) * 2.2);
   float causticA = sin(vWorld.x * 0.72 + uTime * 0.28) * sin(vWorld.z * 0.64 - uTime * 0.22);
   float causticB = sin((vWorld.x + vWorld.z) * 0.43 - uTime * 0.18);
@@ -82,42 +105,8 @@ void main() {
 }
 `;
 
-const fragmentShader = /* glsl */ `
-uniform float uTime;
-uniform vec3 uDeep;
-uniform vec3 uShallow;
-uniform vec3 uLagoon;
-uniform vec3 uFoam;
-uniform vec3 uSun;
-uniform vec3 uSkyTop;
-uniform vec3 uSkyHorizon;
-uniform vec3 uCameraPos;
-uniform float uSparkle;
-uniform float uDayNight;
-uniform float uQuality;
-uniform float uReveal;
-uniform float uStorm;
-uniform float uStormColor;
-uniform float uMonsterWake;
-uniform vec2 uMonsterFrom;
-uniform vec2 uMonsterTo;
-uniform vec2 uIntroCenter;
-uniform float uIntroRadius;
-uniform float uIntroFeather;
-uniform float uIntroGlow;
-uniform vec4 uShoals[${SHOAL_COUNT}];
-uniform float uStrokes;
-uniform float uCloudTime;
-#ifdef OCEAN_TEX
-  // « Stylized Ocean Water » (Substance 3D Assets) : normales des vaguelettes et, dans le
-  // canal G (rugosité), le masque des traits d'écume peints.
-  uniform sampler2D uWaveNormal;
-  uniform sampler2D uWaveOrm;
-#endif
-varying vec3 vWorld;
-varying float vHeight;
-varying vec2 vSlope;
-
+/** Fonctions communes aux deux eaux (remous, distances). */
+const SHARED_GLSL = /* glsl */ `
 float hash21(vec2 p) {
   p = fract(p * vec2(123.34, 456.21));
   p += dot(p, p + 45.32);
@@ -159,107 +148,50 @@ float segmentDistance(vec2 p, vec2 a, vec2 b) {
   float t = clamp(dot(p - a, ab) / max(dot(ab, ab), 0.001), 0.0, 1.0);
   return length(p - (a + ab * t));
 }
+`;
 
-void main() {
-  vec2 microUv = vWorld.xz * 0.34;
-  float microA = valueNoise(microUv + vec2(uTime * 0.07, -uTime * 0.05));
-  float microB = uQuality > 0.25
-    ? valueNoise(microUv * 1.83 + vec2(-uTime * 0.11, uTime * 0.08))
-    : 0.5;
-  vec2 microSlope = vec2(dFdx(microA + microB), dFdy(microA + microB)) * 0.12;
-  vec3 normal = normalize(vec3(-vSlope.x - microSlope.x, 1.0, -vSlope.y - microSlope.y));
+const SHARED_UNIFORMS = /* glsl */ `
+uniform float uTime;
+uniform vec3 uDeep;
+uniform vec3 uShallow;
+uniform vec3 uLagoon;
+uniform vec3 uFoam;
+uniform vec3 uSun;
+uniform vec3 uSkyTop;
+uniform vec3 uSkyHorizon;
+uniform vec3 uCameraPos;
+uniform float uSparkle;
+uniform float uDayNight;
+uniform float uQuality;
+uniform float uReveal;
+uniform float uStormColor;
+uniform float uMonsterWake;
+uniform vec2 uMonsterFrom;
+uniform vec2 uMonsterTo;
+uniform vec2 uIntroCenter;
+uniform float uIntroRadius;
+uniform float uIntroFeather;
+uniform float uIntroGlow;
+uniform vec4 uShoals[${SHOAL_COUNT}];
+uniform float uStrokes;
+uniform float uCloudTime;
+varying vec3 vWorld;
+varying float vHeight;
+varying vec2 vSlope;
+`;
 
-  // Traits de vagues peints : deux couches qui défilent en sens croisés. Les traits sont
-  // couchés le long des crêtes de la houle principale (axe z) et s'effacent au loin, où la
-  // répétition du motif deviendrait visible.
-  float cameraDistance = length(uCameraPos.xz - vWorld.xz);
-  float strokeFade = (1.0 - smoothstep(38.0, 120.0, cameraDistance)) * uStrokes;
-  vec2 strokeUvA = vWorld.zx / 7.5 + vec2(uTime * 0.011, uTime * 0.004);
-  vec2 rotated = mat2(0.906, -0.423, 0.423, 0.906) * vWorld.zx;
-  vec2 strokeUvB = rotated / 11.0 + vec2(-uTime * 0.007, uTime * 0.005);
-  float strokes = 0.0;
-  #ifdef OCEAN_TEX
-    float strokeA = texture2D(uWaveOrm, strokeUvA).g;
-    float strokeB = texture2D(uWaveOrm, strokeUvB).g;
-    strokes = max(smoothstep(0.46, 0.56, strokeA), smoothstep(0.5, 0.6, strokeB) * 0.75);
-    vec3 waveA = texture2D(uWaveNormal, strokeUvA).xyz * 2.0 - 1.0;
-    vec3 waveB = texture2D(uWaveNormal, strokeUvB).xyz * 2.0 - 1.0;
-    // Repère tangent : u suit z, v suit x (voir strokeUvA).
-    normal = normalize(normal + (vec3(waveA.y, 0.0, waveA.x) + vec3(waveB.y, 0.0, waveB.x) * 0.7) * 0.32 * strokeFade);
-  #else
-    float streakA = valueNoise(vec2(strokeUvA.x * 2.2, strokeUvA.y * 9.0));
-    float streakB = valueNoise(vec2(strokeUvB.x * 2.0, strokeUvB.y * 8.0) + 17.0);
-    strokes = max(smoothstep(0.76, 0.8, streakA), smoothstep(0.78, 0.82, streakB) * 0.7);
-  #endif
-  // Plus denses sur les crêtes, presque absents dans les creux.
-  strokes *= smoothstep(-0.25, 0.25, vHeight + (microA - 0.5) * 0.3) * strokeFade;
-
-  float edge = 1e4;
-  for (int i = 0; i < ${SHOAL_COUNT}; i++) {
-    vec2 delta = vWorld.xz - uShoals[i].xy;
-    float angle = atan(delta.y, delta.x);
-    float brokenCoast = sin(angle * 5.0 + float(i) * 1.7) * 0.055
-                      + sin(angle * 9.0 - float(i) * 0.9) * 0.025;
-    float radius = uShoals[i].z * (1.0 + brokenCoast);
-    edge = min(edge, length(delta) - radius);
-  }
-
-  float shallow = 1.0 - smoothstep(0.0, 22.0, max(edge, 0.0));
-  float depthTexture = valueNoise(vWorld.xz * 0.045) * 0.12;
-  float lagoon = smoothstep(0.28, 0.94, shallow) * smoothstep(0.18, 0.72, depthTexture + 0.28);
-  vec3 water = mix(uDeep, uShallow, clamp(shallow * 0.94 + depthTexture * shallow, 0.0, 1.0));
-  water = mix(water, uLagoon, lagoon * 0.72);
-
-  vec3 viewDir = normalize(uCameraPos - vWorld);
-  float fresnel = 1.0 - max(dot(normal, viewDir), 0.0);
-  fresnel = 0.035 + 0.965 * pow(fresnel, 3.2);
-  vec3 sky = mix(uSkyHorizon, uSkyTop, smoothstep(0.0, 0.8, normal.y));
-  water = mix(water, sky, fresnel * 0.58);
-
-  // Reflets de masses nuageuses très diffus : jamais de formes blanches nettes ou
-  // de textures qui glissent sur la surface comme un autocollant.
-  float cloudReflection = 0.0;
-  if (uQuality > 0.75) {
-    vec2 cloudUv = vWorld.xz * 0.012 + vec2(uTime * 0.006, -uTime * 0.002);
-    float cloudField = valueNoise(cloudUv) * 0.65 + valueNoise(cloudUv * 2.1 + 7.3) * 0.35;
-    cloudReflection = smoothstep(0.62, 0.82, cloudField) * fresnel * 0.075;
-  }
-  water = mix(water, vec3(0.72, 0.82, 0.84), cloudReflection);
-
-  float lambert = max(dot(normal, normalize(uSun)), 0.0);
-  float lit = mix(lambert, floor(lambert * 5.0) / 5.0, 0.38);
-  vec3 halfDir = normalize(normalize(uSun) + viewDir);
-  float roughness = mix(0.34, 0.62, microA);
-  float spec = pow(max(dot(normal, halfDir), 0.0), mix(54.0, 18.0, roughness));
-  spec *= 1.0 - uStormColor * 0.78;
-  water += vec3(1.0, 0.95, 0.84) * spec * mix(0.95, 0.45, roughness);
-  water *= 0.78 + lit * 0.52;
-
-  float sparkleMask = hash21(floor(vWorld.xz * 2.8) + floor(uTime * 2.0));
-  float sparkle = smoothstep(0.78, 0.98, spec) * smoothstep(0.91, 1.0, sparkleMask)
-    * uSparkle * step(0.25, uQuality);
-  water = mix(water, vec3(1.0, 0.98, 0.88), sparkle * 0.8);
-
-  float crestNoise = valueNoise(vWorld.xz * 0.5 - vec2(uTime * 0.12, 0.0));
-  float crestHeight = vHeight + crestNoise * 0.055;
-  float crest = smoothstep(0.48, 0.61, crestHeight)
-    * (1.0 - smoothstep(0.72, 0.91, crestHeight)) * 0.028;
-  float shoreBand = 1.0 - smoothstep(0.35, 3.2, max(edge, 0.0));
-  // Anneaux d'écume nets qui partent de la plage (bords francs, pas de dégradé mou).
-  float shorePulse = smoothstep(0.6, 0.66,
-    0.5 + 0.5 * sin(edge * 1.65 - uTime * 1.55 + valueNoise(vWorld.xz * 0.22) * 4.0));
-  float foamBreakup = uQuality > 0.25
-    ? smoothstep(0.30, 0.72, valueNoise(vWorld.xz * 0.62 + uTime * 0.025))
-    : 0.62;
-  water = mix(water, uFoam * mix(1.0, 0.92, uDayNight), strokes * 0.62);
-  // Remous au large, plus visibles près de la caméra, absents des lagons.
-  float swirl = swirlFoam(vWorld.xz + vec2(uTime * 0.25, uTime * 0.1), uTime)
-    * (1.0 - shallow) * (1.0 - smoothstep(60.0, 115.0, cameraDistance)) * step(0.25, uQuality);
-  water = mix(water, uFoam, swirl * 0.8);
+/**
+ * Fin commune : tempête, monstre, écume de rivage, fond, révélation d'intro, transparence.
+ * Attend `water`, `normal`, `fresnel`, `shallow`, `lagoon`, `edge`, `depthTexture`,
+ * `heightForFoam` et `extraAlpha` déjà calculés.
+ */
+const SHARED_TAIL = /* glsl */ `
   // Ombres de nuages qui glissent sur la mer (de jour).
   water *= 1.0 - cloudShadow(vWorld.xz, uCloudTime) * 0.2 * (1.0 - uDayNight);
   // Assombrissement nocturne : l'eau devient très sombre, l'écume reste claire.
   water *= mix(vec3(1.0), vec3(0.18, 0.24, 0.32), uDayNight);
+  // Lueurs propres à chaque eau (plancton la nuit), posées sur l'eau assombrie.
+  water += bioLight;
   // La couleur appréciée de l'océan reste intacte partout ailleurs. Dans le
   // large interdit, la tempête absorbe presque entièrement la couleur et la transparence.
   float forbidden = smoothstep(0.10, 0.92, uStormColor);
@@ -269,7 +201,7 @@ void main() {
   water *= mix(0.92, 1.03, shallow);
 
   // Une bande fine sur les crêtes, pas de grandes nappes turquoise pleines.
-  float stormHeight = smoothstep(0.16, 0.72, vHeight);
+  float stormHeight = smoothstep(0.16, 0.72, heightForFoam);
   float stormRidge = 0.5 + 0.5 * sin(
     vWorld.x * 0.42 + vWorld.z * 0.19 - uTime * 1.35
     + valueNoise(vWorld.xz * 0.11) * 4.2
@@ -316,13 +248,281 @@ void main() {
   // Aux angles rasants le Fresnel rend naturellement la surface plus réfléchissante.
   float baseAlpha = mix(0.74, 0.46, shallow);
   baseAlpha = mix(baseAlpha, 0.94, fresnel);
-  baseAlpha += foamAmt * 0.16 + uDayNight * 0.18;
+  baseAlpha += foamAmt * 0.16 + uDayNight * 0.18 + extraAlpha;
   // Aucun fond marin ne transparaît dans la zone interdite : la surface devient
   // une masse d'eau noire et opaque, progressivement avec la couverture nuageuse.
   baseAlpha = mix(baseAlpha, 1.0, forbidden);
   baseAlpha *= mix(0.98, 1.0, introMix);
   gl_FragColor = vec4(water, clamp(baseAlpha, 0.55, 1.0));
   #include <colorspace_fragment>
+`;
+
+/** Bord des îles : distance au rivage, eaux peu profondes, lagon (couleurs d'origine). */
+const SHORE_GLSL = /* glsl */ `
+  float edge = 1e4;
+  for (int i = 0; i < ${SHOAL_COUNT}; i++) {
+    vec2 delta = vWorld.xz - uShoals[i].xy;
+    float angle = atan(delta.y, delta.x);
+    float brokenCoast = sin(angle * 5.0 + float(i) * 1.7) * 0.055
+                      + sin(angle * 9.0 - float(i) * 0.9) * 0.025;
+    float radius = uShoals[i].z * (1.0 + brokenCoast);
+    edge = min(edge, length(delta) - radius);
+  }
+
+  float shallow = 1.0 - smoothstep(0.0, 22.0, max(edge, 0.0));
+  float depthTexture = valueNoise(vWorld.xz * 0.045) * 0.12;
+  float lagoon = smoothstep(0.28, 0.94, shallow) * smoothstep(0.18, 0.72, depthTexture + 0.28);
+  vec3 water = mix(uDeep, uShallow, clamp(shallow * 0.94 + depthTexture * shallow, 0.0, 1.0));
+  water = mix(water, uLagoon, lagoon * 0.72);
+`;
+
+/**
+ * Eau dessinée : la houle est lisse (hauteur et pente analytiques au pixel, plus de facettes
+ * du maillage ni de micro-bruit), et l'écriture de la mer se limite à des traits de crête
+ * nets, des remous et de rares éclats de soleil. Couleurs, lagons, écume de rivage, nuit et
+ * tempête sont strictement ceux de l'eau précédente.
+ */
+const fragmentShader = /* glsl */ `
+${SHARED_UNIFORMS}
+${WAVE_GLSL}
+${SHARED_GLSL}
+${CREST_STROKES_GLSL}
+${SUN_GLITTER_GLSL}
+${wakeTraceGlsl(TRAIL_POINTS)}
+uniform float uPixelAngle;
+// Bateau : position (xy) et cap (zw = avant) ; force du sillage (vitesse) ; plancton (nuit).
+uniform vec4 uBoat;
+uniform float uWake;
+uniform float uBio;
+
+// Sens de propagation de la houle principale (voir lib/waves.ts : sin(k·x + ωt) avance
+// vers -d), et une seconde famille de traits à peine plus oblique : tout s'écoule dans le
+// même sens, la mer reste calme et lisible.
+const vec2 SWELL_A = vec2(-0.9839, -0.1789);
+const vec2 SWELL_B = vec2(-0.8453, -0.5344);
+
+void main() {
+  vec2 p = vWorld.xz;
+  // Tailles d'un pixel (m), mesurées hors de tout branchement.
+  float pxA = max(fwidth(dot(p, SWELL_A)), 1e-4);
+  float pxB = max(fwidth(dot(p, SWELL_B)), 1e-4);
+  float px = max(length(fwidth(p)) * 0.6, 1e-4);
+
+  float height = waveHeight(p, uTime);
+  vec2 slope = waveSlope(p, uTime);
+  vec3 normal = normalize(vec3(-slope.x, 1.0, -slope.y));
+  float cameraDistance = length(uCameraPos.xz - p);
+
+${SHORE_GLSL}
+
+  vec3 viewDir = normalize(uCameraPos - vWorld);
+  float fresnel = 1.0 - max(dot(normal, viewDir), 0.0);
+  fresnel = 0.035 + 0.965 * pow(fresnel, 3.2);
+  vec3 sky = mix(uSkyHorizon, uSkyTop, smoothstep(0.0, 0.8, normal.y));
+  water = mix(water, sky, fresnel * 0.58);
+
+  // Reflets de masses nuageuses très diffus : jamais de formes blanches nettes ou
+  // de textures qui glissent sur la surface comme un autocollant.
+  float cloudReflection = 0.0;
+  if (uQuality > 0.75) {
+    vec2 cloudUv = p * 0.012 + vec2(uTime * 0.006, -uTime * 0.002);
+    float cloudField = valueNoise(cloudUv) * 0.65 + valueNoise(cloudUv * 2.1 + 7.3) * 0.35;
+    cloudReflection = smoothstep(0.62, 0.82, cloudField) * fresnel * 0.075;
+  }
+  water = mix(water, vec3(0.72, 0.82, 0.84), cloudReflection);
+
+  vec3 sunDir = normalize(uSun);
+  // Le modelé lit une houle un peu accentuée : de grandes ondulations de lumière, douces.
+  vec3 shadeNormal = normalize(vec3(-slope.x * 2.6, 1.0, -slope.y * 2.6));
+  float lambert = max(dot(shadeNormal, sunDir), 0.0);
+  // Les mêmes paliers « toon » qu'avant, aux marches adoucies : sur une houle lisse, une
+  // marche franche dessinerait de longues lignes droites parasites.
+  float steps = lambert * 5.0;
+  float lit = mix(lambert, (floor(steps) + smoothstep(0.7, 1.0, fract(steps))) / 5.0, 0.38);
+  vec3 halfDir = normalize(sunDir + viewDir);
+  float specBase = max(dot(normal, halfDir), 0.0);
+  // Reflet du soleil large et calme (l'ancienne rugosité moyenne, sans son bruit).
+  float spec = pow(specBase, 36.7) * (1.0 - uStormColor * 0.78);
+  water += vec3(1.0, 0.95, 0.84) * spec * 0.71;
+  water *= 0.78 + lit * 0.52;
+  // Modelé de la houle : crêtes un peu plus claires, creux un peu plus denses.
+  water *= 1.0 + clamp(height * 2.2, -1.0, 1.0) * 0.06 * (1.0 - uStormColor);
+
+  // Traînée du soleil, découpée en plaques par la houle (accentuée). Vue rasante : des
+  // tirets nets s'y couchent ; vue plongeante : seulement quelques étoiles. Rien hors de
+  // la traînée, rien de granuleux.
+  float glitterZone = smoothstep(0.3, 0.75, pow(max(dot(shadeNormal, halfDir), 0.0), 24.0))
+    * uSparkle * 2.5 * step(0.25, uQuality) * (1.0 - uStormColor);
+  float grazing = smoothstep(0.62, 0.86, 1.0 - viewDir.y);
+  float glitter = 0.0;
+  if (glitterZone > 0.003) {
+    vec2 sunH = normalize(uSun.xz + vec2(1e-4, 0.0));
+    if (grazing > 0.001) {
+      glitter = sunGlitter(p, sunH, cameraDistance, uCameraPos.y, uPixelAngle, uTime) * grazing;
+    }
+    glitter = max(glitter, sunGlints(p, uTime, px) * (1.0 - grazing * 0.6));
+  }
+  vec3 glitterColor = mix(vec3(1.0, 0.97, 0.88), uSkyHorizon * 1.25, 0.25);
+  water = mix(water, glitterColor, clamp(glitter * glitterZone, 0.0, 1.0));
+
+  float crestNoise = valueNoise(p * 0.5 - vec2(uTime * 0.12, 0.0));
+  float heightForFoam = height;
+  float crestHeight = height + crestNoise * 0.055;
+  float crest = smoothstep(0.48, 0.61, crestHeight)
+    * (1.0 - smoothstep(0.72, 0.91, crestHeight)) * 0.028;
+  float shoreBand = 1.0 - smoothstep(0.35, 3.2, max(edge, 0.0));
+  // Anneaux d'écume nets qui partent de la plage (bords francs, pas de dégradé mou).
+  float shorePulse = smoothstep(0.6, 0.66,
+    0.5 + 0.5 * sin(edge * 1.65 - uTime * 1.55 + valueNoise(p * 0.22) * 4.0));
+  float foamBreakup = uQuality > 0.25
+    ? smoothstep(0.30, 0.72, valueNoise(p * 0.62 + uTime * 0.025))
+    : 0.62;
+
+  // Sillage net : autour de la coque et derrière la poupe, ni trait ni remous ne viennent
+  // brouiller le sillage dessiné (Wake.tsx) ; la nuit, le plancton s'y allume doucement.
+  float wakeLane = 0.0;
+  float wakeGlow = 0.0;
+  vec2 fromBoat = p - uBoat.xy;
+  if (dot(fromBoat, fromBoat) < 576.0) {
+    vec2 trace = wakeTrace(p);
+    float wakeHalf = 1.0 + trace.y * 3.2;
+    float lane = (1.0 - smoothstep(wakeHalf, wakeHalf + 1.8, trace.x)) * uWake;
+    // Coque : ellipse dans le repère du bateau (x vers l'avant).
+    vec2 hull = vec2(dot(fromBoat, uBoat.zw), dot(fromBoat, vec2(-uBoat.w, uBoat.z)));
+    float hullDistance = length(hull / vec2(4.2, 1.9));
+    wakeLane = max(lane, 1.0 - smoothstep(0.75, 1.25, hullDistance));
+    wakeGlow = max(
+      exp(-trace.x * trace.x / (wakeHalf * wakeHalf)) * (1.0 - trace.y) * uWake,
+      (1.0 - smoothstep(0.55, 1.35, hullDistance)) * (0.3 + 0.7 * uWake)
+    );
+  }
+
+  // Traits de crête dessinés : ils naissent sur le dos de la houle, avancent avec elle et
+  // s'effacent au loin (où ils deviendraient plus fins qu'un pixel) et dans les lagons.
+  float strokeFade = (1.0 - smoothstep(45.0, 135.0, cameraDistance)) * uStrokes * (1.0 - wakeLane);
+  float crestMask = smoothstep(-0.1, 0.2, height);
+  // Un trait vu par le bout se raccourcit et ne montre plus que son ondulation (un
+  // « ver ») : les traits alignés avec le regard s'effacent, les traits de travers restent.
+  vec2 lookH = normalize(p - uCameraPos.xz + vec2(1e-3, 0.0));
+  float sideOnA = 1.0 - smoothstep(0.72, 0.95, abs(dot(lookH, vec2(-SWELL_A.y, SWELL_A.x))));
+  float sideOnB = 1.0 - smoothstep(0.72, 0.95, abs(dot(lookH, vec2(-SWELL_B.y, SWELL_B.x))));
+  float lines = 0.0;
+  if (strokeFade * crestMask > 0.002) {
+    if (sideOnA > 0.001) {
+      lines = crestStroke(p, SWELL_A, vec2(9.0, 6.0), 0.45, uTime, 3.1, 0.5, 0.16, pxA) * sideOnA;
+    }
+    if (uQuality > 0.25 && sideOnB > 0.001) {
+      lines = max(lines, crestStroke(p, SWELL_B, vec2(12.0, 7.5), 0.3, uTime, 17.3, 0.3, 0.12, pxB) * 0.8 * sideOnB);
+    }
+  }
+  lines *= strokeFade * crestMask * (1.0 - lagoon * 0.5) * (1.0 - shoreBand);
+  vec3 lineColor = mix(uFoam, uSkyHorizon * 1.12, 0.2) * mix(1.0, 0.92, uDayNight);
+  water = mix(water, lineColor, lines * 0.72);
+
+  // Remous au large, plus visibles près de la caméra, absents des lagons.
+  float swirl = swirlFoam(p + vec2(uTime * 0.25, uTime * 0.1), uTime)
+    * (1.0 - shallow) * (1.0 - smoothstep(60.0, 115.0, cameraDistance)) * step(0.25, uQuality)
+    * (1.0 - wakeLane);
+  water = mix(water, uFoam, swirl * 0.8);
+  float extraAlpha = lines * 0.18;
+
+  // Nuit : plancton bioluminescent réveillé par la coque et le sillage ; les traits de
+  // crête et les remous en gardent un liseré turquoise.
+  vec3 bioLight = (vec3(0.03, 0.46, 0.42) * wakeGlow * 0.75
+    + vec3(0.1, 0.56, 0.5) * max(lines, swirl * 0.7) * 0.24) * uBio * (1.0 - uStormColor);
+${SHARED_TAIL}
+}
+`;
+
+/** L'eau précédente, conservée le temps des comparaisons (`?water=old`). */
+const legacyFragmentShader = /* glsl */ `
+${SHARED_UNIFORMS}
+uniform float uStorm;
+#ifdef OCEAN_TEX
+  // « Stylized Ocean Water » (Substance 3D Assets) : normales des vaguelettes et, dans le
+  // canal G (rugosité), le masque des traits d'écume peints.
+  uniform sampler2D uWaveNormal;
+  uniform sampler2D uWaveOrm;
+#endif
+${SHARED_GLSL}
+
+void main() {
+  vec2 microUv = vWorld.xz * 0.34;
+  float microA = valueNoise(microUv + vec2(uTime * 0.07, -uTime * 0.05));
+  float microB = uQuality > 0.25
+    ? valueNoise(microUv * 1.83 + vec2(-uTime * 0.11, uTime * 0.08))
+    : 0.5;
+  vec2 microSlope = vec2(dFdx(microA + microB), dFdy(microA + microB)) * 0.12;
+  vec3 normal = normalize(vec3(-vSlope.x - microSlope.x, 1.0, -vSlope.y - microSlope.y));
+
+  float cameraDistance = length(uCameraPos.xz - vWorld.xz);
+  float strokeFade = (1.0 - smoothstep(38.0, 120.0, cameraDistance)) * uStrokes;
+  vec2 strokeUvA = vWorld.zx / 7.5 + vec2(uTime * 0.011, uTime * 0.004);
+  vec2 rotated = mat2(0.906, -0.423, 0.423, 0.906) * vWorld.zx;
+  vec2 strokeUvB = rotated / 11.0 + vec2(-uTime * 0.007, uTime * 0.005);
+  float strokes = 0.0;
+  #ifdef OCEAN_TEX
+    float strokeA = texture2D(uWaveOrm, strokeUvA).g;
+    float strokeB = texture2D(uWaveOrm, strokeUvB).g;
+    strokes = max(smoothstep(0.46, 0.56, strokeA), smoothstep(0.5, 0.6, strokeB) * 0.75);
+    vec3 waveA = texture2D(uWaveNormal, strokeUvA).xyz * 2.0 - 1.0;
+    vec3 waveB = texture2D(uWaveNormal, strokeUvB).xyz * 2.0 - 1.0;
+    normal = normalize(normal + (vec3(waveA.y, 0.0, waveA.x) + vec3(waveB.y, 0.0, waveB.x) * 0.7) * 0.32 * strokeFade);
+  #else
+    float streakA = valueNoise(vec2(strokeUvA.x * 2.2, strokeUvA.y * 9.0));
+    float streakB = valueNoise(vec2(strokeUvB.x * 2.0, strokeUvB.y * 8.0) + 17.0);
+    strokes = max(smoothstep(0.76, 0.8, streakA), smoothstep(0.78, 0.82, streakB) * 0.7);
+  #endif
+  strokes *= smoothstep(-0.25, 0.25, vHeight + (microA - 0.5) * 0.3) * strokeFade;
+
+${SHORE_GLSL}
+
+  vec3 viewDir = normalize(uCameraPos - vWorld);
+  float fresnel = 1.0 - max(dot(normal, viewDir), 0.0);
+  fresnel = 0.035 + 0.965 * pow(fresnel, 3.2);
+  vec3 sky = mix(uSkyHorizon, uSkyTop, smoothstep(0.0, 0.8, normal.y));
+  water = mix(water, sky, fresnel * 0.58);
+
+  float cloudReflection = 0.0;
+  if (uQuality > 0.75) {
+    vec2 cloudUv = vWorld.xz * 0.012 + vec2(uTime * 0.006, -uTime * 0.002);
+    float cloudField = valueNoise(cloudUv) * 0.65 + valueNoise(cloudUv * 2.1 + 7.3) * 0.35;
+    cloudReflection = smoothstep(0.62, 0.82, cloudField) * fresnel * 0.075;
+  }
+  water = mix(water, vec3(0.72, 0.82, 0.84), cloudReflection);
+
+  float lambert = max(dot(normal, normalize(uSun)), 0.0);
+  float lit = mix(lambert, floor(lambert * 5.0) / 5.0, 0.38);
+  vec3 halfDir = normalize(normalize(uSun) + viewDir);
+  float roughness = mix(0.34, 0.62, microA);
+  float spec = pow(max(dot(normal, halfDir), 0.0), mix(54.0, 18.0, roughness));
+  spec *= 1.0 - uStormColor * 0.78;
+  water += vec3(1.0, 0.95, 0.84) * spec * mix(0.95, 0.45, roughness);
+  water *= 0.78 + lit * 0.52;
+
+  float sparkleMask = hash21(floor(vWorld.xz * 2.8) + floor(uTime * 2.0));
+  float sparkle = smoothstep(0.78, 0.98, spec) * smoothstep(0.91, 1.0, sparkleMask)
+    * uSparkle * step(0.25, uQuality);
+  water = mix(water, vec3(1.0, 0.98, 0.88), sparkle * 0.8);
+
+  float crestNoise = valueNoise(vWorld.xz * 0.5 - vec2(uTime * 0.12, 0.0));
+  float heightForFoam = vHeight;
+  float crestHeight = vHeight + crestNoise * 0.055;
+  float crest = smoothstep(0.48, 0.61, crestHeight)
+    * (1.0 - smoothstep(0.72, 0.91, crestHeight)) * 0.028;
+  float shoreBand = 1.0 - smoothstep(0.35, 3.2, max(edge, 0.0));
+  float shorePulse = smoothstep(0.6, 0.66,
+    0.5 + 0.5 * sin(edge * 1.65 - uTime * 1.55 + valueNoise(vWorld.xz * 0.22) * 4.0));
+  float foamBreakup = uQuality > 0.25
+    ? smoothstep(0.30, 0.72, valueNoise(vWorld.xz * 0.62 + uTime * 0.025))
+    : 0.62;
+  water = mix(water, uFoam * mix(1.0, 0.92, uDayNight), strokes * 0.62);
+  float swirl = swirlFoam(vWorld.xz + vec2(uTime * 0.25, uTime * 0.1), uTime)
+    * (1.0 - shallow) * (1.0 - smoothstep(60.0, 115.0, cameraDistance)) * step(0.25, uQuality);
+  water = mix(water, uFoam, swirl * 0.8);
+  float extraAlpha = 0.0;
+  vec3 bioLight = vec3(0.0);
+${SHARED_TAIL}
 }
 `;
 
@@ -358,6 +558,11 @@ export function Ocean() {
       uIntroFeather: { value: 6.5 },
       uIntroGlow: { value: 1.2 },
       uStrokes: { value: 1 },
+      uPixelAngle: { value: 0.001 },
+      uBoat: { value: new Vector4(0, 0, 1, 0) },
+      uTrail: { value: Array.from({ length: TRAIL_POINTS }, () => new Vector2(1e4, 1e4)) },
+      uWake: { value: 0 },
+      uBio: { value: 0 },
       uWaveNormal: { value: null },
       uWaveOrm: { value: null },
       uShoals: {
@@ -371,10 +576,12 @@ export function Ocean() {
     }),
     [],
   );
+  const seabedUniforms = useMemo(() => ({ uTime: { value: 0 }, uReveal: { value: 0 } }), []);
+  const legacyDefines = useMemo(() => (LEGACY_WATER ? { LEGACY_WATER: '' } : {}), []);
 
-  // Cartes Substance de l'eau : le shader passe du motif procédural aux traits peints dès
-  // qu'elles sont chargées (jeu Adobe si présent, sinon rien : le procédural reste).
+  // Ancienne eau seulement : cartes Substance des traits peints (jeu Adobe local).
   useEffect(() => {
+    if (!LEGACY_WATER) return;
     let cancelled = false;
     void Promise.all([loadSubstanceMap('ocean_water', 'normal'), loadSubstanceMap('ocean_water', 'orm')]).then(
       ([normal, orm]) => {
@@ -395,6 +602,11 @@ export function Ocean() {
     if (!material.current) return;
     material.current.uniforms.uTime.value += Math.min(dt, 1 / 20);
     material.current.uniforms.uCameraPos.value.copy(state.camera.position);
+    const camera = state.camera as PerspectiveCamera;
+    if (camera.isPerspectiveCamera) {
+      material.current.uniforms.uPixelAngle.value =
+        MathUtils.degToRad(camera.fov) / Math.max(state.gl.domElement.height, 1);
+    }
     const reveal = useWorld.getState().reveal;
     if (seabedMaterial.current) {
       seabedMaterial.current.uniforms.uTime.value += Math.min(dt, 1 / 20);
@@ -432,6 +644,30 @@ export function Ocean() {
     u.uMonsterWake.value = ecologyState.monsterWake;
     u.uMonsterFrom.value.set(ecologyState.monsterFromX, ecologyState.monsterFromZ);
     u.uMonsterTo.value.set(ecologyState.monsterToX, ecologyState.monsterToZ);
+
+    // Sillage : même force (vitesse) que le sillage dessiné, et trace de la poupe.
+    const { position, heading, speed } = boatState;
+    const forwardX = Math.cos(heading);
+    const forwardZ = Math.sin(heading);
+    u.uBoat.value.set(position.x, position.z, forwardX, forwardZ);
+    u.uWake.value = damp(
+      u.uWake.value,
+      Math.min(Math.max((Math.abs(speed) - 0.35) / 7.15, 0), 1) * (1 - ecologyState.leviathanAttack),
+      4,
+      Math.min(dt, 1 / 30),
+    );
+    u.uBio.value = ecologyState.plankton;
+    const trail = u.uTrail.value as Vector2[];
+    const sternX = position.x - forwardX * BOAT_FRAME.stern * 0.92;
+    const sternZ = position.z - forwardZ * BOAT_FRAME.stern * 0.92;
+    const step = Math.hypot(sternX - trail[1].x, sternZ - trail[1].y);
+    if (step > TRAIL_SPACING * 3) {
+      // Premier passage ou bateau replacé (accostage direct) : trace repliée sur la poupe.
+      for (const point of trail) point.set(sternX, sternZ);
+    } else if (step >= TRAIL_SPACING) {
+      for (let index = TRAIL_POINTS - 1; index > 0; index--) trail[index].copy(trail[index - 1]);
+    }
+    trail[0].set(sternX, sternZ);
   });
 
   const onOceanClick = (event: ThreeEvent<MouseEvent>) => {
@@ -446,7 +682,8 @@ export function Ocean() {
         <planeGeometry args={[OCEAN_SIZE, OCEAN_SIZE, 1, 1]} />
         <shaderMaterial
           ref={seabedMaterial}
-          uniforms={{ uTime: { value: 0 }, uReveal: { value: 0 } }}
+          uniforms={seabedUniforms}
+          defines={legacyDefines}
           vertexShader={seabedVertexShader}
           fragmentShader={seabedFragmentShader}
         />
@@ -462,7 +699,7 @@ export function Ocean() {
           ref={material}
           uniforms={uniforms}
           vertexShader={vertexShader}
-          fragmentShader={fragmentShader}
+          fragmentShader={LEGACY_WATER ? legacyFragmentShader : fragmentShader}
           transparent
           depthWrite={false}
         />
