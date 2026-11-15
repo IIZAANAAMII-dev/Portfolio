@@ -3,6 +3,7 @@
 import { useGLTF } from '@react-three/drei';
 import { useMemo } from 'react';
 import type { BufferGeometry, Material, Mesh, Object3D } from 'three';
+import { asset } from '@/lib/asset';
 
 /**
  * Accès aux modèles du Kenney Pirate Kit (CC0 — voir docs/ASSETS.md).
@@ -11,7 +12,7 @@ import type { BufferGeometry, Material, Mesh, Object3D } from 'three';
  * seul matériau : les modèles restent groupés dans un même dossier pour que la texture
  * ne soit téléchargée et téléversée au GPU qu'une seule fois.
  */
-const BASE = '/models/pirate-kit';
+const BASE = asset('/models/pirate-kit');
 
 export const MODEL = {
   ship: 'ship-small',

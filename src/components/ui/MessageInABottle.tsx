@@ -3,20 +3,40 @@
 import { useEffect, useRef, useState } from 'react';
 import { site } from '@/data/site';
 import { bottleThrow } from '@/components/world/MessageBottle';
+import { asset } from '@/lib/asset';
 import { logbook } from '@/lib/logbook';
 
+/**
+ * Adresse d'envoi direct, fixée à la construction :
+ *  - `NEXT_PUBLIC_CONTACT_ENDPOINT` s'il est défini (service de formulaires qui accepte un
+ *    POST JSON, comme Formspree) ;
+ *  - sinon la route `/api/contact` du site, quand il tourne avec un serveur (dev, Vercel :
+ *    voir src/lib/server/contact-route.ts) ;
+ *  - aucune dans l'export statique de GitHub Pages : la lettre part alors de la messagerie
+ *    du visiteur, et le site ne prétend jamais l'avoir envoyée.
+ */
+const CONTACT_ENDPOINT =
+  process.env.NEXT_PUBLIC_CONTACT_ENDPOINT || (process.env.NEXT_PUBLIC_STATIC_EXPORT ? '' : asset('/api/contact'));
+
 /** Issues possibles d'un envoi : chaque échec garde le message et propose une suite honnête. */
-type Status = 'idle' | 'sending' | 'sent' | 'unavailable' | 'email' | 'short' | 'rate' | 'provider' | 'offline';
+type Status = 'idle' | 'sending' | 'sent' | 'handoff' | 'unavailable' | 'email' | 'short' | 'rate' | 'provider' | 'offline';
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 /** Espace insécable avant les deux-points (typographie française). */
 const NBSP = ' ';
 
+/** La bouteille quitte le bateau dans la scène, et le carnet de bord reçoit son tampon. */
+function launchBottle() {
+  bottleThrow.requested = true;
+  logbook.stamp('bottle');
+}
+
 /**
- * Bouteille à la mer : la lettre part réellement (route /api/contact). La confirmation et
+ * Bouteille à la mer : avec un envoi direct, la lettre part réellement. La confirmation et
  * la bouteille qui s'éloigne dans la scène n'arrivent qu'APRÈS la réponse positive du
  * serveur. Sinon, le message reste là et le visiteur peut l'envoyer depuis sa messagerie.
+ * Sans envoi direct (GitHub Pages), le message est confié d'emblée à sa messagerie.
  */
 export function MessageInABottle() {
   const [message, setMessage] = useState('');
@@ -42,16 +62,21 @@ export function MessageInABottle() {
       setStatus('email');
       return;
     }
+    if (!CONTACT_ENDPOINT) {
+      launchBottle();
+      setStatus('handoff');
+      window.location.href = mailto;
+      return;
+    }
     setStatus('sending');
     try {
-      const response = await fetch('/api/contact', {
+      const response = await fetch(CONTACT_ENDPOINT, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
         body: JSON.stringify({ message, name, email, website }),
       });
       if (response.ok) {
-        bottleThrow.requested = true;
-        logbook.stamp('bottle');
+        launchBottle();
         setStatus('sent');
         return;
       }
@@ -131,8 +156,21 @@ export function MessageInABottle() {
         aria-hidden="true"
       />
       <button type="submit" className="stamp-toast__cta" disabled={status === 'sending' || !message.trim()}>
-        {status === 'sending' ? 'La bouteille part…' : 'Jeter la bouteille à la mer'}
+        {status === 'sending'
+          ? 'La bouteille part…'
+          : CONTACT_ENDPOINT
+            ? 'Jeter la bouteille à la mer'
+            : 'Envoyer depuis ma messagerie'}
       </button>
+      {status === 'handoff' && (
+        <p id="bottle-note" className="bottle-form__note" role="status">
+          {`Ta messagerie s’ouvre avec ton message${NBSP}: il ne reste qu’à l’envoyer. Rien ne s’est ouvert${NBSP}?`}{' '}
+          <a className="link-underline" href={mailto}>
+            Réessayer
+          </a>
+          {`, ou écris-moi à ${site.email}.`}
+        </p>
+      )}
       {status === 'unavailable' && (
         <p id="bottle-note" className="bottle-form__note" role="alert">
           {`L’envoi direct n’est pas encore branché sur ce site${NBSP}: ton message n’est pas parti.`}{' '}

@@ -12,6 +12,7 @@ import {
   TextureLoader,
   type Texture,
 } from 'three';
+import { asset } from '@/lib/asset';
 import { nightGlow } from '@/lib/substance-models';
 import { hash } from '@/lib/utils/math';
 
@@ -29,7 +30,7 @@ const loaded = new Map<string, Promise<Texture>>();
 function loadScreenshot(url: string) {
   let promise = loaded.get(url);
   if (!promise) {
-    promise = new TextureLoader().loadAsync(url).then((texture) => {
+    promise = new TextureLoader().loadAsync(asset(url)).then((texture) => {
       texture.colorSpace = SRGBColorSpace;
       texture.anisotropy = 8;
       texture.needsUpdate = true;

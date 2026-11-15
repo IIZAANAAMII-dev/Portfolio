@@ -5,6 +5,7 @@ import { journey } from '@/data/journey';
 import { projects } from '@/data/projects';
 import { site } from '@/data/site';
 import { skillZones } from '@/data/skills';
+import { BASE_PATH } from '@/lib/asset';
 
 const jsonLd = {
   '@context': 'https://schema.org',
@@ -122,7 +123,7 @@ export default function Home() {
 
         <nav>
           {islands.map((island) => (
-            <a key={island.id} href={`/?section=${island.id}`}>
+            <a key={island.id} href={`${BASE_PATH}/?section=${island.id}`}>
               {island.label}
             </a>
           ))}

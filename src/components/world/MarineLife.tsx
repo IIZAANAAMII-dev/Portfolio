@@ -26,6 +26,7 @@ import { FISH_SCHOOLS, type SpeciesActivity } from '@/data/zones';
 import { boatState } from '@/lib/boat-state';
 import { animalRevealScale } from '@/lib/cinematic';
 import { activityFactor, ecologyState } from '@/lib/ecology';
+import { asset } from '@/lib/asset';
 import { MODEL } from '@/lib/models';
 import { QUALITY_LEVELS } from '@/lib/quality';
 import { useWorld } from '@/lib/store';
@@ -36,7 +37,7 @@ const LazyWorldBoundary = lazy(() => import('@/components/world/WorldBoundary').
   default: module.WorldBoundary,
 })));
 
-const BASE = '/models/aquatic-quaternius';
+const BASE = asset('/models/aquatic-quaternius');
 const SPECIES = {
   reef: { file: 'Fish1.obj', colors: ['#2f8f91', '#79d0b3', '#f2c86e'] },
   blue: { file: 'Fish2.obj', colors: ['#4e91b8', '#8fd0ce', '#f0b45f'] },

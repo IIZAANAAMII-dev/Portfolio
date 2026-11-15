@@ -6,6 +6,7 @@ import { journey } from '@/data/journey';
 import { projects, STATUS_LABEL } from '@/data/projects';
 import { site } from '@/data/site';
 import { skillZones } from '@/data/skills';
+import { asset } from '@/lib/asset';
 import { useFocus, useFocusedItem } from '@/lib/focus';
 import type { IslandId, Project, SkillItem } from '@/types';
 import { MessageInABottle } from './MessageInABottle';
@@ -203,7 +204,7 @@ function ProjectCard({ project, open, onToggle }: { project: Project; open: bool
                 // eslint-disable-next-line @next/next/no-img-element -- captures statiques, tailles variables
                 <img
                   key={src}
-                  src={src}
+                  src={asset(src)}
                   alt={`Capture d’écran de ${project.title}${index > 0 ? ` (${index + 1})` : ''}`}
                   loading="lazy"
                   decoding="async"
