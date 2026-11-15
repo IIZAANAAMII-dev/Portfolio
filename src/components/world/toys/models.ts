@@ -24,7 +24,7 @@ import { Parts, pose, span, type V3 } from './parts';
  */
 
 /** Caisse à poissons (mètres) : assez carrée pour s'empiler en pyramide. */
-export const CRATE = { w: 0.9, h: 0.62, d: 0.9 } as const;
+export const CRATE = { w: 1.05, h: 0.72, d: 1.05 } as const;
 
 /** Radeau : demi-côté du pont, hauteur du pont au-dessus de l'origine, mât dans un coin. */
 export const RAFT = { half: 2.25, deck: 0.37, mastX: 1.92, mastZ: 1.92, mastTop: 3.35 } as const;
@@ -38,7 +38,7 @@ export function crateGeometries() {
   const { w, h, d } = CRATE;
   const wood = new Parts();
   const paint = new Parts();
-  const slatH = 0.2;
+  const slatH = 0.24;
   const low = -h / 2 + 0.07 + slatH / 2;
   const high = h / 2 - 0.035 - slatH / 2;
   for (const sx of [-1, 1]) {
@@ -293,15 +293,15 @@ export function raftGeometry() {
     parts.add(new CylinderGeometry(0.06, 0.07, 0.62, 6), '#7a4b29', pose([x, deck + 0.29, z]), { flat: true, shade: 0.06 });
   }
   // Glène de cordage et seau rouge sur le pont.
-  parts.add(new TorusGeometry(0.27, 0.065, 6, 18), '#e6d4a6', pose([-1.85, deck + 0.065, -1.8], [Math.PI / 2, 0, 0]), { shade: 0.05 });
-  parts.add(new TorusGeometry(0.19, 0.06, 6, 16), '#dcc897', pose([-1.85, deck + 0.18, -1.8], [Math.PI / 2, 0, 0]), { shade: 0.05 });
+  parts.add(new TorusGeometry(0.27, 0.065, 6, 18), '#e6d4a6', pose([-1.95, deck + 0.065, -1.95], [Math.PI / 2, 0, 0]), { shade: 0.05 });
+  parts.add(new TorusGeometry(0.19, 0.06, 6, 16), '#dcc897', pose([-1.95, deck + 0.18, -1.95], [Math.PI / 2, 0, 0]), { shade: 0.05 });
   parts.add(
     new CylinderGeometry(0.2, 0.16, 0.34, 12, 1),
     (_x, y, _z, out) => { out.set(y > 0.169 ? '#6f2a1f' : '#d9533e'); },
-    pose([-1.88, deck + 0.17, -0.15]),
+    pose([-1.98, deck + 0.17, -0.15]),
     { faces: true, local: true, shade: 0.1 },
   );
-  parts.add(new TorusGeometry(0.2, 0.018, 4, 14, Math.PI), IRON, pose([-1.88, deck + 0.34, -0.15], [0, 0.4, 0]), { shade: 0 });
+  parts.add(new TorusGeometry(0.2, 0.018, 4, 14, Math.PI), IRON, pose([-1.98, deck + 0.34, -0.15], [0, 0.4, 0]), { shade: 0 });
   return parts.build();
 }
 

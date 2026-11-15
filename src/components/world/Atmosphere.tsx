@@ -33,6 +33,7 @@ const STORM_LOW = new Color('#43545e');
 const STORM_HIGH = new Color('#172530');
 const STORM_HORIZON = new Color('#5c6c72');
 const STORM_FOG = new Color('#273940');
+const NIGHT_CLOUD = new Color('#2b3a55');
 
 const vertexShader = /* glsl */ `
 uniform vec3 uSun;
@@ -115,12 +116,14 @@ void main() {
   float nightSky = uNight * (1.0 - uStorm);
   // (Elle passe par l'Ancre, comme les vraies constellations bordent la voie lactée.)
   vec3 bandAxis = normalize(vec3(0.62, -0.62, 0.48));
-  float band = exp(-pow(dot(view, bandAxis) / 0.19, 2.0));
+  float across = dot(view, bandAxis);
+  float band = exp(-pow(across / 0.15, 2.0));
   if (nightSky > 0.001) {
-    float dust = valueNoise(vec2(dot(view, vec3(0.8, 0.1, 0.5)), view.y) * 9.0);
-    float rift = smoothstep(0.55, 0.8, valueNoise(view.xz * 14.0 + 3.0));
-    float milky = band * (0.55 + 0.45 * dust) * (1.0 - 0.35 * rift);
-    sky += vec3(0.13, 0.14, 0.26) * milky * 0.3 * nightSky * smoothstep(0.02, 0.3, vHeight);
+    float dust = valueNoise(vec2(dot(view, vec3(0.8, 0.1, 0.5)), view.y) * 26.0) * 0.5
+      + valueNoise(view.xz * 11.0) * 0.5;
+    float rift = smoothstep(0.6, 0.85, valueNoise(view.xz * 18.0 + 3.0)) * exp(-pow(across / 0.05, 2.0));
+    float milky = band * (0.65 + 0.35 * dust) * (1.0 - 0.45 * rift);
+    sky += vec3(0.12, 0.13, 0.24) * milky * 0.17 * nightSky * smoothstep(0.02, 0.3, vHeight);
   }
 
   // Étoiles : un point rond par cellule de la voûte, qui scintille (plus serrées dans la
@@ -184,6 +187,7 @@ function Clouds() {
       child.position.y = cloud.y + Math.sin(t * 0.025 + cloud.seed) * 2.2;
       child.position.z = cloud.z + Math.sin(t * 0.017 + cloud.seed * 0.7) * 9;
     });
+    const night = skyState.dayNight;
     group.current.traverse((object) => {
       if (!(object instanceof Mesh) || !(object.material instanceof MeshBasicMaterial)) return;
       const material = object.material;
@@ -191,7 +195,10 @@ function Clouds() {
         ? material.userData.calmOpacity
         : material.opacity;
       material.userData.calmOpacity = base;
-      material.opacity = base * (1 - storm * 0.94);
+      // La nuit, ces voiles non éclairés prennent la teinte bleutée du ciel (sinon gris clair).
+      if (!(material.userData.dayColor instanceof Color)) material.userData.dayColor = material.color.clone();
+      material.color.copy(material.userData.dayColor).lerp(NIGHT_CLOUD, night * 0.85);
+      material.opacity = base * (1 - storm * 0.94) * (1 - night * 0.4);
     });
   });
 

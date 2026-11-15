@@ -33,6 +33,9 @@ export const squall = {
   z: 0,
   vx: 0,
   vz: 0,
+  /** Pente de la pluie poussée par le vent (m par m de chute). */
+  sx: 0,
+  sz: 0,
   /** Formation / dissipation, évitement compris (0 → 1). */
   presence: 0,
   rain: 0,
@@ -53,7 +56,8 @@ export const rainbow = {
 const schedule = {
   wait: 100 + Math.random() * 70,
   forced: skyParams.weather,
-  settle: 0,
+  /** Heure (horloge réelle) de l'arrivée dans le monde, pour les déclenchements forcés. */
+  since: -1,
 };
 
 const DEG = Math.PI / 180;
@@ -86,6 +90,13 @@ export function spawnSquall(camera: Camera, frozen = false) {
   squall.z = camera.position.z + fz * ahead + fx * lateral;
   squall.vx = fz * side * 1.45;
   squall.vz = -fx * side * 1.45;
+  // Pluie poussée par le vent : elle penche vers l'observateur et dans le sens de la dérive,
+  // le rideau sort ainsi de sous le nuage (vue plongeante) au lieu d'être caché par lui.
+  const toX = camera.position.x - squall.x;
+  const toZ = camera.position.z - squall.z;
+  const toLength = Math.hypot(toX, toZ) || 1;
+  squall.sx = (toX / toLength) * 0.55 + fz * side * 0.12;
+  squall.sz = (toZ / toLength) * 0.55 - fx * side * 0.12;
   squall.life = 88;
   squall.age = frozen ? 32 : 0;
   squall.hold = frozen;
@@ -97,13 +108,12 @@ export function spawnSquall(camera: Camera, frozen = false) {
 
 export function spawnRainbow(camera: Camera, frozen = false) {
   const { fx, fz, pitch, vfov } = cameraFrame(camera);
-  const docked = useWorld.getState().phase === 'docked';
   // Centre de l'arc un peu sous le centre de l'image, juste sous la mer : l'arc s'en élève,
-  // encadre ce que l'on regarde et culmine sous le haut de l'image.
+  // encadre ce que l'on regarde (bateau, île de l'escale) et culmine sous le haut de l'image.
   const depression = clamp(pitch + vfov * 0.25, 0.12, 1.3);
   rainbow.dir.set(Math.cos(depression) * fx, -Math.sin(depression), Math.cos(depression) * fz);
   rainbow.distance = (Math.max(camera.position.y, 1) + 2) / Math.sin(depression);
-  rainbow.radius = rainbow.distance * Math.tan(vfov * (docked ? 0.66 : 0.8));
+  rainbow.radius = rainbow.distance * Math.tan(vfov * 0.68);
   rainbow.age = 0;
   rainbow.hold = frozen;
   rainbow.alpha = frozen ? 1 : 0;
@@ -131,16 +141,17 @@ function clearance(camera: Camera) {
   return k;
 }
 
-export function updateWeather(camera: Camera, dt: number) {
+export function updateWeather(camera: Camera, dt: number, time: number) {
   const { phase, reveal } = useWorld.getState();
   const live = reveal > 0.98 && (phase === 'playing' || phase === 'docked');
   const day = skyState.dayNight < 0.25 && skyState.sunElevation > 0.1;
   const calm = ecologyState.stormCover < 0.05;
 
-  // Captures : `?weather=squall|rainbow|both` fige le moment voulu, une seconde après l'arrivée.
+  // Captures : `?weather=squall|rainbow|both` fige le moment voulu, peu après l'arrivée
+  // (horloge réelle : le rendu logiciel des captures tourne à quelques images par seconde).
   if (schedule.forced && live) {
-    schedule.settle += dt;
-    if (schedule.settle > 1) {
+    if (schedule.since < 0) schedule.since = time;
+    if (time - schedule.since > 0.8) {
       if (schedule.forced === 'squall' || schedule.forced === 'both') spawnSquall(camera, true);
       if (schedule.forced === 'rainbow' || schedule.forced === 'both') spawnRainbow(camera, true);
       schedule.forced = null;

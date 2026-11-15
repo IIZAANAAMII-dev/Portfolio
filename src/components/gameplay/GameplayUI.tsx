@@ -11,6 +11,8 @@ import { SPOTS, levelLabel, nearestSpot, zonesCaught } from './fishing-data';
 import { ApproachHint, Basket, CatchCard, FishingDock, FloatMarker } from './FishingUI';
 import { ArrowIcon, CameraIcon, CloseIcon, CreelIcon } from './icons';
 import { PostcardLayer, ShutterBar, takePhoto } from './PostcardUI';
+import { useRegatta } from './regatta';
+import { RegattaDock, RegattaHint } from './RegattaUI';
 import { useGameplay } from './store';
 import styles from './gameplay.module.css';
 
@@ -48,6 +50,9 @@ function useGameplayKeys() {
         return;
       }
       if (game.photo !== 'off') return;
+      // Pendant la régate, la canne reste rangée.
+      const race = useRegatta.getState().phase;
+      if (race === 'armed' || race === 'racing') return;
       const lineOut = game.phase === 'cast' || game.phase === 'wait' || game.phase === 'bite';
       if (lineOut && (key === 'f' || (key === ' ' && !onButton))) {
         event.preventDefault();
@@ -78,7 +83,7 @@ function sailToNearestSpot() {
 }
 
 /** Une fois toutes les îles visitées : ce qu'il reste à découvrir (jamais de faux contenu). */
-function teasers(stamps: StampId[], stars: number): Teaser[] {
+function teasers(stamps: StampId[], stars: number, raced: boolean): Teaser[] {
   const list: Teaser[] = [];
   if (!stamps.includes('fishing')) {
     list.push({
@@ -92,6 +97,13 @@ function teasers(stamps: StampId[], stars: number): Teaser[] {
       id: 'postcard',
       text: 'L’appareil photo, à droite, tire une carte postale de l’archipel.',
       action: { label: 'Essayer', run: () => useGameplay.getState().aim() },
+    });
+  }
+  if (!raced) {
+    list.push({
+      id: 'regatta',
+      text: 'La régate des bouées : six marques autour du port d’attache, un chrono et ton record.',
+      action: { label: 'Courir', run: () => useRegatta.getState().start() },
     });
   }
   if (stars < STAR_COUNT) {
@@ -114,6 +126,7 @@ function NextCap() {
   const stamps = useLogbook((s) => s.stamps);
   const stars = useLogbook((s) => s.stars.length);
   const hydrated = useLogbook((s) => s.hydrated);
+  const raced = useRegatta((s) => s.best !== null);
   const sailTo = useWorld((s) => s.sailTo);
   const [dismissed, setDismissed] = useState(-1);
   const arrow = useRef<HTMLSpanElement>(null);
@@ -162,7 +175,7 @@ function NextCap() {
     );
   }
 
-  const teaser = teasers(stamps, stars)[0];
+  const teaser = teasers(stamps, stars, raced)[0];
   if (!teaser) return null;
   return (
     <div className={styles.cap} data-enter="" data-delay="">
@@ -189,11 +202,15 @@ function Dock() {
   const approach = useGameplay((s) => s.approach);
   const worldPhase = useWorld((s) => s.phase);
   const sailing = useWorld((s) => s.destination !== null || s.freeTarget !== null);
+  const race = useRegatta((s) => s.phase);
+  const nearStart = useRegatta((s) => s.nearStart);
 
   let content = null;
   if (photo === 'aim' || photo === 'shoot') content = <ShutterBar />;
   else if (photo !== 'off') content = null;
+  else if (race !== 'off') content = <RegattaDock />;
   else if (fishing !== 'idle' || near >= 0) content = <FishingDock />;
+  else if (worldPhase === 'playing' && nearStart && !sailing) content = <RegattaHint />;
   else if (worldPhase === 'playing' && approach >= 0) content = <ApproachHint index={approach} />;
   else if (worldPhase === 'playing' && !sailing) content = <NextCap />;
   return <div className={styles.dock}>{content}</div>;
@@ -251,10 +268,12 @@ function Announcer() {
 export default function GameplayUI() {
   const ready = useGameplay((s) => s.ready3D);
   const hydrate = useGameplay((s) => s.hydrate);
+  const hydrateRegatta = useRegatta((s) => s.hydrate);
   const phase = useWorld((s) => s.phase);
   useEffect(() => {
     hydrate();
-  }, [hydrate]);
+    hydrateRegatta();
+  }, [hydrate, hydrateRegatta]);
   useGameplayKeys();
 
   if (!ready || (phase !== 'playing' && phase !== 'docked')) return null;

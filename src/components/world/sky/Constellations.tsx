@@ -88,7 +88,7 @@ void main() {
     float pop = 1.0 + sin(appear * 3.14159) * 0.9;
     float size = aInfo.w * 3.2 * pop * (1.0 + uWish * 0.45) * (sea ? 0.78 : 1.0);
     // Reflet : traînée verticale qui tremble avec la houle.
-    vec2 corner = position.xy * vec2(1.0, sea ? 2.4 : 1.0);
+    vec2 corner = position.xy * vec2(1.0, sea ? 3.0 : 1.0);
     float wobble = sea ? sin(uTime * 1.4 + world.z * 0.35 + world.x * 0.12) * 0.7 * uMotion : 0.0;
     skyClipOffset(clip, corner * size + vec2(wobble, 0.0));
     vAlpha = appear * twinkle * fade * uAlpha * (1.0 + uWish * 1.2) * (sea ? 0.52 : 1.0);
@@ -124,12 +124,15 @@ void main() {
   vCorner = vec2(end * progress, position.y);
   vTip = progress;
   float breathe = mix(1.0, 0.86 + 0.14 * sin(uTime * 0.7 + aInfo.x * 1.7), uMotion);
-  vAlpha = min(fadeA, fadeB) * uAlpha * breathe * (sea ? 0.42 : 0.72) * (1.0 + uWish * 0.8);
+  vAlpha = min(fadeA, fadeB) * uAlpha * breathe * (sea ? 0.36 : 0.72) * (1.0 + uWish * 0.8);
   gl_Position = clip;
 }
 `;
 
 const fragmentShader = /* glsl */ `
+uniform float uPass;
+uniform float uTime;
+uniform float uMotion;
 varying vec2 vCorner;
 varying float vKind;
 varying float vAlpha;
@@ -156,6 +159,11 @@ void main() {
     float pen = (1.0 - step(0.999, vTip)) * smoothstep(vTip - 0.2, vTip, vCorner.x);
     alpha = soft * vAlpha * (1.0 + pen * 1.6);
     color = mix(vec3(0.82, 0.88, 1.0), vec3(1.0, 0.9, 0.7), 0.55 + pen * 0.45);
+  }
+  // Reflet : l'image se brise en bandes horizontales, comme sur une eau ridée.
+  if (uPass > 0.5) {
+    float ripple = 0.6 + 0.4 * sin(gl_FragCoord.y * 0.45 + uTime * 2.2 + sin(gl_FragCoord.x * 0.05 + uTime * 0.7) * 2.0);
+    alpha *= mix(0.8, ripple, uMotion);
   }
   gl_FragColor = vec4(color, alpha);
   #include <colorspace_fragment>

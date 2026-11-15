@@ -886,6 +886,51 @@ p.pill {
   color: var(--paper);
 }
 
+/* --- Régate des bouées ---------------------------------------------------------------- */
+
+.race {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.4rem;
+  max-width: 100%;
+  padding: 0.6rem 0.7rem 0.55rem;
+  border: 1px solid var(--glass-line);
+  border-radius: 1.4rem;
+  background: var(--glass);
+  backdrop-filter: blur(10px) saturate(1.15);
+  box-shadow: 0 10px 30px rgba(2, 10, 18, 0.18);
+  color: var(--paper);
+  text-align: center;
+}
+.raceRow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+}
+.timer {
+  min-width: 5.2ch;
+  padding-right: 0.25rem;
+  font-family: var(--font-mono);
+  font-size: 1.55rem;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  letter-spacing: 0.04em;
+}
+.raceArrow {
+  display: grid;
+  place-items: center;
+  transition: transform 0.25s var(--ease-out);
+}
+.pillFlag {
+  flex: none;
+  width: 1.9rem;
+  height: 1.9rem;
+  color: #ff8a3d;
+}
+
 /* --- Viseur, éclair, chambre noire --------------------------------------------------- */
 
 .viewfinder {
@@ -1068,36 +1113,51 @@ p.pill {
     width: auto;
     max-height: calc(100dvh - var(--zone-top) - var(--rail-b) - 7.2rem);
   }
-  .pill,
-  .cap {
-    flex-direction: column;
-    gap: 0.5rem;
-    padding: 0.7rem 0.75rem;
-    border-radius: 1.3rem;
-    text-align: center;
+  /* Le dock reste sous les sous-titres de la visite guidée (au-dessus de la boussole) :
+     au téléphone, une étiquette et un bouton, sur une ligne. */
+  .pill {
+    gap: 0.45rem;
+    padding: 0.3rem 0.3rem 0.3rem 0.8rem;
   }
-  .pillText,
-  .capText {
-    justify-items: center;
-    text-align: center;
+  .pill .voice,
+  .pillFish,
+  .pillFlag,
+  .capTagline,
+  .wide {
+    display: none;
   }
-  .cap > .capText {
-    padding-left: 0;
+  p.pill .voice {
+    display: inline;
+  }
+  .squeeze {
+    width: var(--tap);
+    padding: 0;
   }
   .capMain {
-    flex-direction: column;
-    gap: 0.4rem;
-    padding: 0.2rem 0.4rem;
-    text-align: center;
-  }
-  .capTagline {
-    display: none;
+    gap: 0.55rem;
+    padding: 0 0.55rem 0 0.15rem;
   }
   .capText {
     grid-template-columns: auto;
   }
-  .voice {
-    font-size: 0.88rem;
+  .cap:not(:has(.capMain)) {
+    flex-wrap: wrap;
+    justify-content: center;
+    border-radius: 1.2rem;
+  }
+  .cap:not(:has(.capMain)) > .capText {
+    flex-basis: 100%;
+    padding: 0.2rem 0.4rem 0;
+  }
+  .cap .voice {
+    display: -webkit-box;
+    overflow: hidden;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    font-size: 0.86rem;
+  }
+  .timer {
+    font-size: 1.3rem;
   }
   .caption {
     white-space: normal;

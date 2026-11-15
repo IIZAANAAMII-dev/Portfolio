@@ -1,9 +1,11 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { site } from '@/data/site';
+import { INTRO_DURATION } from '@/lib/cinematic';
 import { useWorld } from '@/lib/store';
 import { isCoarsePointer } from '@/lib/utils/device';
+import { clamp, smoothstep } from '@/lib/utils/math';
 import styles from './intro.module.css';
 
 const [FIRST_NAME, ...FAMILY] = site.name.split(' ');
@@ -12,9 +14,15 @@ const FAMILY_NAME = FAMILY.join(' ');
 /** Classe à poser sur le vrai titre du cartouche pendant que sa copie s'envole. */
 export const handedOffClass = styles.handedOff;
 
-/** Instant (ms) où le nom quitte le cartouche, et durée de sa glissade vers le HUD. */
-const GLIDE_DELAY = 1250;
-const GLIDE_DURATION = 1150;
+/** Instant (s depuis le clic) où le nom quitte le cartouche, et durée de sa glissade. */
+const GLIDE_FROM = 1.25;
+const GLIDE_LENGTH = 1.15;
+
+/** Arrivée avec un petit dépassement (« back ») : le nom se pose comme un objet lancé. */
+function easeOutBack(value: number) {
+  const x = clamp(value, 0, 1) - 1;
+  return 1 + 2.3 * x * x * x + 1.3 * x * x;
+}
 
 /**
  * Pendant l'ouverture, un clic, Entrée, Espace ou Échap passent directement à la fin (le
@@ -44,55 +52,63 @@ function useSkip(active: boolean) {
   }, [active]);
 }
 
+/**
+ * Copie du nom posée sur le cartouche. Elle suit l'horloge de la cinématique (et non le temps
+ * du navigateur) : si le rendu ralentit, le nom reste synchrone avec la caméra et les îles.
+ */
 function FlyingTitle({ leaving }: { leaving: boolean }) {
   const root = useRef<HTMLParagraphElement>(null);
   const first = useRef<HTMLSpanElement>(null);
   const family = useRef<HTMLSpanElement>(null);
 
-  useEffect(() => {
+  // Avant la première peinture : la copie ne doit jamais apparaître ailleurs qu'à sa place.
+  useLayoutEffect(() => {
     const node = root.current;
     const name = first.current;
     const second = family.current;
-    const source = document.querySelector<HTMLElement>('.intro-title');
+    const source = document.querySelector<HTMLElement>('.intro-brand .intro-title');
     if (!node || !name || !second || !source) return;
-    // La copie se pose exactement sur le titre du cartouche…
     const origin = source.getBoundingClientRect();
     node.style.left = `${origin.left}px`;
     node.style.top = `${origin.top}px`;
-    const animations: Animation[] = [];
-    // … le nom de famille s'efface en tombant, pendant que le prénom part vers le HUD.
-    animations.push(
-      second.animate(
-        [
-          { opacity: 1, transform: 'translateY(0)' },
-          { opacity: 0, transform: 'translateY(0.32em)' },
-        ],
-        { duration: 520, delay: GLIDE_DELAY - 180, easing: 'cubic-bezier(0.5, 0, 0.75, 0)', fill: 'both' },
-      ),
-    );
+    // Destination : la marque du HUD (même police et même graisse, en petit).
     const brand = document.querySelector<HTMLElement>('.hud-brand');
     const target = brand?.getBoundingClientRect();
+    let glide: { dx: number; dy: number; scale: number } | null = null;
     if (brand && target && target.width > 0) {
       const line = name.getBoundingClientRect();
       const scale = parseFloat(getComputedStyle(brand).fontSize) / parseFloat(getComputedStyle(name).fontSize);
-      const dx = target.left - line.left;
-      const dy = target.top + target.height / 2 - (line.top + (line.height * scale) / 2);
-      animations.push(
-        name.animate(
-          [
-            { transform: 'translate(0px, 0px) scale(1)', letterSpacing: '0.01em' },
-            { transform: `translate(${dx.toFixed(1)}px, ${dy.toFixed(1)}px) scale(${scale.toFixed(4)})`, letterSpacing: '0.16em' },
-          ],
-          { duration: GLIDE_DURATION, delay: GLIDE_DELAY, easing: 'cubic-bezier(0.34, 1.3, 0.5, 1)', fill: 'both' },
-        ),
-      );
-    } else {
-      // Pas de marque visible (petit écran) : le prénom s'efface simplement.
-      animations.push(
-        name.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 600, delay: GLIDE_DELAY, easing: 'ease', fill: 'both' }),
-      );
+      glide = {
+        dx: target.left - line.left,
+        dy: target.top + target.height / 2 - (line.top + (line.height * scale) / 2),
+        scale,
+      };
     }
-    return () => animations.forEach((animation) => animation.cancel());
+    let shown = -1;
+    const apply = (seconds: number) => {
+      if (Math.abs(seconds - shown) < 0.001) return;
+      shown = seconds;
+      // Le nom de famille s'efface en tombant…
+      const drop = clamp((seconds - (GLIDE_FROM - 0.18)) / 0.52, 0, 1);
+      const fall = drop * drop * drop;
+      second.style.opacity = (1 - fall).toFixed(3);
+      second.style.transform = `translateY(${(fall * 0.32).toFixed(3)}em)`;
+      // … pendant que le prénom rapetisse et file vers le HUD.
+      const progress = easeOutBack((seconds - GLIDE_FROM) / GLIDE_LENGTH);
+      if (glide) {
+        const scale = 1 + (glide.scale - 1) * progress;
+        name.style.transform = `translate(${(glide.dx * progress).toFixed(1)}px, ${(glide.dy * progress).toFixed(1)}px) scale(${scale.toFixed(4)})`;
+        name.style.letterSpacing = `${(0.01 + 0.15 * clamp(progress, 0, 1)).toFixed(4)}em`;
+      } else {
+        // Pas de marque visible : le prénom s'efface simplement.
+        name.style.opacity = (1 - smoothstep(GLIDE_FROM, GLIDE_FROM + 0.6, seconds)).toFixed(3);
+      }
+    };
+    apply(useWorld.getState().gameTransition * INTRO_DURATION);
+    // Ouverture passée : le nom reste où il est et s'efface (classe « leaving »).
+    return useWorld.subscribe((state) => {
+      if (state.phase === 'transitioning') apply(state.gameTransition * INTRO_DURATION);
+    });
   }, []);
 
   return (

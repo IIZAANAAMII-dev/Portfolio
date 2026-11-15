@@ -53,7 +53,7 @@ interface Spec {
 }
 
 const SPECS: Record<Shape, Spec> = {
-  crate: { radius: 0.6, mass: 1.1, drag: 0.9, float: 0.06, bob: 40, right: 10, stable: 'box', hop: 2.4, spin: 6, twirl: 4, tiltDrag: 2.2, yawDrag: 0.9, moored: 0, idle: 0.25, span: 0.7, sound: 'wood', scale: 1, squash: 0.1, collides: true },
+  crate: { radius: 0.68, mass: 1.2, drag: 0.9, float: 0.06, bob: 40, right: 10, stable: 'box', hop: 2.4, spin: 6, twirl: 4, tiltDrag: 2.2, yawDrag: 0.9, moored: 0, idle: 0.25, span: 0.7, sound: 'wood', scale: 1, squash: 0.1, collides: true },
   barrel: { radius: 0.56, mass: 1.6, drag: 0.8, float: 0.07, bob: 34, right: 7, stable: 'roll', hop: 1.6, spin: 4, twirl: 3, tiltDrag: 1.8, yawDrag: 0.7, moored: 0, idle: 0.2, span: 0.8, sound: 'wood', scale: 1, squash: 0.08, collides: true },
   pot: { radius: 0.62, mass: 1.4, drag: 1.6, float: -0.08, bob: 30, right: 11, stable: 'up', hop: 1.3, spin: 3, twirl: 2.5, tiltDrag: 2.6, yawDrag: 1.2, moored: 0, idle: 0.3, span: 0.8, sound: 'wood', scale: 1, squash: 0.1, collides: true },
   buoy: { radius: 0.6, mass: 1.2, drag: 1.4, float: 0.2, bob: 46, right: 8, stable: 'up', hop: 2.6, spin: 3.5, twirl: 2, tiltDrag: 1.7, yawDrag: 1.1, moored: 1.1, idle: 0.35, span: 0.7, sound: 'soft', scale: 1, squash: 0.18, collides: true },
@@ -61,7 +61,7 @@ const SPECS: Record<Shape, Spec> = {
   lifebuoy: { radius: 0.82, mass: 0.45, drag: 1, float: 0.07, bob: 46, right: 14, stable: 'up', hop: 3.6, spin: 4, twirl: 9, tiltDrag: 2.4, yawDrag: 0.45, moored: 0, idle: 0.25, span: 0.8, sound: 'soft', scale: 1, squash: 0.16, collides: true },
   duck: { radius: 2.5, mass: 3.2, drag: 0.8, float: -0.15, bob: 26, right: 4.5, stable: 'up', hop: 1.1, spin: 2.6, twirl: 2.4, tiltDrag: 1.3, yawDrag: 1.4, moored: 0, idle: 0.5, span: 2, sound: 'duck', scale: 1.65, squash: 0.12, collides: true },
   marker: { radius: 0.82, mass: 2.6, drag: 1.6, float: -0.25, bob: 30, right: 8.5, stable: 'up', hop: 0.9, spin: 1.8, twirl: 1, tiltDrag: 1.6, yawDrag: 1.4, moored: 1.6, idle: 0.3, span: 0.9, sound: 'soft', scale: 1, squash: 0.06, collides: true },
-  raft: { radius: 2.5, mass: 14, drag: 1.5, float: 0, bob: 24, right: 9, stable: 'up', hop: 0.35, spin: 1.2, twirl: 0.5, tiltDrag: 2.2, yawDrag: 1.6, moored: 0.45, idle: 0.12, span: 2.2, sound: 'wood', scale: 1, squash: 0, collides: false },
+  raft: { radius: 2.5, mass: 22, drag: 1.7, float: 0, bob: 24, right: 9, stable: 'up', hop: 0.35, spin: 1.6, twirl: 0.5, tiltDrag: 2.2, yawDrag: 1.6, moored: 0.65, idle: 0.12, span: 2.2, sound: 'wood', scale: 1, squash: 0, collides: false },
 };
 
 type Mode = 'free' | 'stacked' | 'flying';
@@ -472,7 +472,7 @@ function collideBoat(toy: Toy, time: number) {
   impact(toy.shape, toy.sound, strength, p.x - nx * toy.radius, p.z - nz * toy.radius, time);
   if (toy.mass >= 3) {
     // Les gros (cane, radeau) freinent un peu le bateau et le font cabrer.
-    boatState.speed *= 1 - 0.35 * Math.min(strength, 1) * (1 - share);
+    boatState.speed *= 1 - (toy.mass >= 10 ? 0.6 : 0.35) * Math.min(strength, 1) * (1 - share);
     jolt(0.16 + 0.32 * Math.min(strength, 1));
   }
 }
@@ -540,7 +540,7 @@ function deck(toy: Toy, dt: number) {
     return true;
   }
   if (local.y + support < -0.32) return false;
-  const radius = toy.shape === 'crate' ? 0.45 * toy.scale : toy.radius * 0.9;
+  const radius = toy.shape === 'crate' ? (CRATE.w / 2) * toy.scale : toy.radius * 0.9;
   before.copy(toy.p);
   if (inside) {
     // Coincé sous le bord : ressort par le côté le plus proche.
@@ -634,7 +634,7 @@ function rotate(toy: Toy, dt: number, time: number, up: Vector3, grounded: boole
 function steerYaw(toy: Toy, dt: number) {
   let wanted = toy.yawHome;
   if (toy.shape === 'duck') {
-    wanted = toy.v.x * toy.v.x + toy.v.z * toy.v.z > 0.02 ? Math.atan2(-toy.v.z, toy.v.x) : Number.NaN;
+    wanted = toy.v.x * toy.v.x + toy.v.z * toy.v.z > 0.006 ? Math.atan2(-toy.v.z, toy.v.x) : Number.NaN;
   }
   if (Number.isNaN(wanted)) return;
   forward.set(1, 0, 0).applyQuaternion(toy.q);
@@ -669,7 +669,7 @@ function resolvePair(a: Toy, b: Toy, time: number) {
   const dx = b.p.x - a.p.x;
   const dy = b.p.y - a.p.y;
   const dz = b.p.z - a.p.z;
-  const bound = (a.shape === 'crate' ? 0.72 : a.radius) + (b.shape === 'crate' ? 0.72 : b.radius);
+  const bound = (a.shape === 'crate' ? 0.84 : a.radius) + (b.shape === 'crate' ? 0.84 : b.radius);
   const d2 = dx * dx + dy * dy + dz * dz;
   if (d2 >= bound * bound) return;
   const distance = Math.sqrt(d2) || 1e-3;

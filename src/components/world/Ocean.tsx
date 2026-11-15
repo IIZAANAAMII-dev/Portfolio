@@ -414,7 +414,7 @@ ${SHORE_GLSL}
   }
   // Écume du rivage : liseré presque blanc, anneaux un peu plus légers ; la nuit, sur l'eau
   // noire, les anneaux se font plus discrets (une lueur, pas des courbes de niveau).
-  float shoreAmt = max(shore.x * mix(0.94, 0.72, uDayNight), shore.y * mix(0.8, 0.4, uDayNight)) * (1.0 - forbidden);
+  float shoreAmt = max(shore.x * mix(0.94, 0.62, uDayNight), shore.y * mix(0.8, 0.34, uDayNight)) * (1.0 - forbidden);
   float foamAmt = clamp(crest * 1.6 + stormFoam + monsterFoam * 0.48 + shoreAmt, 0.0, 0.94);
   // Écume plus lumineuse la nuit, phosphorescente au bord des îles.
   vec3 foamColor = uFoam * mix(1.0, 1.16, uDayNight);
@@ -553,8 +553,8 @@ export function Ocean() {
       u.uCoast.value = map.texture;
       u.uCoastRect.value.set(map.rect[0], map.rect[1], map.rect[2], 0);
     }
-    // Fondu d'apparition en temps réel (borné) : quelques secondes, même sur un appareil lent.
-    if (map) u.uCoastRect.value.w = damp(u.uCoastRect.value.w, 1, 1.6, Math.min(dt, 0.2));
+    // Fondu d'apparition en temps réel : quelques secondes, même sur un appareil lent.
+    if (map) u.uCoastRect.value.w = damp(u.uCoastRect.value.w, 1, 1.6, Math.min(dt, 1));
     u.uDeep.value.copy(DAY_DEEP).lerp(NIGHT_DEEP, dayNight);
     u.uShallow.value.copy(DAY_SHALLOW).lerp(NIGHT_SHALLOW, dayNight);
     u.uLagoon.value.copy(DAY_LAGOON).lerp(NIGHT_LAGOON, dayNight);

@@ -167,7 +167,7 @@ export function splashSound(strength: number, time: number, gap = 0.16) {
 /** Le bateau percute un objet : rond, gerbe, étoile, son et une ligne au carnet de bord. */
 export function impact(shape: string, kind: SoundKind, strength: number, x: number, z: number, time: number) {
   const water = waveHeight(x, z, time);
-  ripple(x, z, time, 0.8 + strength * 1.8);
+  ripple(x, z, time, 0.5 + strength * 0.55);
   splashBurst(x, water + 0.05, z, strength, time);
   if (!fxSettings.reduced) pop(x, water + 1.1 + strength * 0.4, z, 0.5 + strength * 0.75, time);
   bumpSound(kind, 0.3 + strength * 0.7, time, 0.04);
@@ -179,7 +179,7 @@ export function impact(shape: string, kind: SoundKind, strength: number, x: numb
 export function splashDown(x: number, z: number, speed: number, size: number, time: number) {
   const strength = clamp(speed / 8, 0.15, 1.1);
   const water = waveHeight(x, z, time);
-  ripple(x, z, time, size * (0.7 + strength));
+  ripple(x, z, time, Math.min(size, 1) * (0.5 + strength * 0.6));
   splashBurst(x, water + 0.05, z, strength * 0.85, time);
   splashSound(0.05 + strength * 0.2, time);
 }

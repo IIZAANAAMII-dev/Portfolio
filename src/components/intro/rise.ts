@@ -25,9 +25,14 @@ export interface RiseSlot {
   rises: boolean;
 }
 
-/** Début et durée du balayage (s depuis le clic). */
-const SWEEP_FROM = 1.6;
-const SWEEP_SPAN = 3.0;
+/** Début et durée du balayage (s depuis le clic) : un tour complet autour du bateau. */
+export const SWEEP_FROM = 1.6;
+export const SWEEP_SPAN = 3.0;
+
+/** Relèvement (rad, monde) du faisceau de balayage `seconds` après le clic. */
+export function sweepBearing(seconds: number, heading: number) {
+  return heading - Math.PI + ((seconds - SWEEP_FROM) / SWEEP_SPAN) * Math.PI * 2;
+}
 
 interface Schedule {
   key: string;
@@ -36,9 +41,14 @@ interface Schedule {
 }
 
 let cache: Schedule | null = null;
+const cachedFor = { x: Number.NaN, z: Number.NaN, heading: Number.NaN };
 
 /** Programme du surgissement, pour un bateau en (cx, cz) et un cap donnés (mis en cache). */
 export function riseSchedule(cx: number, cz: number, heading: number): Schedule {
+  if (cache && cachedFor.x === cx && cachedFor.z === cz && cachedFor.heading === heading) return cache;
+  cachedFor.x = cx;
+  cachedFor.z = cz;
+  cachedFor.heading = heading;
   const key = `${cx.toFixed(2)}|${cz.toFixed(2)}|${heading.toFixed(3)}`;
   if (cache && cache.key === key) return cache;
   const slots: RiseSlot[] = [];
@@ -57,7 +67,8 @@ export function riseSchedule(cx: number, cz: number, heading: number): Schedule 
     x: hx,
     z: hz,
     radius: homeIsland.radius,
-    footprint: homeIsland.radius * 1.62,
+    // Emprise serrée : le bateau, amarré au bout du ponton, ne doit pas « popper » avec l'îlot.
+    footprint: homeIsland.radius * 1.5,
     start: frontSeconds(Math.hypot(hx - cx, hz - cz) - 4.5),
     rises: false,
   });
@@ -132,7 +143,7 @@ export function risePose(tau: number, depth: number, seed: number, out: RisePose
   const velocity = (envelope * (OMEGA / DAMPED) * sine);
   // Fondu final : aucune discontinuité au passage au repos.
   const settle = 1 - Math.min(1, Math.max(0, (tau - (RISE_SETTLE - 0.35)) / 0.35));
-  out.y = -depth * (1 - response) * (settle < 1 ? settle : 1);
+  out.y = -depth * (1 - response) * settle;
   const stretch = 1 + 0.3 * velocity * settle;
   out.sy = stretch;
   out.sxz = 1 / Math.sqrt(stretch);

@@ -3,12 +3,17 @@
 import { useMemo, useRef } from 'react';
 import { useProgress } from '@react-three/drei';
 import { useFrame, useThree } from '@react-three/fiber';
-import { Mesh, ShaderMaterial, Vector2, Vector3 } from 'three';
+import { Color, Fog, Mesh, ShaderMaterial, Vector2, Vector3 } from 'three';
 import { placeIntroCamera } from '@/components/camera/CameraRig';
+import { IntroFX } from '@/components/intro/IntroFX';
+import { applyIntroPop } from '@/components/intro/pop';
 import { boatState } from '@/lib/boat-state';
-import { INTRO_RADIUS_END, INTRO_RING_RADIUS } from '@/lib/cinematic';
+import { INTRO_DURATION, INTRO_RADIUS_END, INTRO_RING_RADIUS, SPLASH_SECONDS } from '@/lib/cinematic';
 import { useWorld } from '@/lib/store';
-import { damp } from '@/lib/utils/math';
+import { damp, smoothstep } from '@/lib/utils/math';
+
+// Pop GPU de la révélation : greffé avant la compilation des premiers matériaux.
+applyIntroPop();
 
 /**
  * Le seuil du monde : une mer de nuit quadrillée comme une carte marine, et un anneau de
@@ -16,8 +21,13 @@ import { damp } from '@/lib/utils/math';
  * cardinaux au-delà ; les lettres N, E, S, O sont posées en DOM par l'intro). L'anneau se
  * remplit avec le chargement réel des modèles et des textures, du nord dans le sens des
  * aiguilles d'une montre, et les graduations s'allument à son passage. Une fois complet, il
- * pulse ; au clic, le cadran s'efface et l'anneau part en onde de choc pour dévoiler
- * l'archipel (le trou transparent suit `introRadius`, la même valeur qui fait surgir les îles).
+ * pulse.
+ *
+ * Au clic, l'anneau inspire (il se contracte), le cadran tourne comme une bague d'objectif et
+ * un diaphragme à sept lames s'ouvre sur l'eau. À l'impact du bateau, la carte ondule (rides
+ * concentriques), se mouille et se dissout derrière un rivage d'écume qui suit l'onde de
+ * lumière (`introRadius`, la même valeur qui fait surgir les îles). En mouvement réduit, ou
+ * si le visiteur passe l'ouverture, la carte s'efface simplement en fondu.
  *
  * Rendu hors du Suspense de la scène : il est visible dès la première image, pendant que
  * le reste se charge. Avant le clic, il couvre tout (pas de test de profondeur) : rien de la
@@ -45,6 +55,14 @@ uniform float uTime;
 uniform float uOpacity;
 uniform float uBezel;
 uniform float uTicks;
+uniform float uIris;
+uniform float uIrisTurn;
+uniform float uSpin;
+uniform float uSplashAge;
+uniform float uRagged;
+uniform float uRim;
+uniform float uReveal;
+uniform vec3 uFogColor;
 varying vec3 vWorld;
 
 const float TAU = 6.2831853;
@@ -57,36 +75,74 @@ float gridLine(vec2 p, float step, float width) {
   return max(line.x, line.y);
 }
 
+float chartHash(vec2 p) {
+  return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
+}
+
+float chartNoise(vec2 p) {
+  vec2 i = floor(p);
+  vec2 f = fract(p);
+  f = f * f * (3.0 - 2.0 * f);
+  return mix(mix(chartHash(i), chartHash(i + vec2(1.0, 0.0)), f.x), mix(chartHash(i + vec2(0.0, 1.0)), chartHash(i + vec2(1.0, 1.0)), f.x), f.y);
+}
+
 void main() {
   vec2 d = vWorld.xz - uCenter;
   float r = length(d);
   float aaR = fwidth(r);
   float s = uScale;
+  float angle = atan(d.y, d.x);
+  vec2 dir = r > 0.001 ? d / r : vec2(1.0, 0.0);
+
+  // Rides : après l'impact, des ondes concentriques parcourent la carte et la font onduler.
+  float rippled = r;
+  float crest = 0.0;
+  if (uSplashAge >= 0.0) {
+    float travel = uSplashAge * 26.0;
+    float envelope = exp(-pow((r - travel) / 10.0, 2.0)) * exp(-uSplashAge * 0.7);
+    float wave = sin((r - travel) * 1.7);
+    rippled = r + wave * 0.6 * envelope;
+    crest = max(wave, 0.0) * envelope;
+  }
+  vec2 chartPoint = uCenter + dir * rippled;
+
+  // Bord du trou : diaphragme à sept lames pendant l'ouverture, puis rivage d'écume irrégulier.
+  // Heptagone inscrit dans l'anneau : ses sommets touchent le cercle, ses lames mordent dedans.
+  float sector = TAU / 7.0;
+  float blade = mod(angle - uIrisTurn, sector) - sector * 0.5;
+  float edge = uHole * mix(1.0, cos(sector * 0.5) / cos(blade), uIris);
+  edge += (chartNoise(dir * 3.5 + vec2(uTime * 0.45, -uTime * 0.3)) - 0.5) * 3.4 * uRagged * smoothstep(8.0, 22.0, uHole);
 
   // Mer de nuit, un peu plus claire autour de l'anneau.
   vec3 color = mix(vec3(0.01, 0.018, 0.034), vec3(0.026, 0.048, 0.085), exp(-r * 0.05));
+  // Près du rivage qui avance, la carte se mouille : elle vire au bleu-vert profond.
+  float soak = exp(-max(r - edge, 0.0) / 7.0) * uRagged;
+  color = mix(color, vec3(0.03, 0.14, 0.17), soak * 0.75);
 
-  // Carte marine : méridiens et parallèles fins, croix de relèvement aux intersections.
+  // Carte marine : méridiens et parallèles fins, croix de relèvement aux intersections. Les
+  // traits s'effacent près du rivage et pâlissent à mesure que le jour se lève.
   float fade = exp(-r * 0.018);
-  float lines = gridLine(vWorld.xz, 8.0, 0.025) * 0.22;
-  vec2 cell = abs(fract(vWorld.xz / 8.0 - 0.5) - 0.5) * 8.0;
-  vec2 aa = fwidth(vWorld.xz) * 1.2;
+  float ink = smoothstep(edge + 0.5, edge + 9.0, r) * (1.0 - uReveal * 0.55);
+  float lines = gridLine(chartPoint, 8.0, 0.025) * 0.22;
+  vec2 cell = abs(fract(chartPoint / 8.0 - 0.5) - 0.5) * 8.0;
+  vec2 aa = fwidth(chartPoint) * 1.2;
   float crossArm = max(
     (1.0 - smoothstep(0.035, 0.035 + aa.x, cell.x)) * (1.0 - smoothstep(0.45, 0.45 + aa.y, cell.y)),
     (1.0 - smoothstep(0.035, 0.035 + aa.y, cell.y)) * (1.0 - smoothstep(0.45, 0.45 + aa.x, cell.x))
   );
   // Rose des vents en filigrane : 16 rhumbs alignés sur le nord du cadran. sin(8θ) est
   // continu à la coupure de atan, et le seuil 0,24/r donne des traits de largeur constante.
-  float angle = atan(d.y, d.x);
   float spoke = abs(sin((angle - uStart) * 8.0));
   float rhumb = 1.0 - smoothstep(0.24 / max(r, 1.0), 0.24 / max(r, 1.0) + fwidth(spoke) * 1.2, spoke);
   rhumb *= smoothstep(uRing + 1.6 * s, uRing + 4.2 * s, r) * exp(-r * 0.04) * 0.18;
   vec3 chart = vec3(0.32, 0.5, 0.72);
-  color += chart * (lines + crossArm * 0.55 + rhumb) * fade;
+  color += chart * (lines + crossArm * 0.55 + rhumb) * fade * ink;
+  color += vec3(0.5, 0.74, 0.92) * crest * 0.32 * fade * ink;
 
   // Progression : l'arc part du nord du cadran (haut de l'écran, côté opposé à la caméra)
   // et tourne dans le sens horaire. Complet, il est fermé partout (aucune couture au nord).
-  float around = fract((angle - uStart) / TAU);
+  // Au clic, le cadran tourne comme une bague d'objectif (uSpin).
+  float around = fract((angle - uStart - uSpin) / TAU);
   float drawn = uProgress >= 1.0
     ? 1.0
     : (1.0 - smoothstep(uProgress - 0.008, uProgress, around)) * smoothstep(0.0, 0.004, around);
@@ -98,7 +154,7 @@ void main() {
   float core = 1.0 - smoothstep(0.03 * s, 0.1 * s + aaR, ringDistance);
   float halo = exp(-ringDistance * 1.6 / max(s, 0.3));
   float pulse = 1.0 + uReady * 0.35 * sin(uTime * 2.4);
-  color += mix(lantern, white, core) * (core * mix(0.12, 1.4, drawn) + halo * drawn * 0.3 * pulse);
+  color += mix(lantern, white, core) * (core * mix(0.12, 1.4, drawn) + halo * drawn * 0.3 * pulse) * uBezel;
   // Tête de l'arc pendant le chargement : une étincelle qui avance.
   float headArc = (around - uProgress) * TAU * uRing;
   float head = uProgress < 1.0 ? exp(-headArc * headArc * 3.0 / (s * s)) * exp(-ringDistance * 2.4 / max(s, 0.3)) : 0.0;
@@ -121,19 +177,25 @@ void main() {
     * (1.0 - smoothstep(r1 - aaR, r1 + aaR, r));
   float baseLine = 1.0 - smoothstep(0.008 * s, 0.008 * s + aaR, abs(r - r0));
   float innerLine = 1.0 - smoothstep(0.01 * s, 0.01 * s + aaR, abs(r - (uRing - 0.45 * s)));
-  vec3 ink = mix(vec3(0.42, 0.58, 0.78), vec3(0.86, 0.9, 0.95), drawn);
-  color += ink * (tick * mix(0.2, 0.6, drawn) * mix(1.0, 1.35, major) + baseLine * mix(0.06, 0.22, drawn) + innerLine * 0.12) * uBezel;
+  vec3 inkColor = mix(vec3(0.42, 0.58, 0.78), vec3(0.86, 0.9, 0.95), drawn);
+  color += inkColor * (tick * mix(0.2, 0.6, drawn) * mix(1.0, 1.35, major) + baseLine * mix(0.06, 0.22, drawn) + innerLine * 0.12) * uBezel;
   color += lantern * tick * cardinal * drawn * 0.7 * uBezel;
 
   // Onde de choc du dévoilement : plus large, plus vive.
   color += lantern * exp(-ringDistance * 0.55) * uWave * 0.45;
 
-  // Au loin, la carte se fond dans la nuit (la couleur du fond de scène) : pas d'horizon.
-  color = mix(color, vec3(0.0006, 0.0012, 0.0024), smoothstep(28.0, 150.0, r));
+  // Au loin, la carte se fond dans la nuit, puis dans la brume du jour qui se lève : pas
+  // d'horizon tranché.
+  color = mix(color, mix(vec3(0.0006, 0.0012, 0.0024), uFogColor, smoothstep(0.15, 0.8, uReveal)), smoothstep(28.0, 150.0, r));
 
-  // Le monde apparaît dans le cercle ; dehors, la carte reste.
-  float alpha = smoothstep(uHole - 3.5, uHole, r) * uOpacity;
-  gl_FragColor = vec4(color, alpha);
+  // Le monde apparaît dans le trou ; dehors, la carte reste. Sur son bord, un liseré de
+  // lanterne (diaphragme) puis d'écume (rivage qui avance).
+  // Lames nettes pendant l'ouverture, rivage fondu ensuite.
+  float alpha = smoothstep(edge - mix(3.0, 0.45, uIris), edge + 0.3, r);
+  float rim = exp(-pow((r - edge) / (0.5 + uRagged * 0.7), 2.0)) * uRim * step(0.01, uHole);
+  color = mix(color, mix(lantern, vec3(0.9, 0.98, 1.0), uRagged), rim * 0.85);
+  alpha = max(alpha, rim * 0.9);
+  gl_FragColor = vec4(color, alpha * uOpacity);
   #include <colorspace_fragment>
 }
 `;
@@ -142,6 +204,7 @@ const center = new Vector3();
 const probe = new Vector3();
 const right = new Vector3();
 const forward = new Vector3();
+const NIGHT_FOG = new Color('#020408');
 
 /** Débord du cadran au-delà de l'anneau (graduations cardinales), en part du rayon. */
 const BEZEL_OVERHANG = 0.98 / INTRO_RING_RADIUS;
@@ -149,6 +212,9 @@ const BEZEL_OVERHANG = 0.98 / INTRO_RING_RADIUS;
 const LETTER_ROOM_PX = 20;
 const EDGE_MIN_PX = 18;
 const EDGE_RATIO = 0.05;
+/** Fondu de sortie de la carte (s) : mouvement réduit, ou ouverture passée. */
+const TAIL_REDUCED = 0.7;
+const TAIL_SKIP = 0.45;
 
 /**
  * Rayon affiché pour un rayon « monde » de la cinématique. Sur un écran étroit (téléphone
@@ -163,6 +229,14 @@ function displayedRadius(radius: number, fit: number) {
   return start + ((radius - INTRO_RING_RADIUS) * (INTRO_RADIUS_END - start)) / (INTRO_RADIUS_END - INTRO_RING_RADIUS);
 }
 
+/** Bague du cadran : elle recule d'un cran, puis tourne d'un geste ample et se pose. */
+function bezelSpin(seconds: number) {
+  if (seconds <= 0) return 0;
+  if (seconds < 0.14) return -0.09 * Math.sin((seconds / 0.14) * Math.PI * 0.5);
+  const t = seconds - 0.14;
+  return 0.6 - 0.69 * Math.exp(-4.5 * t) * (Math.cos(8 * t) + 0.56 * Math.sin(8 * t));
+}
+
 export function IntroStage({ mobile }: { mobile: boolean }) {
   const mesh = useRef<Mesh>(null);
   const anchor = useRef<HTMLElement | null>(null);
@@ -170,6 +244,8 @@ export function IntroStage({ mobile }: { mobile: boolean }) {
   const material = useRef<ShaderMaterial>(null);
   const shownProgress = useRef(0);
   const fit = useRef(1);
+  // Fondu de sortie : instant de départ (horloge three), trou figé, durée.
+  const tail = useRef({ from: -1, hole: 0, length: TAIL_SKIP, seen: 'loading' });
   const size = useThree((state) => state.size);
 
   const uniforms = useMemo(
@@ -186,21 +262,51 @@ export function IntroStage({ mobile }: { mobile: boolean }) {
       uOpacity: { value: 1 },
       uBezel: { value: 1 },
       uTicks: { value: 72 },
+      uIris: { value: 0 },
+      uIrisTurn: { value: 0 },
+      uSpin: { value: 0 },
+      uSplashAge: { value: -1 },
+      uRagged: { value: 0 },
+      uRim: { value: 0 },
+      uReveal: { value: 0 },
+      uFogColor: { value: new Color('#020408') },
     }),
     [],
   );
 
   useFrame((state, delta) => {
     const dt = Math.min(delta, 1 / 30);
-    const { phase, sceneReady, introCenter, introRadius, gameTransition, reducedMotion } = useWorld.getState();
+    const { phase, sceneReady, introCenter, introRadius, gameTransition, reducedMotion, reveal } = useWorld.getState();
     const target = mesh.current;
     const shader = material.current;
     if (!target || !shader) return;
-    const visible = phase === 'loading' || phase === 'intro' || phase === 'transitioning';
-    target.visible = visible;
-    if (!visible) return;
+    const u = shader.uniforms;
+    const time = state.clock.elapsedTime;
+    const covering = phase === 'loading' || phase === 'intro' || phase === 'transitioning';
+
+    // Sortie sans cinématique (mouvement réduit, ouverture passée) : la carte s'efface en
+    // fondu au lieu de disparaître d'un coup.
+    const exit = tail.current;
+    if (!covering && (exit.seen === 'intro' || exit.seen === 'transitioning') && exit.from < 0) {
+      exit.from = time;
+      exit.length = exit.seen === 'intro' || reducedMotion ? TAIL_REDUCED : TAIL_SKIP;
+      exit.hole = exit.seen === 'intro' ? 0 : u.uHole.value;
+    }
+    if (covering) exit.from = -1;
+    exit.seen = phase;
+    const fading = !covering && exit.from >= 0 && time - exit.from < exit.length;
+    target.visible = covering || fading;
+    if (!target.visible) return;
+    if (fading) {
+      u.uHole.value = exit.hole;
+      u.uOpacity.value = 1 - smoothstep(0, exit.length, time - exit.from);
+      u.uReady.value = 0;
+      return;
+    }
+
     const camera = state.camera;
     const revealing = phase === 'transitioning';
+    const seconds = revealing ? gameTransition * INTRO_DURATION : -1;
 
     // Avant le clic, la carte est un écran-titre : elle passe devant tout. Au dévoilement,
     // la profondeur compte de nouveau (le bateau qui tombe passe devant la carte).
@@ -225,7 +331,7 @@ export function IntroStage({ mobile }: { mobile: boolean }) {
       const maxRx = room / (1 + BEZEL_OVERHANG);
       fit.current = baseRx > 1 ? Math.min(1, Math.max(0.45, maxRx / baseRx)) : 1;
       // Petit anneau (téléphone) : une graduation tous les 10°, sinon le cadran grésille.
-      shader.uniforms.uTicks.value = baseRx * fit.current < 230 ? 36 : 72;
+      u.uTicks.value = baseRx * fit.current < 230 ? 36 : 72;
     }
     const ring = displayedRadius(introRadius, fit.current);
     const ringRest = INTRO_RING_RADIUS * fit.current;
@@ -235,21 +341,46 @@ export function IntroStage({ mobile }: { mobile: boolean }) {
     // (appareil modeste, rendu logiciel), l'anneau se referme bien une fois prêt.
     const loaded = sceneReady ? 1 : Math.min(useProgress.getState().progress / 100, 0.94);
     shownProgress.current = damp(shownProgress.current, loaded, sceneReady ? 7 : 3.2, Math.min(delta, 0.25));
-    const u = shader.uniforms;
-    u.uTime.value = state.clock.elapsedTime;
+    u.uTime.value = time;
     u.uCenter.value.set(introCenter[0], introCenter[1]);
     target.position.set(introCenter[0], 0.06, introCenter[1]);
     u.uProgress.value = shownProgress.current > 0.995 ? 1 : shownProgress.current;
     u.uStart.value = boatState.heading;
     // L'anneau prêt respire doucement (immobile si le visiteur réduit les animations).
     u.uReady.value = damp(u.uReady.value, phase === 'intro' && !reducedMotion ? 1 : 0, 3, dt);
-    u.uBezel.value = damp(u.uBezel.value, revealing ? 0 : 1, revealing ? 9 : 3, dt);
     u.uScale.value = fit.current;
-    u.uRing.value = Math.max(ringRest, ring);
-    u.uHole.value = revealing ? ring : 0;
-    u.uWave.value = revealing ? Math.sin(Math.min(gameTransition * 1.6, 1) * Math.PI) : 0;
-    // La carte s'efface à la fin du dévoilement.
-    u.uOpacity.value = revealing ? 1 - Math.max(0, (gameTransition - 0.82) / 0.18) : 1;
+    u.uReveal.value = reveal;
+    const fog = state.scene.fog;
+    (u.uFogColor.value as Color).copy(fog instanceof Fog ? fog.color : NIGHT_FOG);
+
+    if (revealing) {
+      // Inspiration : l'anneau se contracte d'un souffle avant que le diaphragme ne s'ouvre.
+      const breath = 1 - 0.075 * Math.sin(Math.PI * Math.min(1, seconds / 0.24));
+      u.uRing.value = Math.max(ringRest, ring) * breath;
+      u.uHole.value = ring;
+      u.uSpin.value = bezelSpin(seconds);
+      u.uIris.value = smoothstep(0.04, 0.12, seconds) * (1 - smoothstep(0.62, 1.0, seconds));
+      u.uIrisTurn.value = 0.9 * smoothstep(0.08, 0.6, seconds);
+      u.uBezel.value = 1 - smoothstep(SPLASH_SECONDS - 0.05, SPLASH_SECONDS + 0.35, seconds);
+      const since = seconds - SPLASH_SECONDS;
+      u.uSplashAge.value = since >= 0 ? since : -1;
+      u.uRagged.value = smoothstep(0, 0.25, since);
+      u.uRim.value = since < 0 ? 0.55 * smoothstep(0.1, 0.3, seconds) : 1;
+      u.uWave.value = since < 0 ? 0 : Math.exp(-since * 1.5) * smoothstep(0, 0.06, since) * 1.4;
+      // La carte s'efface à la fin du dévoilement.
+      u.uOpacity.value = 1 - smoothstep(INTRO_DURATION * 0.78, INTRO_DURATION * 0.97, seconds);
+    } else {
+      u.uRing.value = Math.max(ringRest, ring);
+      u.uHole.value = 0;
+      u.uSpin.value = 0;
+      u.uIris.value = 0;
+      u.uBezel.value = 1;
+      u.uSplashAge.value = -1;
+      u.uRagged.value = 0;
+      u.uRim.value = 0;
+      u.uWave.value = 0;
+      u.uOpacity.value = 1;
+    }
 
     // Ancre DOM : le texte d'intro se place au centre VISUEL de l'ellipse (milieu entre
     // ses bords proche et lointain, pas le centre projeté du cercle), avec ses deux
@@ -279,17 +410,20 @@ export function IntroStage({ mobile }: { mobile: boolean }) {
   });
 
   return (
-    <mesh ref={mesh} rotation-x={-Math.PI / 2} renderOrder={1000} frustumCulled={false}>
-      <planeGeometry args={[1600, 1600]} />
-      <shaderMaterial
-        ref={material}
-        uniforms={uniforms}
-        vertexShader={vertexShader}
-        fragmentShader={fragmentShader}
-        transparent
-        depthWrite={false}
-        depthTest={false}
-      />
-    </mesh>
+    <>
+      <mesh ref={mesh} rotation-x={-Math.PI / 2} renderOrder={1000} frustumCulled={false}>
+        <planeGeometry args={[1600, 1600]} />
+        <shaderMaterial
+          ref={material}
+          uniforms={uniforms}
+          vertexShader={vertexShader}
+          fragmentShader={fragmentShader}
+          transparent
+          depthWrite={false}
+          depthTest={false}
+        />
+      </mesh>
+      <IntroFX />
+    </>
   );
 }

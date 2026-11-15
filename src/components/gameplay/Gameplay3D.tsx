@@ -9,6 +9,8 @@ import { APPROACH_RANGE, FISHING_RANGE, STOP_SPEED, clockNow, nearestSpot } from
 import { FishingGear } from './FishingGear';
 import { FishingSpots } from './FishingSpots';
 import { GameplayCamera } from './GameplayCamera';
+import { MARKS, START_RANGE, useRegatta } from './regatta';
+import { Regatta } from './Regatta';
 import { SeaFx } from './SeaFx';
 import { useGameplay } from './store';
 
@@ -30,6 +32,15 @@ function GameplayLoop() {
     game.setApproach(playing && distance < APPROACH_RANGE ? index : -1);
     // Le viseur se range si le bateau accoste (la page de l'île s'ouvre).
     if (world.phase === 'docked' && game.photo === 'aim') game.closePhoto();
+
+    // Régate : passages de marques, proposition au départ, abandon si l'on accoste.
+    const race = useRegatta.getState();
+    race.tick(clockNow());
+    if (world.phase === 'docked' && (race.phase === 'armed' || race.phase === 'racing')) race.abort();
+    const [sx, sz] = MARKS[0];
+    race.setNearStart(
+      playing && race.phase === 'off' && Math.hypot(boatState.position.x - sx, boatState.position.z - sz) < START_RANGE,
+    );
   });
   return null;
 }
@@ -53,6 +64,7 @@ export default function Gameplay3D() {
       <SeaFx />
       <GameplayLoop />
       <FishingGear />
+      <Regatta />
       <GameplayCamera />
     </>
   );

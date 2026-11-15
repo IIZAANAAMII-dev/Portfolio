@@ -2,17 +2,18 @@
 
 import { useRef } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
-import { CatmullRomCurve3, PerspectiveCamera, Vector3, type Camera } from 'three';
+import { PerspectiveCamera, Vector3, type Camera } from 'three';
 import { splashState } from '@/components/boat/Splash';
-import { homeIsland, islandById } from '@/data/islands';
+import { islandById } from '@/data/islands';
+import { impactRecoil, introCameraAt } from '@/components/intro/camera-path';
 import { sceneConfigs } from '@/components/islands/scenes/registry';
 import { boatState } from '@/lib/boat-state';
 import { ecologyState } from '@/lib/ecology';
 import { skyState } from '@/lib/sky';
-import { cameraProgress, cinematicEase, INTRO_ANTICIPATION } from '@/lib/cinematic';
+import { INTRO_DURATION, introSeconds } from '@/lib/cinematic';
 import { SHEET_PEEK, sheetState } from '@/lib/sheet';
 import { useWorld } from '@/lib/store';
-import { damp, smoothstep } from '@/lib/utils/math';
+import { damp, shortestAngle, smoothstep } from '@/lib/utils/math';
 import { MAX_SPEED } from '@/hooks/useBoatNavigation';
 
 const desiredPosition = new Vector3();
@@ -23,13 +24,21 @@ const introPosition = new Vector3();
 const introTarget = new Vector3();
 const boundaryPosition = new Vector3();
 const boundaryTarget = new Vector3();
-const positionPoints = Array.from({ length: 5 }, () => new Vector3());
-const targetPoints = Array.from({ length: 5 }, () => new Vector3());
-const positionCurve = new CatmullRomCurve3(positionPoints, false, 'centripetal', 0.45);
-const targetCurve = new CatmullRomCurve3(targetPoints, false, 'centripetal', 0.45);
 // Vecteurs de travail réutilisés (aucune allocation par image).
 const workForward = new Vector3();
 const workSide = new Vector3();
+const bankPosition = new Vector3();
+const bankTarget = new Vector3();
+
+/** Poses de départ et d'arrivée de la grue d'ouverture (vecteurs partagés, champ mis à jour). */
+const introStartPose = { position: introPosition, target: introTarget, fov: 30 };
+const introEndPose = { position: gameplayPosition, target: gameplayTarget, fov: 42 };
+/** Échelle des clés de la grue : un téléphone recule et monte un peu plus (cadre plus serré). */
+const CRANE_SCALE = { desktop: { along: 1, height: 1 }, mobile: { along: 1.1, height: 1.12 }, portrait: { along: 1.18, height: 1.2 } };
+
+function introFov(aspect: number, mobile: boolean) {
+  return aspect < 0.82 ? 36 : mobile ? 33 : 30;
+}
 
 /** Téléphone en portrait, à quai : champ vertical plus ouvert (le cadre est étroit). */
 const PORTRAIT_DOCK_FOV = 50;
@@ -78,7 +87,7 @@ export function placeIntroCamera(camera: Camera, mobile: boolean, aspect: number
   camera.position.copy(introPosition);
   camera.lookAt(introTarget);
   if (camera instanceof PerspectiveCamera) {
-    const fov = aspect < 0.82 ? 36 : mobile ? 33 : 30;
+    const fov = introFov(aspect, mobile);
     if (Math.abs(camera.fov - fov) > 0.001) {
       camera.fov = fov;
       camera.updateProjectionMatrix();
@@ -121,38 +130,26 @@ function boundaryPose(mobile: boolean) {
   boundaryTarget.set(midpointX, 12, midpointZ);
 }
 
-function updateCinematicCurves() {
-  const [cx, cz] = homeIsland.position;
-  const bx = boatState.position.x;
-  const bz = boatState.position.z;
-  const forward = workForward.set(Math.cos(boatState.heading), 0, Math.sin(boatState.heading)).normalize();
-  const side = workSide.set(forward.z, 0, -forward.x);
-
-  positionPoints[0].copy(introPosition);
-  // Le bateau reste visible longtemps : orbit autour, puis recul en hauteur.
-  positionPoints[1].set(
-    bx - forward.x * 24 - side.x * 7,
-    11,
-    bz - forward.z * 24 - side.z * 7,
-  );
-  positionPoints[2].set(
-    bx - forward.x * 29 + side.x * 9,
-    14,
-    bz - forward.z * 29 + side.z * 9,
-  );
-  positionPoints[3].set(
-    bx - forward.x * 38,
-    22,
-    bz - forward.z * 38,
-  );
-  positionPoints[4].copy(gameplayPosition);
-
-  // Target reste d'abord sur le bateau, puis s'élargit vers l'archipel.
-  targetPoints[0].set(bx, 2.2, bz);
-  targetPoints[1].set(bx + forward.x * 3, 2.0, bz + forward.z * 3);
-  targetPoints[2].set((cx + bx) * 0.5, 1.5, (cz + bz) * 0.5);
-  targetPoints[3].set(cx * 0.35, 2.0, cz * 0.35);
-  targetPoints[4].copy(gameplayTarget);
+/**
+ * Grue d'ouverture : pose de la caméra `seconds` après le clic (voir intro/camera-path.ts),
+ * avec le recul encaissé à l'impact du bateau. Renvoie le champ vertical.
+ */
+function cranePose(seconds: number, mobile: boolean, aspect: number, reducedMotion: boolean, outPosition: Vector3, outTarget: Vector3) {
+  const portrait = aspect < 0.82;
+  introStartPose.fov = introFov(aspect, mobile);
+  const wide = portrait ? 60 : mobile ? 48 : 46;
+  const scale = portrait ? CRANE_SCALE.portrait : mobile ? CRANE_SCALE.mobile : CRANE_SCALE.desktop;
+  const fov = introCameraAt(seconds, introStartPose, introEndPose, wide, scale, outPosition, outTarget);
+  if (!reducedMotion) {
+    // L'impact pousse la caméra vers l'arrière et vers le haut, vivement, puis la grue l'absorbe.
+    const recoil = impactRecoil(seconds);
+    if (recoil > 0) {
+      workForward.subVectors(outPosition, outTarget).setY(0).normalize();
+      outPosition.addScaledVector(workForward, recoil);
+      outPosition.y += recoil * 0.45;
+    }
+  }
+  return fov;
 }
 
 export function CameraRig({ mobile }: { mobile: boolean }) {
@@ -162,11 +159,16 @@ export function CameraRig({ mobile }: { mobile: boolean }) {
   const target = useRef(new Vector3());
   const initialized = useRef(false);
   const lens = useRef({ shift: 0, applied: 0 });
+  const lastPhase = useRef('loading');
 
   useFrame((state, delta) => {
     const camera = state.camera;
     const dt = Math.min(delta, 1 / 30);
     const { phase, gameTransition, activeIsland, reducedMotion } = useWorld.getState();
+    // Mouvement réduit : le monde se pose d'un coup sous le fondu de la carte, la caméra aussi.
+    const snapAfterIntro = reducedMotion && phase !== lastPhase.current
+      && (lastPhase.current === 'intro' || lastPhase.current === 'transitioning');
+    lastPhase.current = phase;
     // Téléphone en portrait, page ouverte : décentrage optique (la perspective ne change
     // pas), l'île se place au milieu de l'espace libre entre le HUD et la feuille.
     const portraitDock = mobile && aspect < 1 && phase === 'docked' && activeIsland !== null;
@@ -211,18 +213,9 @@ export function CameraRig({ mobile }: { mobile: boolean }) {
         }
       }
     } else if (phase === 'transitioning') {
-      updateCinematicCurves();
-      const t = cameraProgress(gameTransition);
-      positionCurve.getPoint(t, desiredPosition);
-      targetCurve.getPoint(t, desiredTarget);
-
-      // Petite poussée presque imperceptible pendant l'anticipation.
-      if (gameTransition < INTRO_ANTICIPATION) {
-        const anticipation = Math.sin(
-          smoothstep(0, INTRO_ANTICIPATION, gameTransition) * Math.PI,
-        );
-        desiredPosition.y += anticipation * 0.13;
-      }
+      // Grue d'ouverture : recul à l'impact, montée en panoramique, piqué vers le bateau.
+      const seconds = introSeconds(gameTransition);
+      const nextFov = cranePose(seconds, mobile, aspect, reducedMotion, desiredPosition, desiredTarget);
 
       // L'impact du bateau secoue brièvement la caméra : la chute a du poids.
       const sinceSplash = state.clock.elapsedTime - splashState.time;
@@ -236,14 +229,15 @@ export function CameraRig({ mobile }: { mobile: boolean }) {
       target.current.copy(desiredTarget);
       camera.position.copy(position.current);
       camera.lookAt(target.current);
-      if (camera instanceof PerspectiveCamera) {
-        const introFov = aspect < 0.82 ? 36 : mobile ? 33 : 30;
-        const fovT = cinematicEase((gameTransition - 0.14) / 0.78);
-        const nextFov = introFov + (42 - introFov) * fovT;
-        if (Math.abs(camera.fov - nextFov) > 0.001) {
-          camera.fov = nextFov;
-          camera.updateProjectionMatrix();
-        }
+      // La grue s'incline un peu quand le regard balaie l'horizon, et se redresse en se posant.
+      cranePose(Math.min(seconds + 0.1, INTRO_DURATION), mobile, aspect, true, bankPosition, bankTarget);
+      const yawNow = Math.atan2(desiredTarget.z - desiredPosition.z, desiredTarget.x - desiredPosition.x);
+      const yawNext = Math.atan2(bankTarget.z - bankPosition.z, bankTarget.x - bankPosition.x);
+      const bank = Math.max(-0.06, Math.min(0.06, shortestAngle(yawNow, yawNext) * 0.45));
+      if (!reducedMotion) camera.rotateZ(bank * (1 - smoothstep(5.6, 6.9, seconds)));
+      if (camera instanceof PerspectiveCamera && Math.abs(camera.fov - nextFov) > 0.001) {
+        camera.fov = nextFov;
+        camera.updateProjectionMatrix();
       }
       return;
     } else if (phase === 'docked' && activeIsland) {
@@ -300,6 +294,10 @@ export function CameraRig({ mobile }: { mobile: boolean }) {
       }
     }
 
+    if (snapAfterIntro) {
+      position.current.copy(desiredPosition);
+      target.current.copy(desiredTarget);
+    }
     position.current.x = damp(position.current.x, desiredPosition.x, lambda, dt);
     position.current.y = damp(position.current.y, desiredPosition.y, lambda, dt);
     position.current.z = damp(position.current.z, desiredPosition.z, lambda, dt);

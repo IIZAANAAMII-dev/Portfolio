@@ -386,11 +386,16 @@ export function bakeCoastMap(done: (map: CoastMap) => void) {
   let cancelled = false;
   let handle = 0;
   const idle = typeof window.requestIdleCallback === 'function';
+  let last = performance.now();
   const run = (deadline?: IdleDeadline) => {
     if (cancelled) return;
     const start = performance.now();
-    // Temps libre annoncé par le navigateur (borné), ou 8 ms quand il n'en annonce pas.
-    const budget = deadline && !deadline.didTimeout ? Math.min(deadline.timeRemaining(), 12) : 8;
+    // Temps libre annoncé par le navigateur (borné), ou 8 ms quand il n'en annonce pas. Sur
+    // une machine qui peine (images très espacées), chaque tranche s'allonge un peu : la
+    // carte reste prête en quelques images au lieu de s'étirer sur des minutes.
+    const slow = Math.min(Math.max((start - last) * 0.12, 0), 60);
+    last = start;
+    const budget = Math.max(deadline && !deadline.didTimeout ? Math.min(deadline.timeRemaining(), 12) : 8, slow);
     do {
       if (work.next().done) return;
     } while (performance.now() - start < budget);
