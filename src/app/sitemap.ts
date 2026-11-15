@@ -1,3 +1,5 @@
+export const dynamic = 'force-static';
+
 import type { MetadataRoute } from 'next';
 import { islands } from '@/data/islands';
 import { site } from '@/data/site';

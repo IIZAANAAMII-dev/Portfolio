@@ -35,7 +35,7 @@ const LazyWorldBoundary = lazy(() => import('@/components/world/WorldBoundary').
   default: module.WorldBoundary,
 })));
 
-const BASE = '/models/aquatic-quaternius';
+const BASE = '/Portfolio/models/aquatic-quaternius';
 const SPECIES = {
   reef: { file: 'Fish1.obj', colors: ['#2f8f91', '#79d0b3', '#f2c86e'] },
   blue: { file: 'Fish2.obj', colors: ['#4e91b8', '#8fd0ce', '#f0b45f'] },

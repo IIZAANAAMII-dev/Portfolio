@@ -404,9 +404,9 @@ const textureCache = new Map<string, Promise<Texture | null>>();
 
 /**
  * Deux jeux de cartes :
- *  - `/textures/substance-adobe/` : exports des .sbsar Adobe (licence Substance 3D Assets),
+ *  - `/Portfolio/textures/substance-adobe/` : exports des .sbsar Adobe (licence Substance 3D Assets),
  *    présents seulement là où le dépôt peut les contenir — listés par un manifest.json ;
- *  - `/textures/substance/` : jeu procédural du projet, toujours livré (repli).
+ *  - `/Portfolio/textures/substance/` : jeu procédural du projet, toujours livré (repli).
  * Le manifeste Adobe est lu une seule fois ; son absence (404) n'est pas une erreur.
  */
 type TextureSource = { base: string; set: SubstanceTextureSet };
@@ -414,7 +414,7 @@ type TextureSource = { base: string; set: SubstanceTextureSet };
 let adobeManifest: Promise<Partial<Record<SubstanceId, SubstanceTextureSet>>> | null = null;
 
 function loadAdobeManifest() {
-  adobeManifest ??= fetch('/textures/substance-adobe/manifest.json', { cache: 'no-cache' })
+  adobeManifest ??= fetch('/Portfolio/textures/substance-adobe/manifest.json', { cache: 'no-cache' })
     .then((response) => (response.ok ? response.json() : {}))
     .catch(() => ({}));
   return adobeManifest;
@@ -422,9 +422,9 @@ function loadAdobeManifest() {
 
 async function textureSource(id: SubstanceId): Promise<TextureSource | null> {
   const adobe = (await loadAdobeManifest())[id];
-  if (adobe) return { base: `/textures/substance-adobe/${id}`, set: adobe };
+  if (adobe) return { base: `/Portfolio/textures/substance-adobe/${id}`, set: adobe };
   const procedural = SUBSTANCE_TEXTURES[id];
-  return procedural ? { base: `/textures/substance/${id}`, set: procedural } : null;
+  return procedural ? { base: `/Portfolio/textures/substance/${id}`, set: procedural } : null;
 }
 
 function loadMap(id: SubstanceId, map: MapName): Promise<Texture | null> {

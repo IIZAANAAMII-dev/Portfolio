@@ -43,5 +43,5 @@ export const site = {
      */
     cv: '' as string,
   },
-  url: 'https://kyliann.dev',
+  url: 'https://iizaanaamii-dev.github.io/Portfolio',
 };

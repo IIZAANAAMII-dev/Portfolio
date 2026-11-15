@@ -2,8 +2,6 @@
 
 import { useState } from 'react';
 import { site } from '@/data/site';
-import { bottleThrow } from '@/components/world/MessageBottle';
-import { logbook } from '@/lib/logbook';
 
 type Status = 'idle' | 'sending' | 'sent' | 'unavailable' | 'error';
 
@@ -26,23 +24,9 @@ export function MessageInABottle() {
   const send = async (event: React.FormEvent) => {
     event.preventDefault();
     if (!message.trim() || status === 'sending') return;
-    setStatus('sending');
-    try {
-      const response = await fetch('/api/contact', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message, name, email, website }),
-      });
-      if (response.ok) {
-        bottleThrow.requested = true;
-        logbook.stamp('bottle');
-        setStatus('sent');
-        return;
-      }
-      setStatus(response.status === 503 ? 'unavailable' : 'error');
-    } catch {
-      setStatus('error');
-    }
+    // GitHub Pages has no server: let the visitor send from their mail app.
+    setStatus('unavailable');
+    window.location.href = mailto;
   };
 
   if (status === 'sent') {
@@ -89,7 +73,7 @@ export function MessageInABottle() {
         aria-hidden="true"
       />
       <button type="submit" className="stamp-toast__cta" disabled={status === 'sending' || !message.trim()}>
-        {status === 'sending' ? 'La bouteille part…' : 'Jeter la bouteille à la mer'}
+        {status === 'sending' ? 'La bouteille part…' : 'Envoyer depuis ma messagerie'}
       </button>
       {status === 'unavailable' && (
         <p className="bottle-form__note" role="alert">

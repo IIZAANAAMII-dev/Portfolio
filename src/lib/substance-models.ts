@@ -25,7 +25,7 @@ import { getSubstanceMaterial } from './materials/substance-material';
  * nativement. Les matériaux d'origine sont neutres ; chaque emplacement est remplacé ici
  * par son habillage défini dans `lib/materials/model-materials.ts`.
  */
-const BASE = '/models/bell-island';
+const BASE = '/Portfolio/models/bell-island';
 
 export function substanceModelUrl(name: SubstanceModelName) {
   return `${BASE}/${name}.glb`;

@@ -11,7 +11,7 @@ import type { BufferGeometry, Material, Mesh, Object3D } from 'three';
  * seul matériau : les modèles restent groupés dans un même dossier pour que la texture
  * ne soit téléchargée et téléversée au GPU qu'une seule fois.
  */
-const BASE = '/models/pirate-kit';
+const BASE = '/Portfolio/models/pirate-kit';
 
 export const MODEL = {
   ship: 'ship-small',

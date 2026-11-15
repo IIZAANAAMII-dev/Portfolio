@@ -122,7 +122,7 @@ export default function Home() {
 
         <nav>
           {islands.map((island) => (
-            <a key={island.id} href={`/?section=${island.id}`}>
+            <a key={island.id} href={`/Portfolio/?section=${island.id}`}>
               {island.label}
             </a>
           ))}
