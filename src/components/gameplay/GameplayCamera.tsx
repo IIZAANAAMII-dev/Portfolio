@@ -1,6 +1,7 @@
 'use client';
 
-import { useFrame, type RootState } from '@react-three/fiber';
+import { useEffect } from 'react';
+import { useFrame, useThree, type RootState } from '@react-three/fiber';
 import { Matrix4, Quaternion, Vector3, type Camera } from 'three';
 import { islands } from '@/data/islands';
 import { boatState } from '@/lib/boat-state';
@@ -86,9 +87,10 @@ function fishingPose(aspect: number) {
   const distance = landscape ? 17 : 24;
   const height = landscape ? 11 : 15.5;
   goalPosition.set(cx + dx * distance, height, cz + dz * distance);
-  // Téléphone : le bateau monte dans le cadre (la carte de prise s'affiche en bas).
-  const lead = landscape ? 0 : 3.6;
-  goalTarget.set(cx + dx * lead, landscape ? 0.5 : -0.2, cz + dz * lead);
+  // La visée glisse vers la caméra : le bateau monte dans le cadre et le pont arrière, où
+  // retombe le poisson, reste visible au-dessus de la carte de prise.
+  const lead = landscape ? 4.2 : 7;
+  goalTarget.set(cx + dx * lead, landscape ? 0 : -0.4, cz + dz * lead);
 }
 
 function aimPose(framing: number, aspect: number, time: number, still: boolean) {
@@ -161,7 +163,8 @@ function develop(state: RootState) {
     const canvas = document.createElement('canvas');
     canvas.width = Math.max(1, Math.round(source.width * scale));
     canvas.height = Math.max(1, Math.round(source.height * scale));
-    canvas.getContext('2d')?.drawImage(source, 0, 0, canvas.width, canvas.height);
+    // Canvas tenu en mémoire vive : la composition 2D qui suit ne fait aucun aller-retour GPU.
+    canvas.getContext('2d', { willReadFrequently: true })?.drawImage(source, 0, 0, canvas.width, canvas.height);
     darkroom.snapshot = canvas;
   } catch {
     darkroom.snapshot = null;
@@ -173,6 +176,16 @@ function develop(state: RootState) {
 }
 
 export function GameplayCamera() {
+  const get = useThree((state) => state.get);
+
+  // Déclencheur direct : rendu + copie dans le gestionnaire du clic (voir bridge.ts).
+  useEffect(() => {
+    darkroom.capture = () => develop(get());
+    return () => {
+      darkroom.capture = null;
+    };
+  }, [get]);
+
   useFrame((state, delta) => {
     const dt = Math.min(delta, 1 / 30);
     const camera = state.camera;
@@ -243,7 +256,8 @@ export function GameplayCamera() {
       probe.viewZ = work.z / flat;
     }
 
-    // Chambre noire : on attend que le viseur soit en place (au plus ~1 s) avant le tirage.
+    // Repli de la chambre noire (le déclencheur n'a pas pu tirer tout de suite) : on attend
+    // que le viseur soit en place avant le tirage.
     if (game.photo === 'shoot' && (mode !== 'aim' || blend.value > 0.97 || world.reducedMotion)) develop(state);
   });
 

@@ -307,7 +307,7 @@ type BedFactory = (context: Context, destination: AudioNode, lite: boolean) => B
 
 /** Port breton : clapotis brun contre les cales, fines rides aiguës, houle irrégulière. */
 const harborBed: BedFactory = (context, destination, lite) => {
-  const graph = new Graph(context, destination, 0.07);
+  const graph = new Graph(context, destination, 0.077);
   const swell = graph.add(gainNode(context, 0.6));
   swell.connect(graph.level);
   const water = graph.source(loopSource(context, brown(context)));
@@ -328,11 +328,14 @@ const harborBed: BedFactory = (context, destination, lite) => {
 
 /** Lande bretonne : souffle large et sifflement qui erre dans la bruyère. */
 const bretonBed: BedFactory = (context, destination, lite) => {
-  const graph = new Graph(context, destination, 0.11);
+  const graph = new Graph(context, destination, 0.08);
   const gust = graph.add(gainNode(context, 0.6));
   gust.connect(graph.level);
   const air = graph.source(loopSource(context, white(context)));
-  air.connect(graph.add(filterNode(context, 'bandpass', 520, 0.55))).connect(gust);
+  air
+    .connect(graph.add(filterNode(context, 'bandpass', 520, 0.55)))
+    .connect(graph.add(filterNode(context, 'lowpass', 1300, 0.6)))
+    .connect(gust);
   let whistle: BiquadFilterNode | null = null;
   if (!lite) {
     whistle = graph.add(filterNode(context, 'bandpass', 700, 8));
@@ -348,7 +351,7 @@ const bretonBed: BedFactory = (context, destination, lite) => {
 
 /** Cigales : deux chanteuses désaccordées, de part et d'autre, qui enflent ensemble. */
 const cicadaBed: BedFactory = (context, destination, lite) => {
-  const graph = new Graph(context, destination, 0.05);
+  const graph = new Graph(context, destination, 0.019);
   const swell = graph.add(gainNode(context, 0.8));
   const air = graph.add(filterNode(context, 'highpass', 2400, 0.7));
   air.connect(swell).connect(graph.level);
@@ -368,7 +371,7 @@ const cicadaBed: BedFactory = (context, destination, lite) => {
 
 /** Laboratoire : quinte grave de synthé (battement lent), filtre qui respire. */
 const labBed: BedFactory = (context, destination, lite) => {
-  const graph = new Graph(context, destination, 0.06);
+  const graph = new Graph(context, destination, 0.047);
   const breathe = graph.add(gainNode(context, 0.8));
   const tone = graph.add(filterNode(context, 'lowpass', 760, 0.9));
   tone.connect(breathe).connect(graph.level);
@@ -385,7 +388,7 @@ const labBed: BedFactory = (context, destination, lite) => {
 
 /** Ville : rumeur médium (300 Hz – 1 kHz) aux fluctuations de conversations lointaines. */
 const townBed: BedFactory = (context, destination, lite) => {
-  const graph = new Graph(context, destination, 0.07);
+  const graph = new Graph(context, destination, 0.078);
   const swell = graph.add(gainNode(context, 0.7));
   swell.connect(graph.level);
   const chatter = graph.add(gainNode(context, 0.62));
@@ -409,7 +412,7 @@ const townBed: BedFactory = (context, destination, lite) => {
 
 /** La Ciotat : clapotis plus sombre contre le quai, grondement lointain du chantier. */
 const quayBed: BedFactory = (context, destination, lite) => {
-  const graph = new Graph(context, destination, 0.075);
+  const graph = new Graph(context, destination, 0.092);
   const swell = graph.add(gainNode(context, 0.6));
   swell.connect(graph.level);
   graph.source(loopSource(context, brown(context))).connect(graph.add(filterNode(context, 'lowpass', 470, 0.7))).connect(swell);
@@ -429,7 +432,7 @@ const quayBed: BedFactory = (context, destination, lite) => {
 
 /** Contact : vagues lourdes sur les rochers (houle lente), écume aiguë. */
 const rocksBed: BedFactory = (context, destination, lite) => {
-  const graph = new Graph(context, destination, 0.08);
+  const graph = new Graph(context, destination, 0.093);
   const swell = graph.add(gainNode(context, 0.5));
   swell.connect(graph.level);
   graph.source(loopSource(context, brown(context))).connect(graph.add(filterNode(context, 'lowpass', 900, 0.6))).connect(swell);
@@ -449,12 +452,13 @@ const rocksBed: BedFactory = (context, destination, lite) => {
 
 /** Pleine mer : vent apparent (bande qui monte avec la vitesse) et sifflement du gréement. */
 const windBed: BedFactory = (context, destination, lite) => {
-  const graph = new Graph(context, destination, 0.09);
+  const graph = new Graph(context, destination, 0.058);
   const gust = graph.add(gainNode(context, 0.6));
   gust.connect(graph.level);
   const air = graph.source(loopSource(context, white(context)));
   const band = graph.add(filterNode(context, 'bandpass', 600, 0.7));
-  air.connect(band).connect(gust);
+  const soften = graph.add(filterNode(context, 'lowpass', 1800, 0.6));
+  air.connect(band).connect(soften).connect(gust);
   let rigging: GainNode | null = null;
   let whistle: BiquadFilterNode | null = null;
   if (!lite) {
@@ -464,6 +468,7 @@ const windBed: BedFactory = (context, destination, lite) => {
   }
   graph.modulate = (time, speed, now) => {
     band.frequency.setTargetAtTime(480 + 700 * speed + 160 * wave(time * 0.6, 2), now, 0.4);
+    soften.frequency.setTargetAtTime(1500 + 1300 * speed, now, 0.5);
     gust.gain.setTargetAtTime(0.6 + 0.3 * wave(time * 0.9 * (1 + speed), 5) + 0.25 * Math.max(0, wave(time * 1.7, 1)), now, 0.25);
     rigging?.gain.setTargetAtTime(0.1 + 1.1 * speed * speed, now, 0.4);
     whistle?.frequency.setTargetAtTime(1250 + 450 * speed + 120 * wave(time * 1.1, 6), now, 0.4);
@@ -536,7 +541,7 @@ const gull: Shot = (context, destination, when, level, pan) => {
   voice.connect(throat).connect(envelope).connect(out);
   const notes = 2 + Math.floor(Math.random() * 4);
   const base = random(700, 880);
-  const peak = 0.09 * level;
+  const peak = 0.05 * level;
   let at = when;
   for (let note = 0; note < notes; note++) {
     const long = note === 0 && Math.random() < 0.4;
@@ -569,7 +574,7 @@ const creak: Shot = (context, destination, when, level, pan) => {
   const envelope = gainNode(context, 0);
   nodes.push(rub, wood, cut, envelope);
   rub.connect(wood).connect(cut).connect(envelope).connect(out);
-  const peak = 0.22 * level;
+  const peak = 0.18 * level;
   // Le bateau roule : un grincement, parfois son retour un peu plus grave.
   const swings = Math.random() < 0.5 ? 2 : 1;
   let at = when;
@@ -606,7 +611,7 @@ const halyard: Shot = (context, destination, when, level, pan) => {
   body.connect(bodyGain).connect(out);
   ring.connect(ringGain).connect(out);
   const hits = 2 + Math.floor(Math.random() * 3);
-  const peak = 0.035 * level;
+  const peak = 0.027 * level;
   let at = when;
   for (let hit = 0; hit < hits; hit++) {
     const loud = peak * Math.pow(0.68, hit) * random(0.8, 1);
@@ -644,7 +649,7 @@ const bellBuoy: Shot = (context, destination, when, level, pan, lite) => {
     at += random(1.1, 1.9);
   }
   const partials = lite ? BUOY_PARTIALS.slice(0, 4) : BUOY_PARTIALS;
-  const peak = 0.03 * level;
+  const peak = 0.042 * level;
   let last: OscillatorNode | null = null;
   const end = times[times.length - 1] + 4.6;
   for (const [ratio, amount, decay] of partials) {
@@ -671,7 +676,7 @@ const blip: Shot = (context, destination, when, level, pan) => {
   const gain = gainNode(context, 0);
   nodes.push(tone, gain);
   tone.connect(gain).connect(out);
-  const peak = 0.032 * level;
+  const peak = 0.025 * level;
   const pattern = Math.random();
   let at = when;
   if (pattern < 0.15) {
@@ -708,7 +713,7 @@ const van: Shot = (context, destination, when, level, pan) => {
   nodes.push(tone, soft, gain);
   tone.connect(soft).connect(gain).connect(out);
   const beeps = 4 + Math.floor(Math.random() * 4);
-  const peak = 0.022 * level;
+  const peak = 0.009 * level;
   for (let beep = 0; beep < beeps; beep++) {
     const at = when + beep * 0.62;
     gain.gain.setTargetAtTime(peak, at, 0.006);
@@ -736,7 +741,7 @@ const bike: Shot = (context, destination, when, level, pan) => {
   high.connect(gain);
   gain.connect(tremolo).connect(out);
   flutter.connect(depth).connect(tremolo.gain);
-  const peak = 0.026 * level;
+  const peak = 0.02 * level;
   strike(gain.gain, when, peak, 0.12);
   strike(gain.gain, when + 0.21, peak * 0.9, 0.16);
   const end = when + 1.1;
@@ -765,7 +770,7 @@ const clank: Shot = (context, destination, when, level, pan) => {
     const links = 8 + Math.floor(Math.random() * 7);
     let at = when;
     for (let link = 0; link < links; link++) {
-      strike(gain.gain, at, 0.09 * level * (1 - link / (links + 4)) * random(0.5, 1), 0.008, 0.001);
+      strike(gain.gain, at, 0.1 * level * (1 - link / (links + 4)) * random(0.5, 1), 0.008, 0.001);
       at += random(0.05, 0.11);
     }
     release(source, nodes);
@@ -781,7 +786,7 @@ const clank: Shot = (context, destination, when, level, pan) => {
     const gain = gainNode(context, 0);
     nodes.push(tone, gain);
     tone.connect(gain).connect(distance);
-    for (let hit = 0; hit < hits; hit++) strike(gain.gain, when + hit * 0.27, 0.05 * level * amount * (hit ? 0.6 : 1), decay, 0.001);
+    for (let hit = 0; hit < hits; hit++) strike(gain.gain, when + hit * 0.27, 0.055 * level * amount * (hit ? 0.6 : 1), decay, 0.001);
     tone.start(when);
     tone.stop(end);
     last = tone;
@@ -791,7 +796,7 @@ const clank: Shot = (context, destination, when, level, pan) => {
   const impactGain = gainNode(context, 0);
   nodes.push(band, impactGain);
   impact.connect(band).connect(impactGain).connect(distance);
-  for (let hit = 0; hit < hits; hit++) strike(impactGain.gain, when + hit * 0.27, 0.06 * level * (hit ? 0.6 : 1), 0.012, 0.0008);
+  for (let hit = 0; hit < hits; hit++) strike(impactGain.gain, when + hit * 0.27, 0.066 * level * (hit ? 0.6 : 1), 0.012, 0.0008);
   if (last) release(last, nodes);
   return end - when;
 };
@@ -805,7 +810,7 @@ const plop: Shot = (context, destination, when, level, pan) => {
   const gain = gainNode(context, 0);
   nodes.push(band, gain);
   source.connect(band).connect(gain).connect(out);
-  const peak = 0.07 * level;
+  const peak = 0.093 * level;
   band.frequency.setValueAtTime(random(1000, 1400), when);
   band.frequency.exponentialRampToValueAtTime(random(300, 420), when + 0.2);
   strike(gain.gain, when, peak, 0.06, 0.006);
@@ -838,13 +843,14 @@ const crash: Shot = (context, destination, when, level, pan, lite) => {
   const duration = 2.8;
   const source = noiseShot(context, white(context), when, duration, nodes);
   const band = filterNode(context, 'bandpass', 380, 0.6);
+  const body = filterNode(context, 'lowpass', 2400, 0.6);
   const gain = gainNode(context, 0);
-  nodes.push(band, gain);
-  source.connect(band).connect(gain).connect(out);
+  nodes.push(band, body, gain);
+  source.connect(band).connect(body).connect(gain).connect(out);
   band.frequency.setValueAtTime(380, when);
   band.frequency.exponentialRampToValueAtTime(random(1300, 1700), when + 0.25);
   band.frequency.exponentialRampToValueAtTime(520, when + 2.4);
-  const peak = 0.07 * level;
+  const peak = 0.061 * level;
   gain.gain.setTargetAtTime(peak, when, 0.06);
   gain.gain.setTargetAtTime(0, when + 0.32, 0.6);
   const boom = noiseShot(context, brown(context), when, 1.2, nodes);
@@ -860,7 +866,7 @@ const crash: Shot = (context, destination, when, level, pan, lite) => {
     const sprayGain = gainNode(context, 0);
     nodes.push(hiss, sprayGain);
     spray.connect(hiss).connect(sprayGain).connect(out);
-    sprayGain.gain.setTargetAtTime(peak * 0.45, when + 0.2, 0.08);
+    sprayGain.gain.setTargetAtTime(peak * 0.25, when + 0.2, 0.08);
     sprayGain.gain.setTargetAtTime(0, when + 0.5, 0.5);
   }
   release(source, nodes);
@@ -894,7 +900,7 @@ const foghorn: Shot = (context, destination, when, level, pan, lite) => {
     reed.stop(end);
     first ??= reed;
   }
-  const peak = 0.075 * level;
+  const peak = 0.063 * level;
   gain.gain.setTargetAtTime(peak, when, 0.12);
   gain.gain.setTargetAtTime(peak * 0.85, when + 1.2, 0.5);
   gain.gain.setTargetAtTime(0, when + 2.55, 0.14);
@@ -914,7 +920,7 @@ const slap: Shot = (context, destination, when, level, pan) => {
   source.connect(low).connect(gain).connect(out);
   low.frequency.setValueAtTime(random(800, 1100), when);
   low.frequency.exponentialRampToValueAtTime(380, when + 0.12);
-  const peak = 0.075 * level;
+  const peak = 0.1 * level;
   strike(gain.gain, when, peak, 0.035, 0.003);
   const thump = oscillator(context, 'sine', 120);
   const thumpGain = gainNode(context, 0);
@@ -936,7 +942,7 @@ const chime: Shot = (context, destination, when, level, pan) => {
   const nodes: AudioNode[] = [];
   const out = output(context, destination, pan, nodes);
   const count = 2 + Math.floor(Math.random() * 3);
-  const peak = 0.03 * level;
+  const peak = 0.021 * level;
   let at = when;
   let end = when;
   let last: OscillatorNode | null = null;

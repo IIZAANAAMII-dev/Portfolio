@@ -1,13 +1,14 @@
 'use client';
 
-import { useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
-import { BackSide, Color, Fog, Group, Mesh, MeshBasicMaterial, Vector3 } from 'three';
+import { BackSide, Color, Fog, Group, Mesh, MeshBasicMaterial, ShaderMaterial, Vector3 } from 'three';
 import { skyState } from '@/lib/sky';
 import { ecologyState } from '@/lib/ecology';
 import { useWorld } from '@/lib/store';
-import { damp, hash, smoothstep } from '@/lib/utils/math';
+import { smoothstep } from '@/lib/utils/math';
 import { CaptureRig } from './render/CaptureRig';
+import { SkyMoments } from './sky/SkyMoments';
 
 const NIGHT = new Color('#04070a');
 const INTRO_FOG = new Color('#020408');
@@ -27,8 +28,6 @@ const NIGHT_SKY_LOW = new Color('#0f2433');
 const NIGHT_SKY_HIGH = new Color('#0a1422');
 const NIGHT_HORIZON = new Color('#1e2f3d');
 const NIGHT_SUN_COLOR = new Color('#c8dce8');
-const NIGHT_SUN_SIZE = 0.04;
-const NIGHT_SUN_GLOW = 0.5;
 const DAY_SUN_POS = new Vector3(60, 70, 40);
 const STORM_LOW = new Color('#43545e');
 const STORM_HIGH = new Color('#172530');
@@ -112,14 +111,26 @@ void main() {
   // Ton légèrement plus lumineux après la révélation.
   sky *= 0.9 + 0.2 * uReveal;
 
-  // Étoiles : un point rond par cellule de la voûte, qui scintille ; la nuit et pendant
-  // l'intro (ciel noir au-dessus de la carte marine).
+  // Voie lactée : une bande très douce qui barre la voûte, veinée de poussière sombre.
+  float nightSky = uNight * (1.0 - uStorm);
+  // (Elle passe par l'Ancre, comme les vraies constellations bordent la voie lactée.)
+  vec3 bandAxis = normalize(vec3(0.62, -0.62, 0.48));
+  float band = exp(-pow(dot(view, bandAxis) / 0.19, 2.0));
+  if (nightSky > 0.001) {
+    float dust = valueNoise(vec2(dot(view, vec3(0.8, 0.1, 0.5)), view.y) * 9.0);
+    float rift = smoothstep(0.55, 0.8, valueNoise(view.xz * 14.0 + 3.0));
+    float milky = band * (0.55 + 0.45 * dust) * (1.0 - 0.35 * rift);
+    sky += vec3(0.13, 0.14, 0.26) * milky * 0.3 * nightSky * smoothstep(0.02, 0.3, vHeight);
+  }
+
+  // Étoiles : un point rond par cellule de la voûte, qui scintille (plus serrées dans la
+  // voie lactée) ; la nuit et pendant l'intro (ciel noir au-dessus de la carte marine).
   vec3 starCell = floor(view * 230.0);
   float starSeed = fract(sin(dot(starCell, vec3(12.9898, 78.233, 37.719))) * 43758.5453);
   float starDot = 1.0 - smoothstep(0.08, 0.32, length(fract(view * 230.0) - 0.5));
   float twinkle = 0.55 + 0.45 * sin(uTime * (1.5 + starSeed * 3.0) + starSeed * 40.0);
-  float stars = step(0.9955, starSeed) * starDot * twinkle * smoothstep(0.02, 0.22, vHeight);
-  sky += vec3(0.88, 0.93, 1.0) * stars * uNight * (1.0 - uStorm);
+  float stars = step(0.9955 - band * 0.0035, starSeed) * starDot * twinkle * smoothstep(0.02, 0.22, vHeight);
+  sky += vec3(0.88, 0.93, 1.0) * stars * nightSky;
 
   gl_FragColor = vec4(sky, 1.0);
   #include <colorspace_fragment>
@@ -219,72 +230,31 @@ function Clouds() {
 }
 
 /**
- * Étoile filante : un trait lumineux qui traverse le ciel nocturne toutes les
- * une à deux minutes. Un seul mesh, réutilisé — le reste du temps il est invisible.
- */
-function ShootingStar() {
-  const mesh = useRef<Mesh>(null);
-  const state = useRef({ waiting: 24 + hash(91.7) * 60, progress: -1, x0: 0, z0: 0, angle: 0 });
-
-  useFrame((_, delta) => {
-    if (!mesh.current) return;
-    const dt = Math.min(delta, 1 / 20);
-    const star = state.current;
-
-    if (star.progress < 0) {
-      mesh.current.visible = false;
-      // Uniquement la nuit : le compteur ne descend pas en journée.
-      if (skyState.dayNight > 0.72 && ecologyState.stormCover < 0.2) star.waiting -= dt;
-      if (star.waiting <= 0) {
-        star.progress = 0;
-        star.x0 = -140 + Math.random() * 280;
-        star.z0 = -160 + Math.random() * 120;
-        star.angle = Math.PI * 0.15 + Math.random() * Math.PI * 0.35;
-      }
-      return;
-    }
-
-    star.progress += dt / 1.35;
-    if (star.progress >= 1 || skyState.dayNight < 0.6) {
-      star.progress = -1;
-      star.waiting = 45 + Math.random() * 75;
-      mesh.current.visible = false;
-      return;
-    }
-
-    const t = star.progress;
-    mesh.current.visible = true;
-    mesh.current.position.set(
-      star.x0 + Math.cos(star.angle) * t * 190,
-      165 - t * 60,
-      star.z0 + Math.sin(star.angle) * t * 60,
-    );
-    mesh.current.rotation.z = -star.angle * 0.4;
-    // Fondu d'entrée et de sortie pour éviter toute apparition sèche.
-    const fade = Math.min(t / 0.15, 1) * Math.min((1 - t) / 0.3, 1);
-    mesh.current.scale.set(6 + t * 6, 0.16, 0.16);
-    const material = mesh.current.material as { opacity?: number };
-    if (material) material.opacity = fade * 0.9;
-  });
-
-  return (
-    <mesh ref={mesh} visible={false}>
-      <boxGeometry args={[1, 1, 1]} />
-      <meshBasicMaterial color="#eaf6ff" transparent opacity={0} depthWrite={false} fog={false} />
-    </mesh>
-  );
-}
-
-/**
  * Ciel + brouillard. C'est ce couple qui porte toute la révélation du monde :
  * au départ le brouillard est à quelques mètres, à la fin il touche l'horizon.
+ * Les moments du ciel (constellations, étoiles filantes, grain, arc-en-ciel, brume de
+ * l'aube) vivent dans sky/ et sont montés ici.
  */
 export function Atmosphere() {
   const fogRef = useRef<Fog>(null);
   const backgroundRef = useRef<Color>(null);
+  // Matériau construit ici (et non via la prop `uniforms`) : R3F recopie chaque uniforme
+  // dans un nouvel objet, les valeurs numériques (temps, nuit, orage) resteraient figées.
+  const skyMaterial = useMemo(
+    () =>
+      new ShaderMaterial({
+        uniforms,
+        vertexShader,
+        fragmentShader,
+        side: BackSide,
+        depthWrite: false,
+        fog: false,
+      }),
+    [],
+  );
+  useEffect(() => () => skyMaterial.dispose(), [skyMaterial]);
 
-  useFrame((state, delta) => {
-    const dt = Math.min(delta, 1 / 30);
+  useFrame((state) => {
     const { reveal } = useWorld.getState();
 
     // Facteurs jour/nuit et heure dorée : lus depuis la source unique (lib/sky.ts).
@@ -326,11 +296,12 @@ export function Atmosphere() {
         - storm * 168;
     }
 
-    uniforms.uReveal.value = reveal * (1 - dayNight * 0.4);
+    // Le dôme garde la luminosité (uReveal = 0) et le soleil (taille 0,02, halo 0,5) que l'on
+    // a toujours vus : ces valeurs étaient de fait figées par la recopie des uniformes.
     uniforms.uTime.value = state.clock.elapsedTime;
     uniforms.uStorm.value = storm;
-    // Étoiles : la nuit, et dans le noir de l'intro.
-    uniforms.uNight.value = Math.max(dayNight, 1 - smoothstep(0, 0.35, reveal));
+    // Étoiles : à la nuit tombée (pas en plein coucher), et dans le noir de l'intro.
+    uniforms.uNight.value = Math.max(smoothstep(0.45, 0.95, dayNight), 1 - smoothstep(0, 0.35, reveal));
     uniforms.uSunColor.value
       .copy(SUN_RISE)
       .lerp(SUN_DAY, dayLight)
@@ -339,18 +310,6 @@ export function Atmosphere() {
     const sunX = Math.cos(angle) * 80;
     const sunY = Math.max(sunElevation * 70, 10);
     uniforms.uSun.value.set(sunX, sunY, 40).normalize();
-    uniforms.uSunSize.value = damp(
-      uniforms.uSunSize.value,
-      (0.06 + dayLight * 0.04) * (1 - dayNight) + NIGHT_SUN_SIZE * dayNight,
-      1,
-      dt,
-    );
-    uniforms.uSunGlow.value = damp(
-      uniforms.uSunGlow.value,
-      (0.5 + dayLight * 0.5) * (1 - dayNight) + NIGHT_SUN_GLOW * dayNight,
-      1,
-      dt,
-    );
   });
 
   return (
@@ -358,19 +317,11 @@ export function Atmosphere() {
       {process.env.NODE_ENV !== 'production' && <CaptureRig />}
       <fog ref={fogRef} attach="fog" args={[INTRO_FOG.getHex(), 11, 24]} />
       <color ref={backgroundRef} attach="background" args={[INTRO_FOG.getHex()]} />
-      <mesh scale={420}>
+      <mesh scale={420} material={skyMaterial} raycast={() => null}>
         <sphereGeometry args={[1, 32, 24]} />
-        <shaderMaterial
-          uniforms={uniforms}
-          vertexShader={vertexShader}
-          fragmentShader={fragmentShader}
-          side={BackSide}
-          depthWrite={false}
-          fog={false}
-        />
       </mesh>
       <Clouds />
-      <ShootingStar />
+      <SkyMoments />
     </>
   );
 }

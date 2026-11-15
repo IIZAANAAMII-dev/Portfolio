@@ -146,6 +146,14 @@ function pickJoke(kind: MissKind, casts: number) {
   return list[casts % list.length];
 }
 
+/**
+ * Images vues pendant la touche : à moins de quelques images, la touche n'a pas encore pu
+ * s'afficher (appareil saturé, rendu logiciel) et la fenêtre reste ouverte. Sans effet à
+ * 30 ou 60 images par seconde (quelques dizaines de millisecondes sur plus d'une seconde).
+ */
+const MIN_BITE_FRAMES = 4;
+let biteFrames = 0;
+
 /** Phases où la ligne est à l'eau (le bateau doit rester sur place). */
 export function lineInWater(phase: FishingPhase) {
   return phase === 'cast' || phase === 'wait' || phase === 'bite';
@@ -295,10 +303,11 @@ export const useGameplay = create<GameplayState>((set, get) => ({
     } else if (phase === 'wait' && now >= state.biteAt) {
       // La fenêtre pour ferrer part de l'image où la touche est montrée : une image lente
       // (téléphone chargé, onglet qui revient) ne la mange pas.
+      biteFrames = 0;
       set({ phase: 'bite', phaseAt: now });
       ambience.splash(0.42);
       ambience.cue(988, 0.14);
-    } else if (phase === 'bite' && now >= state.phaseAt + state.strikeWindow) {
+    } else if (phase === 'bite' && ++biteFrames > MIN_BITE_FRAMES && now >= state.phaseAt + state.strikeWindow) {
       set({ phase: 'missed', phaseAt: now, miss: 'late', joke: pickJoke('late', state.casts) });
       ambience.cue(196, 0.32);
     } else if (phase === 'reel' && now >= state.phaseAt + REEL_SECONDS && state.result) {

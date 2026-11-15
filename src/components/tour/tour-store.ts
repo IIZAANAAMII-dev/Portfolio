@@ -1,6 +1,7 @@
 'use client';
 
 import { create } from 'zustand';
+import { useGameplay } from '@/components/gameplay/store';
 import { ambience } from '@/lib/audio/ambience';
 import { useWorld } from '@/lib/store';
 import { TOUR_LENGTH, TOUR_STOPS } from './tour-script';
@@ -137,7 +138,7 @@ export const useTour = create<TourState>((set, get) => ({
     }
     set({ paused: true });
     // En mer, on coupe le moteur : sans cible, le bateau file sur son erre puis s'arrête.
-    if (stage === 'sail') drive(() => useWorld.setState({ destination: null, freeTarget: null }));
+    if (stage === 'sail') drive(() => useWorld.getState().heaveTo());
   },
 
   skip: () => {
@@ -221,8 +222,28 @@ function evaluate(world: WorldSnapshot) {
   if (world.destination !== target) handBack();
 }
 
+type GameplaySnapshot = ReturnType<typeof useGameplay.getState>;
+
+/** Le visiteur lance sa ligne ou sort l'appareil photo : il a pris la barre. */
+function evaluateGameplay(game: GameplaySnapshot) {
+  if (useTour.getState().status !== 'running') return;
+  if (game.phase !== 'idle' || game.photo !== 'off') handBack();
+}
+
+/** Ce que fait le visiteur côté jeu (pêche, carte postale, bourriche) — lu par l'affichage. */
+export function gameplayActivity() {
+  const game = useGameplay.getState();
+  return { playing: game.phase !== 'idle' || game.photo !== 'off', open: game.basketOpen };
+}
+
 /** Branche la visite sur le monde le temps qu'elle tourne. Retourne la fonction de débranchement. */
 export function bindTourToWorld() {
   evaluate(useWorld.getState());
-  return useWorld.subscribe((world) => evaluate(world));
+  evaluateGameplay(useGameplay.getState());
+  const unsubscribeWorld = useWorld.subscribe((world) => evaluate(world));
+  const unsubscribeGame = useGameplay.subscribe((game) => evaluateGameplay(game));
+  return () => {
+    unsubscribeWorld();
+    unsubscribeGame();
+  };
 }

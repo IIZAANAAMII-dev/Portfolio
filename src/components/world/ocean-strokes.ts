@@ -235,55 +235,55 @@ export function emptyCoastMap() {
 }
 
 /**
+ * Travail de cuisson, découpé en petites unités (une rangée de texels) : le planificateur
+ * en enchaîne autant que le navigateur le permet, sans jamais retenir une image.
+ *
  * Distance euclidienne signée à la ligne d'eau (h = 0), à partir des hauteurs du relief :
  * germes sous-texel sur les arêtes de la grille où la hauteur change de signe, puis
- * propagation du plus proche point du rivage en deux balayages (« dead reckoning »).
+ * propagation du plus proche point du rivage en deux balayages (« dead reckoning »),
+ * distances au carré (texels²) pour éviter toute racine dans les boucles.
  */
-function sweep(dist: Float32Array, nearX: Float32Array, nearZ: Float32Array, forward: boolean) {
+function* coastWork(sources: CoastSource[], done: (map: CoastMap) => void) {
+  let minX = Infinity;
+  let minZ = Infinity;
+  let maxX = -Infinity;
+  let maxZ = -Infinity;
+  for (const source of sources) {
+    minX = Math.min(minX, source.x - source.reach);
+    maxX = Math.max(maxX, source.x + source.reach);
+    minZ = Math.min(minZ, source.z - source.reach);
+    maxZ = Math.max(maxZ, source.z + source.reach);
+  }
   const n = COAST_TEXELS;
-  // Distances au carré (texels²) : pas de racine dans la boucle.
-  const relax = (k: number, i: number, j: number, q: number) => {
-    if (dist[q] === Infinity) return;
-    const dx = i - nearX[q];
-    const dz = j - nearZ[q];
-    const d2 = dx * dx + dz * dz;
-    if (d2 < dist[k]) {
-      dist[k] = d2;
-      nearX[k] = nearX[q];
-      nearZ[k] = nearZ[q];
-    }
-  };
-  if (forward) {
-    for (let j = 0; j < n; j++) {
-      for (let i = 0; i < n; i++) {
+  const size = Math.max(maxX - minX, maxZ - minZ) + 16;
+  const originX = (minX + maxX) / 2 - size / 2;
+  const originZ = (minZ + maxZ) / 2 - size / 2;
+  const texel = size / n;
+  const height = new Float32Array(n * n).fill(-3);
+  const dist = new Float32Array(n * n).fill(Infinity);
+  const nearX = new Float32Array(n * n);
+  const nearZ = new Float32Array(n * n);
+
+  // 1. Hauteurs du relief, île par île, rangée par rangée.
+  for (const source of sources) {
+    const i0 = Math.max(0, Math.floor((source.x - source.reach - originX) / texel));
+    const i1 = Math.min(n - 1, Math.ceil((source.x + source.reach - originX) / texel));
+    const j0 = Math.max(0, Math.floor((source.z - source.reach - originZ) / texel));
+    const j1 = Math.min(n - 1, Math.ceil((source.z + source.reach - originZ) / texel));
+    const reach2 = source.reach * source.reach;
+    for (let j = j0; j <= j1; j++) {
+      const z = originZ + (j + 0.5) * texel - source.z;
+      for (let i = i0; i <= i1; i++) {
+        const x = originX + (i + 0.5) * texel - source.x;
+        if (x * x + z * z > reach2) continue;
         const k = j * n + i;
-        if (i > 0) relax(k, i, j, k - 1);
-        if (j > 0) {
-          relax(k, i, j, k - n);
-          if (i > 0) relax(k, i, j, k - n - 1);
-          if (i < n - 1) relax(k, i, j, k - n + 1);
-        }
+        height[k] = Math.max(height[k], source.height(x, z));
       }
-      for (let i = n - 2; i >= 0; i--) relax(j * n + i, i, j, j * n + i + 1);
-    }
-  } else {
-    for (let j = n - 1; j >= 0; j--) {
-      for (let i = n - 1; i >= 0; i--) {
-        const k = j * n + i;
-        if (i < n - 1) relax(k, i, j, k + 1);
-        if (j < n - 1) {
-          relax(k, i, j, k + n);
-          if (i < n - 1) relax(k, i, j, k + n + 1);
-          if (i > 0) relax(k, i, j, k + n - 1);
-        }
-      }
-      for (let i = 1; i < n; i++) relax(j * n + i, i, j, j * n + i - 1);
+      yield;
     }
   }
-}
 
-function seedCoast(height: Float32Array, dist: Float32Array, nearX: Float32Array, nearZ: Float32Array) {
-  const n = COAST_TEXELS;
+  // 2. Germes : là où la hauteur change de signe entre deux texels voisins.
   const seed = (k: number, i: number, j: number, cx: number, cz: number) => {
     const d2 = (i - cx) * (i - cx) + (j - cz) * (j - cz);
     if (d2 < dist[k]) {
@@ -313,91 +313,93 @@ function seedCoast(height: Float32Array, dist: Float32Array, nearX: Float32Array
         }
       }
     }
+    if (j % 16 === 15) yield;
   }
+
+  // 3. Propagation du plus proche point du rivage : un balayage aller, un retour.
+  const relax = (k: number, i: number, j: number, q: number) => {
+    if (dist[q] === Infinity) return;
+    const dx = i - nearX[q];
+    const dz = j - nearZ[q];
+    const d2 = dx * dx + dz * dz;
+    if (d2 < dist[k]) {
+      dist[k] = d2;
+      nearX[k] = nearX[q];
+      nearZ[k] = nearZ[q];
+    }
+  };
+  for (let j = 0; j < n; j++) {
+    for (let i = 0; i < n; i++) {
+      const k = j * n + i;
+      if (i > 0) relax(k, i, j, k - 1);
+      if (j > 0) {
+        relax(k, i, j, k - n);
+        if (i > 0) relax(k, i, j, k - n - 1);
+        if (i < n - 1) relax(k, i, j, k - n + 1);
+      }
+    }
+    for (let i = n - 2; i >= 0; i--) relax(j * n + i, i, j, j * n + i + 1);
+    if (j % 16 === 15) yield;
+  }
+  for (let j = n - 1; j >= 0; j--) {
+    for (let i = n - 1; i >= 0; i--) {
+      const k = j * n + i;
+      if (i < n - 1) relax(k, i, j, k + 1);
+      if (j < n - 1) {
+        relax(k, i, j, k + n);
+        if (i < n - 1) relax(k, i, j, k + n + 1);
+        if (i > 0) relax(k, i, j, k + n - 1);
+      }
+    }
+    for (let i = 1; i < n; i++) relax(j * n + i, i, j, j * n + i - 1);
+    if (j % 16 === 0) yield;
+  }
+
+  // 4. Distance signée (m), en demi-flottants.
+  const data = new Uint16Array(n * n);
+  for (let j = 0; j < n; j++) {
+    for (let k = j * n; k < (j + 1) * n; k++) {
+      const d = Math.min(Math.sqrt(dist[k]) * texel, COAST_MAX);
+      data[k] = DataUtils.toHalfFloat(height[k] > 0 ? -d : d);
+    }
+    if (j % 32 === 31) yield;
+  }
+  const texture = new DataTexture(data, n, n, RedFormat, HalfFloatType);
+  texture.minFilter = LinearFilter;
+  texture.magFilter = LinearFilter;
+  texture.wrapS = ClampToEdgeWrapping;
+  texture.wrapT = ClampToEdgeWrapping;
+  texture.generateMipmaps = false;
+  texture.needsUpdate = true;
+  done({ texture, rect: [originX, originZ, size] });
 }
 
 /**
- * Cuit la carte du rivage par petites tranches (une île par tranche, puis la propagation),
- * pendant les temps morts du navigateur : aucune image n'est retenue plus de ~30 ms.
+ * Cuit la carte du rivage pendant les temps morts du navigateur, par tranches de quelques
+ * millisecondes (≈ 0,4 s de calcul au total, réparti sur les premières secondes).
  * Renvoie une fonction d'annulation.
  */
 export function bakeCoastMap(done: (map: CoastMap) => void) {
   const sources = coastSources();
-  if (!sources.length) return () => {};
-  let minX = Infinity;
-  let minZ = Infinity;
-  let maxX = -Infinity;
-  let maxZ = -Infinity;
-  for (const source of sources) {
-    minX = Math.min(minX, source.x - source.reach);
-    maxX = Math.max(maxX, source.x + source.reach);
-    minZ = Math.min(minZ, source.z - source.reach);
-    maxZ = Math.max(maxZ, source.z + source.reach);
-  }
-  const n = COAST_TEXELS;
-  const size = Math.max(maxX - minX, maxZ - minZ) + 16;
-  const originX = (minX + maxX) / 2 - size / 2;
-  const originZ = (minZ + maxZ) / 2 - size / 2;
-  const texel = size / n;
-  const height = new Float32Array(n * n).fill(-3);
-  const dist = new Float32Array(n * n).fill(Infinity);
-  const nearX = new Float32Array(n * n);
-  const nearZ = new Float32Array(n * n);
-
-  const fill = (source: CoastSource) => {
-    const i0 = Math.max(0, Math.floor((source.x - source.reach - originX) / texel));
-    const i1 = Math.min(n - 1, Math.ceil((source.x + source.reach - originX) / texel));
-    const j0 = Math.max(0, Math.floor((source.z - source.reach - originZ) / texel));
-    const j1 = Math.min(n - 1, Math.ceil((source.z + source.reach - originZ) / texel));
-    const reach2 = source.reach * source.reach;
-    for (let j = j0; j <= j1; j++) {
-      const z = originZ + (j + 0.5) * texel - source.z;
-      for (let i = i0; i <= i1; i++) {
-        const x = originX + (i + 0.5) * texel - source.x;
-        if (x * x + z * z > reach2) continue;
-        const k = j * n + i;
-        height[k] = Math.max(height[k], source.height(x, z));
-      }
-    }
-  };
-
-  const steps: (() => void)[] = [
-    ...sources.map((source) => () => fill(source)),
-    () => seedCoast(height, dist, nearX, nearZ),
-    () => sweep(dist, nearX, nearZ, true),
-    () => sweep(dist, nearX, nearZ, false),
-    () => {
-      const data = new Uint16Array(n * n);
-      for (let k = 0; k < n * n; k++) {
-        const d = Math.min(Math.sqrt(dist[k]) * texel, COAST_MAX);
-        data[k] = DataUtils.toHalfFloat(height[k] > 0 ? -d : d);
-      }
-      const texture = new DataTexture(data, n, n, RedFormat, HalfFloatType);
-      texture.minFilter = LinearFilter;
-      texture.magFilter = LinearFilter;
-      texture.wrapS = ClampToEdgeWrapping;
-      texture.wrapT = ClampToEdgeWrapping;
-      texture.generateMipmaps = false;
-      texture.needsUpdate = true;
-      done({ texture, rect: [originX, originZ, size] });
-    },
-  ];
-
+  if (!sources.length || typeof window === 'undefined') return () => {};
+  const work = coastWork(sources, done);
   let cancelled = false;
   let handle = 0;
-  const idle = typeof window !== 'undefined' && typeof window.requestIdleCallback === 'function';
-  const schedule = (run: () => void) => {
-    handle = idle
-      ? window.requestIdleCallback(run, { timeout: 600 })
-      : window.setTimeout(run, 24);
-  };
-  let index = 0;
-  const next = () => {
+  const idle = typeof window.requestIdleCallback === 'function';
+  const run = (deadline?: IdleDeadline) => {
     if (cancelled) return;
-    steps[index++]();
-    if (index < steps.length) schedule(next);
+    const start = performance.now();
+    // Temps libre annoncé par le navigateur (borné), ou 8 ms quand il n'en annonce pas.
+    const budget = deadline && !deadline.didTimeout ? Math.min(deadline.timeRemaining(), 12) : 8;
+    do {
+      if (work.next().done) return;
+    } while (performance.now() - start < budget);
+    schedule();
   };
-  schedule(next);
+  const schedule = () => {
+    handle = idle ? window.requestIdleCallback(run, { timeout: 400 }) : window.setTimeout(run, 16);
+  };
+  schedule();
   return () => {
     cancelled = true;
     if (idle) window.cancelIdleCallback(handle);

@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, type RefObject } from 'react';
+import { useGameplay } from '@/components/gameplay/store';
 import { STAMPS, useLogbook, type StampId } from '@/lib/logbook';
 import { sheetState } from '@/lib/sheet';
 import { useWorld } from '@/lib/store';
@@ -11,6 +12,7 @@ import {
   completeDwell,
   DWELL_MS,
   dwellClock,
+  gameplayActivity,
   READING_HOLD_MS,
   useTour,
   type TourStage,
@@ -159,9 +161,14 @@ function useTourEngine(root: RefObject<HTMLDivElement | null>, status: TourStatu
       }
       const tour = useTour.getState();
       const dwelling = tour.status === 'running' && tour.stage === 'dwell';
-      // Le chrono attend : pause, lecture (geste récent, feuille dépliée), carnet ouvert.
+      // Le chrono attend : pause, lecture (geste récent, feuille dépliée), carnet ou bourriche ouverts.
       const nextHeld =
-        dwelling && (tour.paused || covered || useLogbook.getState().open || now < dwellClock.holdUntil);
+        dwelling &&
+        (tour.paused ||
+          covered ||
+          useLogbook.getState().open ||
+          gameplayActivity().open ||
+          now < dwellClock.holdUntil);
       if (nextHeld !== held) {
         held = nextHeld;
         element.toggleAttribute('data-held', held);
@@ -201,9 +208,13 @@ function useTourEngine(root: RefObject<HTMLDivElement | null>, status: TourStatu
     if (status === 'idle') return;
     const onKey = (event: KeyboardEvent) => {
       if (event.defaultPrevented || event.altKey || event.ctrlKey || event.metaKey) return;
-      if (useLogbook.getState().open) return;
+      // Carnet, pêche, appareil photo ou bourriche ouverts : Échap et Espace sont à eux.
+      const game = gameplayActivity();
+      if (useLogbook.getState().open || game.playing || game.open) return;
       const tour = useTour.getState();
       if (event.key === 'Escape') {
+        // La visite consomme Échap : la page ouverte ne se ferme pas en même temps.
+        event.preventDefault();
         tour.passFocus('launcher');
         if (tour.status === 'running') tour.quit();
         else tour.dismissEnd();
@@ -215,8 +226,9 @@ function useTourEngine(root: RefObject<HTMLDivElement | null>, status: TourStatu
       event.preventDefault();
       tour.togglePause();
     };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
+    // Phase de capture : la visite reçoit la touche avant les autres écouteurs (panneau).
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
   }, [status]);
 }
 
@@ -343,7 +355,14 @@ function Launcher() {
           <span className={styles.launcherIcon} aria-hidden="true">
             <PlayIcon />
           </span>
-          <span>{resuming ? 'Reprendre la visite' : 'Visite guidée'}</span>
+          {resuming ? (
+            <span>
+              <span className={styles.longLabel}>Reprendre la visite</span>
+              <span className={styles.shortLabel}>Reprendre</span>
+            </span>
+          ) : (
+            <span>Visite guidée</span>
+          )}
           <span className={styles.launcherMeta}>
             {resuming ? `${resumeAt + 1}/${TOUR_LENGTH}` : `${TOUR_LENGTH} escales`}
           </span>
@@ -524,7 +543,7 @@ function EndCard() {
       <p className={styles.endText}>
         {complete
           ? 'Tu as tout trouvé : merci d’avoir navigué jusqu’ici.'
-          : `Il te reste ${missing} tampon${missing > 1 ? 's' : ''} à gagner${leads ? ` : ${leads}` : ''}. Prends la barre !`}
+          : `Il te reste ${missing} tampon${missing > 1 ? 's' : ''}${leads ? ` : ${leads}` : ' à gagner'}. Prends la barre !`}
       </p>
       <div className={styles.meter}>
         <span className={styles.meterTrack} aria-hidden="true">
@@ -587,6 +606,10 @@ export default function GuidedTour() {
   const reducedMotion = useWorld((state) => state.reducedMotion);
   const status = useTour((state) => state.status);
   const stage = useTour((state) => state.stage);
+  // Carte de prise, bourriche ou appareil photo à l'écran : la visite leur laisse la place.
+  const busy = useGameplay(
+    (state) => state.photo !== 'off' || state.basketOpen || state.phase === 'caught' || state.phase === 'missed',
+  );
   const root = useRef<HTMLDivElement>(null);
   const visible = phase === 'playing' || phase === 'docked';
 
@@ -614,6 +637,7 @@ export default function GuidedTour() {
         data-tour-root=""
         data-panel={panelOpen ? 'open' : 'closed'}
         data-mode={status}
+        data-busy={busy ? '' : undefined}
         data-reduced={reducedMotion ? '' : undefined}
       >
         {status === 'idle' && <Launcher />}

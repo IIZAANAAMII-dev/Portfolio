@@ -352,7 +352,7 @@ if (aWing > 0.5) {
 }
 // Les mouettes posées (pieux, toit du bateau) restent à l'échelle du décor ; celles qui
 // volent au loin sont un peu grandies pour rester lisibles.
-float gullSize = gullRider > 0.5 ? mix(aMotion.w, 0.6, smoothstep(0.5, 0.95, uPerchTilt.z)) : aMotion.w;
+float gullSize = gullRider > 0.5 ? mix(aMotion.w, 0.7, smoothstep(0.5, 0.95, uPerchTilt.z)) : aMotion.w;
 gullLocal *= gullSize * (gullPost > 0.5 ? uSeated : uPresence);
 vec3 transformed = gullTurn(gullLocal, gullPitch, gullBank, gullYaw) + gullCentre;
 `;
@@ -403,9 +403,9 @@ interface Gull {
 
 /**
  * Sommets des pieux de chaque ponton (même tracé que CartoonDock : travées régulières,
- * hauteurs tirées de la même graine), en coordonnées monde. On garde le pieu de la
- * deuxième travée côté large (au-dessus de l'eau, loin du bateau amarré au bout), et
- * parfois un second de l'autre bord.
+ * hauteurs tirées de la même graine), en coordonnées monde. On garde un pieu de
+ * l'avant-dernière travée : au-dessus de l'eau (la mouette se détache sur le bleu, pas sur
+ * un quai), à quelques mètres du bateau amarré au bout ; parfois son vis-à-vis aussi.
  */
 function dockPerches() {
   const solo = preview.solo;
@@ -435,8 +435,10 @@ function dockPerches() {
         second,
       });
     };
-    pile(Math.min(1, bents - 2), 1, false);
-    if (bents >= 4 && hash(index * 4.7 + 1.3) > 0.4) pile(2, -1, true);
+    const bent = Math.max(1, bents - 2);
+    pile(bent, 1, false);
+    // Le dernier pieu côté gauche porte la lanterne : pas de vis-à-vis sur cette travée-là.
+    if (bent < bents - 1 && hash(index * 4.7 + 1.3) > 0.45) pile(bent, -1, true);
   });
   return perches;
 }
@@ -560,7 +562,7 @@ export function Birds() {
         hash(index * 5.7) * Math.PI * 2,
         // Battement : de 1,1 à 1,5 Hz, chaque oiseau le sien.
         7 + hash(index * 8.3) * 2.4,
-        bird.mode === 3 ? 0.58 + hash(index * 2.9) * 0.08 : (bird.mode === 2 ? 0.85 : 0.95) + hash(index * 2.9) * 0.3,
+        bird.mode === 3 ? 0.68 + hash(index * 2.9) * 0.08 : (bird.mode === 2 ? 0.85 : 0.95) + hash(index * 2.9) * 0.3,
       ], index * 4);
       follow[index] = bird.mode;
     });
@@ -574,7 +576,9 @@ export function Birds() {
   useFrame((state, delta) => {
     const { reveal, reducedMotion } = useWorld.getState();
     const time = state.clock.elapsedTime;
-    const dt = Math.min(delta, 1 / 30);
+    // Les escales durent quelques secondes : on les compte en temps réel (borné), pour
+    // qu'un appareil lent ne les étire pas indéfiniment.
+    const dt = Math.min(delta, 0.2);
     flight.uTime.value = time;
     flight.uBoat.value.set(boatState.position.x, boatState.position.z);
     flight.uBoatVel.value.set(

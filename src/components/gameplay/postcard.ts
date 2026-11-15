@@ -48,13 +48,36 @@ function seeded(seed: number) {
   };
 }
 
+/**
+ * Canvas tenus en mémoire vive (`willReadFrequently`) : un seul tirage, aucune raison de
+ * passer par le GPU — et la composition reste rapide même quand le rendu WebGL sature tout.
+ */
 function canvas2d(width: number, height: number) {
   const canvas = document.createElement('canvas');
   canvas.width = width;
   canvas.height = height;
-  const context = canvas.getContext('2d');
+  const context = canvas.getContext('2d', { willReadFrequently: true });
   if (!context) throw new Error('Canvas 2D indisponible');
   return { canvas, context };
+}
+
+/** Motif de bruit (grain du papier, manques d'encre) : une tuile de pixels, un seul remplissage. */
+function noise(context: CanvasRenderingContext2D, size: number, seed: number, rgb: [number, number, number], density: number, alpha: [number, number], scale: number) {
+  const tile = canvas2d(size, size);
+  const image = tile.context.createImageData(size, size);
+  const random = seeded(seed);
+  for (let index = 0; index < size * size; index++) {
+    if (random() > density) continue;
+    const offset = index * 4;
+    image.data[offset] = rgb[0];
+    image.data[offset + 1] = rgb[1];
+    image.data[offset + 2] = rgb[2];
+    image.data[offset + 3] = Math.round((alpha[0] + random() * (alpha[1] - alpha[0])) * 255);
+  }
+  tile.context.putImageData(image, 0, 0);
+  const pattern = context.createPattern(tile.canvas, 'repeat');
+  if (pattern && scale !== 1) pattern.setTransform(new DOMMatrix([scale, 0, 0, scale, 0, 0]));
+  return pattern;
 }
 
 function spaced(context: CanvasRenderingContext2D, spacing: string) {
@@ -242,14 +265,12 @@ function drawPostmark(info: PostcardInfo, mono: string, size: number) {
   context.fillText(String(info.date.getFullYear()), 0, radius * 0.17);
   context.restore();
   // Encre inégale : quelques manques, comme un vrai coup de tampon.
-  const random = seeded(31);
-  context.globalCompositeOperation = 'destination-out';
-  for (let index = 0; index < 900; index++) {
-    context.fillStyle = `rgba(0, 0, 0, ${0.25 + random() * 0.6})`;
-    const r = 0.6 + random() * 2.2;
-    context.beginPath();
-    context.arc(random() * canvas.width, random() * canvas.height, r, 0, Math.PI * 2);
-    context.fill();
+  const wear = noise(context, 64, 31, [0, 0, 0], 0.16, [0.3, 0.9], 2);
+  if (wear) {
+    context.globalCompositeOperation = 'destination-out';
+    context.imageSmoothingEnabled = false;
+    context.fillStyle = wear;
+    context.fillRect(0, 0, canvas.width, canvas.height);
   }
   return { canvas, cx, cy };
 }
@@ -272,10 +293,10 @@ export async function composePostcard(snapshot: HTMLCanvasElement, info: Postcar
   light.addColorStop(1, 'rgba(120, 88, 48, 0.14)');
   context.fillStyle = light;
   context.fillRect(0, 0, width, height);
-  const grain = seeded(7);
-  for (let index = 0; index < 3200; index++) {
-    context.fillStyle = `rgba(92, 70, 40, ${0.03 + grain() * 0.06})`;
-    context.fillRect(grain() * width, grain() * height, 1 + grain() * 1.8, 1 + grain() * 1.8);
+  const grain = noise(context, 128, 7, [92, 70, 40], 0.22, [0.05, 0.14], 1.5);
+  if (grain) {
+    context.fillStyle = grain;
+    context.fillRect(0, 0, width, height);
   }
 
   // Photo.
@@ -337,7 +358,8 @@ export async function composePostcard(snapshot: HTMLCanvasElement, info: Postcar
   const markSize = sw * 1.12;
   const mark = drawPostmark(info, mono, markSize);
   context.save();
-  context.translate(sx + sw * 0.08, sy + sh * 0.78);
+  // Le cachet mord le bord gauche du timbre sans masquer ses lettres ni sa propre date.
+  context.translate(sx - sw * 0.2, sy + sh * 0.84);
   context.rotate(-0.21);
   context.globalCompositeOperation = 'multiply';
   context.drawImage(mark.canvas, -mark.cx, -mark.cy);

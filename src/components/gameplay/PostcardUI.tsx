@@ -60,6 +60,8 @@ export function takePhoto() {
   ambience.bump('soft', 0.32);
   ambience.cue(1568, 0.06);
   game.shoot();
+  // Tirage immédiat (ce que montre l'écran au clic) ; sinon la scène tire à l'image suivante.
+  darkroom.capture?.();
 }
 
 /** Les commandes du viseur, dans le dock du bas. */

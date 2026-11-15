@@ -3,6 +3,7 @@ import {
   BufferAttribute,
   BufferGeometry,
   CircleGeometry,
+  ConeGeometry,
   CylinderGeometry,
   DoubleSide,
   IcosahedronGeometry,
@@ -158,6 +159,35 @@ function rodGeometry() {
   return merged ?? blank;
 }
 
+/** Marque de régate : cylindre orange gonflé, bande blanche, chapeau, mât et fanion jaune. */
+function markGeometry() {
+  const orange: Vec = [1, 0.45, 0.13];
+  const body = new CylinderGeometry(0.46, 0.55, 1.6, 10, 1);
+  body.translate(0, 0.5, 0);
+  paint(body, () => orange);
+  const band = new CylinderGeometry(0.5, 0.52, 0.26, 10, 1, true);
+  band.translate(0, 0.86, 0);
+  paint(band, () => [0.98, 0.96, 0.9]);
+  const cap = new ConeGeometry(0.46, 0.4, 10, 1);
+  cap.translate(0, 1.5, 0);
+  paint(cap, () => orange);
+  const pole = new CylinderGeometry(0.035, 0.035, 1.3, 5, 1);
+  pole.translate(0, 2.2, 0);
+  paint(pole, () => [0.22, 0.2, 0.24]);
+  const flag = builder();
+  triangle(flag, [0.03, 2.82, 0], [0.03, 2.38, 0], [0.7, 2.6, 0], [1, 0.84, 0.2]);
+  const pennant = finish(flag);
+  // Mêmes attributs partout pour la fusion (le fanion, fait main, n'a pas d'UV).
+  const parts = [body, band, cap, pole].map((part) => {
+    const flat = part.toNonIndexed();
+    flat.deleteAttribute('uv');
+    return flat;
+  });
+  const merged = mergeGeometries([...parts, pennant]);
+  for (const part of [body, band, cap, pole, ...parts, pennant]) part.dispose();
+  return merged ?? new CylinderGeometry(0.5, 0.5, 1.6, 8);
+}
+
 /** Disque d'eau claire : centre blanc, bord noir (en addition, le noir est transparent). */
 function glowGeometry() {
   const disc = new CircleGeometry(1, 28);
@@ -236,6 +266,7 @@ export const FISH_GEOMETRY = fishGeometry();
 export const GULL_GEOMETRY = gullGeometry();
 export const FLOAT_GEOMETRY = floatGeometry();
 export const ROD_GEOMETRY = rodGeometry();
+export const MARK_GEOMETRY = markGeometry();
 export const GLOW_GEOMETRY = glowGeometry();
 export const RING_GEOMETRY = ringGeometry();
 export const DROP_GEOMETRY = new IcosahedronGeometry(1, 0);

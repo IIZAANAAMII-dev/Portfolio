@@ -293,12 +293,16 @@ ${SHORE_GLSL}
   float nightGlitter = glitterMask * uDayNight;
   float grazing = smoothstep(0.62, 0.86, 1.0 - viewDir.y);
   float glitter = 0.0;
+  float moonGlitter = 0.0;
   if (dayGlitter + nightGlitter > 0.003) {
     vec2 sunH = normalize(uSun.xz + vec2(1e-4, 0.0));
     if (grazing > 0.001) {
       glitter = sunGlitter(p, sunH, cameraDistance, uCameraPos.y, uPixelAngle, uTime) * grazing;
     }
-    glitter = max(glitter, sunGlints(p, uTime, px) * (1.0 - grazing * 0.6));
+    // Sous la lune, les étoiles d'éclat restent discrètes : ce sont les tirets qui brillent.
+    float glints = sunGlints(p, uTime, px) * (1.0 - grazing * 0.6);
+    moonGlitter = max(glitter, glints * 0.3);
+    glitter = max(glitter, glints);
   }
   vec3 glitterColor = mix(vec3(1.0, 0.97, 0.88), uSkyHorizon * 1.25, 0.25);
   water = mix(water, glitterColor, clamp(glitter * dayGlitter, 0.0, 1.0));
@@ -370,7 +374,7 @@ ${SHORE_GLSL}
   vec3 bioLight = (vec3(0.03, 0.46, 0.42) * wakeGlow * 0.75
     + vec3(0.1, 0.56, 0.5) * max(lines, swirl * 0.7) * 0.24
     + vec3(0.05, 0.55, 0.5) * (shore.x * 0.42 + shore.y * 0.32 + shoreHalo * 0.1)) * uBio * (1.0 - uStormColor);
-  bioLight += vec3(0.6, 0.72, 0.9) * (pow(specBase, 70.0) * 0.3 + glitter * nightGlitter * 0.85)
+  bioLight += vec3(0.6, 0.72, 0.9) * (pow(specBase, 70.0) * 0.3 + moonGlitter * nightGlitter * 0.85)
     * uDayNight * (1.0 - uStormColor);
 
   // Ombres de nuages qui glissent sur la mer (de jour).
@@ -406,23 +410,25 @@ ${SHORE_GLSL}
     monsterFoam = (1.0 - smoothstep(1.4, 5.8 + monsterBreakup * 2.4, monsterDistance))
       * uMonsterWake * smoothstep(0.18, 0.78, monsterBreakup + 0.2);
   }
-  // Écume du rivage : liseré presque blanc, anneaux un peu plus légers.
-  float shoreAmt = max(shore.x * 0.94, shore.y * 0.8) * (1.0 - forbidden);
+  // Écume du rivage : liseré presque blanc, anneaux un peu plus légers ; la nuit, sur l'eau
+  // noire, les anneaux se font plus discrets (une lueur, pas des courbes de niveau).
+  float shoreAmt = max(shore.x * mix(0.94, 0.72, uDayNight), shore.y * mix(0.8, 0.4, uDayNight)) * (1.0 - forbidden);
   float foamAmt = clamp(crest * 1.6 + stormFoam + monsterFoam * 0.48 + shoreAmt, 0.0, 0.94);
   // Écume plus lumineuse la nuit, phosphorescente au bord des îles.
   vec3 foamColor = uFoam * mix(1.0, 1.16, uDayNight);
   foamColor = mix(foamColor, vec3(0.28, 0.82, 0.76), monsterFoam * uDayNight * 0.72);
-  foamColor = mix(foamColor, vec3(0.5, 0.98, 0.9), shoreAmt * uBio * 0.3);
-  water = mix(water, foamColor, foamAmt);
+  foamColor = mix(foamColor, vec3(0.42, 0.95, 0.88), shoreAmt * uBio * 0.6);
 
   // La profondeur est simulée dans la couleur pour éviter les artefacts de tri d'un
   // immense plan transparent. Les poissons sont composés au-dessus avec une teinte eau.
+  // (Avant l'écume : le fond teinte l'eau du lagon, jamais le trait d'écume.)
   vec3 seabedTint = mix(vec3(0.08, 0.48, 0.55), vec3(0.36, 0.78, 0.68), depthTexture);
   water = mix(
     water,
     seabedTint,
     lagoon * 0.34 * (1.0 - fresnel) * (1.0 - uDayNight) * (1.0 - forbidden)
   );
+  water = mix(water, foamColor, foamAmt);
   // Masque circulaire world-space de la révélation d'introduction.
   float dIntro = length(vWorld.xz - uIntroCenter);
   float introEdge = smoothstep(uIntroRadius - uIntroFeather, uIntroRadius, dIntro);
@@ -442,7 +448,11 @@ ${SHORE_GLSL}
   // Aux angles rasants le Fresnel rend naturellement la surface plus réfléchissante.
   float baseAlpha = mix(0.74, 0.46, shallow);
   baseAlpha = mix(baseAlpha, 0.94, fresnel);
-  baseAlpha += foamAmt * 0.16 + uDayNight * 0.18 + extraAlpha - shelf * 0.08 * (1.0 - uDayNight);
+  // L'écume du rivage est un trait opaque : elle ne se dilue pas dans l'eau claire du lagon.
+  baseAlpha += foamAmt * 0.16 + shoreAmt * 0.32 + uDayNight * 0.18 + extraAlpha - shelf * 0.08 * (1.0 - uDayNight);
+  // La nuit, le lagon n'a plus rien à montrer : il garde la masse du large au lieu de
+  // laisser voir les pentes sombres des îles (plus d'anneau noir autour des côtes).
+  baseAlpha = mix(baseAlpha, max(baseAlpha, 0.9), uDayNight);
   // Aucun fond marin ne transparaît dans la zone interdite : la surface devient
   // une masse d'eau noire et opaque, progressivement avec la couverture nuageuse.
   baseAlpha = mix(baseAlpha, 1.0, forbidden);
@@ -541,7 +551,8 @@ export function Ocean() {
       u.uCoast.value = map.texture;
       u.uCoastRect.value.set(map.rect[0], map.rect[1], map.rect[2], 0);
     }
-    if (map) u.uCoastRect.value.w = damp(u.uCoastRect.value.w, 1, 1.6, Math.min(dt, 1 / 30));
+    // Fondu d'apparition en temps réel (borné) : quelques secondes, même sur un appareil lent.
+    if (map) u.uCoastRect.value.w = damp(u.uCoastRect.value.w, 1, 1.6, Math.min(dt, 0.2));
     u.uDeep.value.copy(DAY_DEEP).lerp(NIGHT_DEEP, dayNight);
     u.uShallow.value.copy(DAY_SHALLOW).lerp(NIGHT_SHALLOW, dayNight);
     u.uLagoon.value.copy(DAY_LAGOON).lerp(NIGHT_LAGOON, dayNight);
