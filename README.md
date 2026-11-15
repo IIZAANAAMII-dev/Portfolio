@@ -1,36 +1,37 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Kyliann Le Garrec — Portfolio
 
-## Getting Started
+**En ligne : https://iizaanaamii-dev.github.io/Portfolio/**
 
-First, run the development server:
+Un portfolio à explorer en bateau : un petit archipel en 3D où chaque île est une partie
+de mon travail (À propos, Compétences, Projets, Expériences, Parcours, Contact), avec un
+carnet de bord, des tampons à collectionner et quelques secrets cachés en mer. Une
+« version rapide » en HTML classique est disponible à tout moment pour aller droit au
+contenu.
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+## Technique
+
+Next.js 16 (export statique) · TypeScript · React Three Fiber / three.js · drei ·
+Zustand · GSAP · Tailwind CSS v4.
+
+## Lancer le projet
+
+```sh
+npm ci
+npm run dev      # http://localhost:3000/Portfolio/
+npm run build    # site statique dans out/
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Une seule branche
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+Tout le code est sur la branche principale du dépôt, **`Portfolio`**. Il n'y a pas
+d'autre branche de travail : chaque modification y est poussée directement.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+À chaque push, GitHub construit le site et le publie tout seul (voir
+[docs/GITHUB-PAGES.md](docs/GITHUB-PAGES.md)). La branche `codex/github-pages` n'est pas
+une branche de travail : elle contient uniquement le site compilé servi par GitHub Pages.
 
-## Learn More
+## Documentation
 
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- [Architecture](docs/ARCHITECTURE.md) · [Design](docs/DESIGN.md) · [Audit](docs/AUDIT.md)
+- [Contenu](docs/CONTENU.md) · [Assets](docs/ASSETS.md) · [Blender](docs/BLENDER.md)
+- [Feuille de route](docs/ROADMAP.md) · [Publication](docs/GITHUB-PAGES.md)

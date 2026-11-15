@@ -1,7 +1,9 @@
 # Revue visuelle de l’archipel
 
-Branche de travail : `codex/archipel-art-direction`. Base Claude : `b8626346fbd35eacaf7d677e966587aafc9f3fdc`.
-Aucun changement sur la branche Claude, aucun merge ni déploiement production.
+> Note : cette revue date du 14 novembre 2026. Depuis, la direction artistique proposée ici
+> a été fusionnée dans la branche unique `Portfolio` et le site est publié.
+
+Branche de travail d'origine : `codex/archipel-art-direction` (supprimée après fusion). Base Claude : `b8626346fbd35eacaf7d677e966587aafc9f3fdc`.
 
 ## Capture réellement observée
 

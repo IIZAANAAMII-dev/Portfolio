@@ -2,13 +2,29 @@
 
 import { useState } from 'react';
 import { site } from '@/data/site';
-
-type Status = 'idle' | 'sending' | 'sent' | 'unavailable' | 'error';
+import { bottleThrow } from '@/components/world/MessageBottle';
+import { logbook } from '@/lib/logbook';
 
 /**
- * Bouteille à la mer : la lettre part réellement (route /api/contact). La confirmation et
- * la bouteille qui s'éloigne dans la scène n'arrivent qu'APRÈS la réponse positive du
- * serveur. Sinon, le message reste là et le visiteur peut l'envoyer depuis sa messagerie.
+ * Adresse d'envoi direct, fixée à la construction du site (NEXT_PUBLIC_CONTACT_ENDPOINT) :
+ * la route serveur `/api/contact` sur un hébergement avec serveur (voir
+ * `src/lib/server/contact-route.ts`), ou un service de formulaires sur un hébergement
+ * statique. Absente sur GitHub Pages : la lettre part alors de la messagerie du visiteur.
+ */
+const CONTACT_ENDPOINT = process.env.NEXT_PUBLIC_CONTACT_ENDPOINT ?? '';
+
+type Status = 'idle' | 'sending' | 'sent' | 'handoff' | 'unavailable' | 'error';
+
+/** La bouteille quitte le bateau dans la scène, et le carnet de bord reçoit son tampon. */
+function launchBottle() {
+  bottleThrow.requested = true;
+  logbook.stamp('bottle');
+}
+
+/**
+ * Bouteille à la mer. Avec un envoi direct configuré, la confirmation n'arrive qu'APRÈS la
+ * réponse positive du serveur. Sans envoi direct, le message est confié à la messagerie du
+ * visiteur : le site ne prétend jamais avoir envoyé une lettre qui n'est pas partie.
  */
 export function MessageInABottle() {
   const [message, setMessage] = useState('');
@@ -24,9 +40,30 @@ export function MessageInABottle() {
   const send = async (event: React.FormEvent) => {
     event.preventDefault();
     if (!message.trim() || status === 'sending') return;
-    // GitHub Pages has no server: let the visitor send from their mail app.
-    setStatus('unavailable');
-    window.location.href = mailto;
+
+    if (!CONTACT_ENDPOINT) {
+      launchBottle();
+      setStatus('handoff');
+      window.location.href = mailto;
+      return;
+    }
+
+    setStatus('sending');
+    try {
+      const response = await fetch(CONTACT_ENDPOINT, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+        body: JSON.stringify({ message, name, email, website }),
+      });
+      if (response.ok) {
+        launchBottle();
+        setStatus('sent');
+        return;
+      }
+      setStatus(response.status === 503 ? 'unavailable' : 'error');
+    } catch {
+      setStatus('error');
+    }
   };
 
   if (status === 'sent') {
@@ -73,11 +110,24 @@ export function MessageInABottle() {
         aria-hidden="true"
       />
       <button type="submit" className="stamp-toast__cta" disabled={status === 'sending' || !message.trim()}>
-        {status === 'sending' ? 'La bouteille part…' : 'Envoyer depuis ma messagerie'}
+        {status === 'sending'
+          ? 'La bouteille part…'
+          : CONTACT_ENDPOINT
+            ? 'Jeter la bouteille à la mer'
+            : 'Envoyer depuis ma messagerie'}
       </button>
+      {status === 'handoff' && (
+        <p className="bottle-form__note" role="status">
+          Ta messagerie s’ouvre avec ton message : il ne reste qu’à l’envoyer. Rien ne s’est ouvert ?{' '}
+          <a className="link-underline" href={mailto}>
+            Réessayer
+          </a>{' '}
+          ou écris-moi à {site.email}.
+        </p>
+      )}
       {status === 'unavailable' && (
         <p className="bottle-form__note" role="alert">
-          L’envoi direct n’est pas encore branché sur ce site : ton message n’est pas parti.{' '}
+          L’envoi direct n’est pas disponible pour le moment : ton message n’est pas parti.{' '}
           <a className="link-underline" href={mailto}>
             L’envoyer depuis ta messagerie
           </a>

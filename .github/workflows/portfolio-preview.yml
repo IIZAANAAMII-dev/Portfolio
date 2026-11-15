@@ -1,7 +1,7 @@
 name: Portfolio visual review
 on:
   pull_request:
-    branches: ['main']
+    branches: ['Portfolio', 'main']
 permissions:
   contents: read
 concurrency:
@@ -18,6 +18,8 @@ jobs:
         island: [about, skills, projects, experience, journey, contact, static]
     env:
       CAPTURE_ISLAND: ${{ matrix.island }}
+      # Le site est servi sous le préfixe /Portfolio (basePath de next.config.ts).
+      PREVIEW_URL: http://127.0.0.1:3000/Portfolio
     steps:
       - uses: actions/checkout@v4
         with:

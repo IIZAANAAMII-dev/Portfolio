@@ -1,7 +1,8 @@
 name: Publier le portfolio (GitHub Pages)
 on:
   push:
-    branches: [main]
+    # La branche unique du dépôt. `main` est accepté d'avance, au cas où elle serait renommée.
+    branches: [Portfolio, main]
   workflow_dispatch:
 permissions:
   contents: write
@@ -21,15 +22,7 @@ jobs:
       - run: npm ci
       - run: npm run build
       - run: touch out/.nojekyll
-      - name: Publier out/ sur la branche gh-pages
-        uses: peaceiris/actions-gh-pages@v4
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_branch: gh-pages
-          publish_dir: ./out
-          force_orphan: true
-          commit_message: 'Publication automatique depuis main'
-      # GitHub Pages est réglé sur la branche codex/github-pages : on y publie aussi le site compilé.
+      # GitHub Pages sert la branche codex/github-pages (Settings → Pages) : on y publie le site compilé.
       - name: Publier out/ sur la branche servie par GitHub Pages
         uses: peaceiris/actions-gh-pages@v4
         with:
@@ -37,4 +30,4 @@ jobs:
           publish_branch: codex/github-pages
           publish_dir: ./out
           force_orphan: true
-          commit_message: 'Publication automatique depuis main'
+          commit_message: 'Publication automatique'
