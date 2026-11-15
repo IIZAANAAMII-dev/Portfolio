@@ -12,7 +12,7 @@ const config: IslandSceneConfig = {
   grassPalette: ['#7f9a40', '#5f8237', '#a9a34a', '#cdb15c'],
   // Les rochers et fleurs automatiques tomberaient sur les quais : le décor pose les siens.
   dressing: false,
-  cliffTint: '#ffd2b8',
+  cliffTint: '#ffbfa0',
   sculpt: (x, z, height) => sculptExperience(x, z, height),
 };
 

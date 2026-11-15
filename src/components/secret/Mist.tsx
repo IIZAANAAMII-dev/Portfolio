@@ -1,11 +1,12 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import {
   CircleGeometry,
   Color,
   InstancedBufferAttribute,
+  Group,
   PlaneGeometry,
   ShaderMaterial,
   UniformsLib,
@@ -17,7 +18,7 @@ import { skyState } from '@/lib/sky';
 import { useWorld } from '@/lib/store';
 import { hash } from '@/lib/utils/math';
 import { CENTER_X, CENTER_Z, RIFT_WORLD } from './layout';
-import { flicker } from './signal';
+import { flicker, staticSignal } from './signal';
 import { noiseTexture } from './textures';
 
 /**
@@ -190,6 +191,7 @@ function puffGeometry(count: number) {
 }
 
 export function Mist() {
+  const root = useRef<Group>(null);
   const quality = useWorld((state) => state.quality);
   const materials = useMemo(() => mistKit(), []);
   const disc = useMemo(() => new CircleGeometry(46, 72).rotateX(-Math.PI / 2), []);
@@ -198,6 +200,7 @@ export function Mist() {
   const sheets = quality === 'low' ? SHEETS.slice(0, 2) : SHEETS;
 
   useFrame((state) => {
+    if (root.current) root.current.visible = staticSignal.scale > 0.5;
     mistUniforms.uTime.value = state.clock.elapsedTime * (flicker.motion ? 1 : 0.2);
     const night = skyState.dayNight;
     mistUniforms.uColor.value.copy(DAY).lerp(GOLDEN, skyState.golden * 0.75).lerp(NIGHT, night);
@@ -206,7 +209,7 @@ export function Mist() {
   });
 
   return (
-    <group>
+    <group ref={root} visible={false}>
       {sheets.map((sheet, index) => (
         <mesh
           key={index}

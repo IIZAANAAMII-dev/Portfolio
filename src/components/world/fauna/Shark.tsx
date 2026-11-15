@@ -18,7 +18,7 @@ import { useWorld } from '@/lib/store';
 import { clamp, damp, hash, smoothstep } from '@/lib/utils/math';
 import { waveHeight } from '@/lib/waves';
 import { loft, MeshBuilder, tone, type Section, type Vec3 } from './geometry';
-import { creatureMaterial, faunaClock, faunaDemo, revealScaleAt } from './shared';
+import { creatureMaterial, demoHas, faunaClock, faunaDemo, revealScaleAt } from './shared';
 
 /**
  * REQUIN — un aileron qui tourne autour d'une île lointaine. La dorsale fend la surface, la
@@ -209,7 +209,7 @@ function SharkCircling({ zone }: { zone: SharkZone }) {
     const sounding = smoothstep(0.62, 0.68, cycle) * (1 - smoothstep(0.8, 0.86, cycle));
     const boatGap = Math.hypot(boatState.position.x - x, boatState.position.z - z);
     const wary = 1 - smoothstep(11, 17, boatGap);
-    const demo = faunaDemo.kind === 'shark';
+    const demo = demoHas('shark');
     const dive = demo ? 0 : Math.max(sounding, wary);
     const m = memo.current;
     m.depth = faunaDemo.freeze !== null ? -0.52 - dive * 1.5 : damp(m.depth, -0.52 - dive * 1.5, 1.6, dt);

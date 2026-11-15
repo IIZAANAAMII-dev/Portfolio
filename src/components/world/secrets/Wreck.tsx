@@ -61,7 +61,7 @@ const HEADING = 2.1;
 const ROLL = 0.36;
 const PITCH = 0.07;
 const SINK = -0.3;
-const SHAPE: SandbankShape = { rx: 7.4, rz: 5.3, top: 0.32, depth: 1.25, seed: 11, shelf: -0.5, shelfReach: 1.45 };
+const SHAPE: SandbankShape = { rx: 7.4, rz: 5.3, top: 0.32, depth: 1.25, seed: 11, shelf: -0.6, shelfReach: 1.3 };
 
 /* ------------------------------------------------------------------- coque */
 

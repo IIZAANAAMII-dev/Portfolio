@@ -34,7 +34,6 @@ import {
   channelCenter,
   channelHalfWidth,
   COTTAGE,
-  COVE,
   fromFrame,
   KNOLL,
   polylineDistance,
@@ -455,16 +454,15 @@ function FishingCove({ sampler }: { sampler: HeightSampler }) {
     return clothMaterial({ map: texture, length: 1.3, amplitude: 0.06, hang: true, speed: 2.4, alphaTest: 0.3 });
   }, []);
   const netGeometry = useMemo(() => new PlaneGeometry(2.1, 1.25, 8, 5).translate(0, -0.625, 0), []);
-  // Le canot, proue vers l'eau, couché sur son bouchain.
-  const edge = channelCenter(COVE.u) - channelHalfWidth(COVE.u);
-  const [bx, bz] = fromFrame(COVE.u + 0.3, edge - 1.75);
+  // Le canot, proue vers l'eau, couché sur son bouchain ; le filet et les casiers à côté.
+  const edge = channelCenter(7.0) - channelHalfWidth(7.0);
+  const [bx, bz] = fromFrame(7.0, edge - 1.6);
   const boatY = sampler(bx, bz) + 0.42;
-  const boatYaw = Math.PI / 2 - AXIS + 0.35;
-  const [gx, gz] = fromFrame(COVE.u - 1.6, edge - 2.6);
+  const boatYaw = Math.PI / 2 - AXIS + 0.3;
+  const [gx, gz] = fromFrame(8.7, edge - 1.9);
   const gearBase = on(sampler, gx, gz, 0.8, 0.05);
   return (
     <group>
-      <ClearingAt x={bx} z={bz} radius={2} />
       <group position={[bx, boatY, bz]} rotation-y={boatYaw}>
         <mesh geometry={boat} material={smoothPaint} rotation-x={0.22} castShadow receiveShadow />
       </group>

@@ -54,7 +54,7 @@ const PATH_LAMPS: [number, number, number][] = [
 const STEP = new BoxGeometry(1, 1, 1);
 const STONE = new CylinderGeometry(1, 1.08, 1, 7);
 const STEP_MATERIAL = new MeshStandardMaterial({ color: '#ffffff', roughness: 0.95, flatShading: true });
-const STONE_MATERIAL = new MeshStandardMaterial({ color: '#d8cdb9', roughness: 1, flatShading: true });
+const STONE_MATERIAL = new MeshStandardMaterial({ color: '#cdbfa4', roughness: 1, flatShading: true });
 
 function stepMatrices() {
   const matrices: Matrix4[] = [];
@@ -142,7 +142,7 @@ export function Path({ sampler }: { sampler: HeightSampler }) {
       const z = point.z - jitter * 0.6;
       dummy.position.set(x, groundAt(sampler, x, z, 0.3) + 0.03, z);
       dummy.rotation.set(0, hash(index * 1.9) * Math.PI, 0);
-      const size = 0.3 + hash(index * 7.1) * 0.12;
+      const size = 0.26 + hash(index * 7.1) * 0.1;
       dummy.scale.set(size, 0.12, size * (0.8 + hash(index * 2.2) * 0.3));
       dummy.updateMatrix();
       target.setMatrixAt(index, dummy.matrix);

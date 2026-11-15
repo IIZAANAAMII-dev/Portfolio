@@ -62,7 +62,7 @@ import {
  * l'expérience cachée dans le coffre (données : `experiments`).
  */
 
-const SHAPE: SandbankShape = { rx: 5.4, rz: 4.1, top: 0.46, depth: 1.15, seed: 3, shelf: -0.5, shelfReach: 1.55 };
+const SHAPE: SandbankShape = { rx: 5.4, rz: 4.1, top: 0.46, depth: 1.15, seed: 3, shelf: -0.55, shelfReach: 1.45 };
 const W = 1.5;
 const H = 0.78;
 const D = 0.95;

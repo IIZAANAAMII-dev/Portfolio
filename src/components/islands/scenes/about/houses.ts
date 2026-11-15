@@ -291,15 +291,21 @@ export function buildHouse(plan: HousePlan, pick: (section: HouseSection) => Hou
     for (const x of [-1.35, 0, 1.35]) windows.push({ x, y: 2.55, width: 0.66, height: 0.88, flowers: x === 0 });
   } else if (plan.kind === 'penty') {
     windows.push({ x: 0.95, y: low, width: 0.72, height: 0.92, flowers: true });
+  } else if (plan.kind === 'atelier') {
+    // Grande verrière d'atelier à petits carreaux.
+    windows.push({ x: 0.75, y: 0.8, width: 1.45, height: 1.2, shutters: false, flowers: true });
   }
   const facadeMatrix = new Matrix4();
   windows.forEach((opening, index) => addWindow(facade, facadeMatrix, front, opening, plan.paint, seed + index * 7.1));
 
   // --- Arrière : deux fenêtres (ou une), sans fleurs, volets fermés d'un côté.
   const back = pose([0, 0, 0], [0, Math.PI, 0]);
-  const backWindows: Opening[] = plan.kind === 'penty'
-    ? [{ x: 0.4, y: low, width: 0.6, height: 0.8 }]
-    : [{ x: -width * 0.22, y: low, width: 0.66, height: 0.88 }, { x: width * 0.24, y: low, width: 0.66, height: 0.88 }];
+  // L'atelier n'a pas de fenêtre au dos : le mur porte la bibliothèque et le bureau.
+  const backWindows: Opening[] = plan.kind === 'atelier'
+    ? []
+    : plan.kind === 'penty'
+      ? [{ x: 0.4, y: low, width: 0.6, height: 0.8 }]
+      : [{ x: -width * 0.22, y: low, width: 0.66, height: 0.88 }, { x: width * 0.24, y: low, width: 0.66, height: 0.88 }];
   backWindows.forEach((opening, index) => addWindow(body, back, front, opening, plan.paint, seed + 40 + index * 5.3));
 
   // --- Lucarne d'œil-de-bœuf dans chaque pignon (les combles éclairés la nuit).
@@ -309,9 +315,14 @@ export function buildHouse(plan: HousePlan, pick: (section: HouseSection) => Hou
     addWindow(body, gableMatrix, width / 2, { x: 0, y: wall + rise * 0.18, width: 0.42, height: 0.5, shutters: false }, plan.paint, seed + 90 + sx);
   }
 
-  // --- Hortensias au pied de la façade.
-  addHydrangea(body.details, [doorX + 0.95, 0, front + 0.45], seed);
-  if (plan.kind !== 'penty') addHydrangea(body.details, [-width / 2 + 0.55, 0, front + 0.5], seed + 3.3, 0.85);
+  // --- Hortensias au pied de la façade (sur le côté pour l'atelier : la façade s'abat).
+  if (plan.kind === 'atelier') {
+    addHydrangea(body.details, [-width / 2 - 0.45, 0, front - 0.4], seed);
+    addHydrangea(body.details, [width / 2 + 0.5, 0, front - 0.6], seed + 3.3, 0.9);
+  } else {
+    addHydrangea(body.details, [doorX + 0.95, 0, front + 0.45], seed);
+    if (plan.kind !== 'penty') addHydrangea(body.details, [-width / 2 + 0.55, 0, front + 0.5], seed + 3.3, 0.85);
+  }
 
   return {
     ridge,

@@ -143,18 +143,19 @@ function HarborLight() {
 interface PointuDesign {
   hull: string;
   band: string;
+  inner: string;
   sail?: boolean;
   fisher?: boolean;
   motor?: boolean;
 }
 
 const POINTUS: PointuDesign[] = [
-  { hull: '#f4f1ea', band: '#2f6fc0', sail: true },
-  { hull: '#3f8f6a', band: '#f4f1ea', motor: true },
-  { hull: '#f4f1ea', band: '#d8473a', fisher: true },
+  { hull: '#f4f1ea', band: '#2f6fc0', inner: '#8ec5e8', sail: true },
+  { hull: '#3f8f6a', band: '#f4f1ea', inner: '#f2c14e', motor: true },
+  { hull: '#f4f1ea', band: '#d8473a', inner: '#f4f1ea', fisher: true },
 ];
 
-function pointuGeometry({ hull, band, sail, fisher, motor }: PointuDesign) {
+function pointuGeometry({ hull, band, inner, sail, fisher, motor }: PointuDesign) {
   const b = new Builder();
   const keel = -0.2;
   addHull(b, {
@@ -167,6 +168,7 @@ function pointuGeometry({ hull, band, sail, fisher, motor }: PointuDesign) {
     deck: '#b98552',
     deckDrop: 0.34,
     open: true,
+    inner,
   }, [0, keel, 0]);
   const top = keel + 0.62 + 0.24;
   // Capian (étrave haute) et étambot, barre franche.

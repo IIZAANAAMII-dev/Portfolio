@@ -31,8 +31,10 @@ import {
 } from './layout';
 import { Mist } from './Mist';
 import { Rift } from './Rift';
-import { flicker, staticSignal, tube } from './signal';
+import { flicker, proximityNow, staticSignal, tube } from './signal';
+import { StaticAmbience } from './static-audio';
 import { useStaticDossier } from './static-store';
+import { Traces } from './Traces';
 import { GRASS_PALETTE, staticTerrainMaterial } from './terrain-material';
 
 /**
@@ -59,14 +61,38 @@ const CLEARINGS: [number, number, number][] = [
 /** Hauteur du plancher de la maison : la faille s'ouvre à ce niveau. */
 const FLOOR_Y = HOUSE_BASE + HOUSE.plinth;
 
+/** Couche sonore de l'île (une seule île secrète). */
+const soundscape = new StaticAmbience();
+
 export default function YellowStaticIsland() {
   const island = useRef<Group>(null);
   const clearings = useMemo(() => new ClearingStore(), []);
   const terrain = useMemo(() => buildTerrainGeometry(SHAPE, sampler), []);
   const terrainMaterial = useMemo(() => staticTerrainMaterial(), []);
   const near = useRef(false);
+  const audioClock = useRef(0);
 
   useEffect(() => () => terrain.dispose(), [terrain]);
+  useEffect(() => () => soundscape.dispose(), []);
+
+  // Aides de capture en développement : amarrer le bateau au ponton, forcer la proximité.
+  useEffect(() => {
+    if (process.env.NODE_ENV === 'production') return;
+    const target = window as unknown as Record<string, unknown>;
+    target.__staticPark = () => {
+      boatState.position.set(DOCK_POINT[0], 0, DOCK_POINT[1]);
+      boatState.heading = ISLAND.dockAngle + Math.PI;
+      boatState.speed = 0;
+      useWorld.setState({ phase: 'playing', activeIsland: null, destination: null, freeTarget: null, reveal: 1, gameTransition: 1, introRadius: 240, introGlow: 0 });
+    };
+    target.__staticProximity = (value: number | null) => {
+      staticSignal.override = value;
+    };
+    return () => {
+      delete target.__staticPark;
+      delete target.__staticProximity;
+    };
+  }, []);
 
   // Une fois par image, avant les décors : apparition, néons, proximité, révélation.
   useFrame((state, delta) => {
@@ -82,6 +108,7 @@ export default function YellowStaticIsland() {
       const scale = damp(group.scale.x, raw * (1 + 0.09 * Math.sin(raw * Math.PI) * (1 - raw)), 7.5, dt);
       group.scale.setScalar(scale);
       group.visible = scale > 0.006;
+      staticSignal.scale = scale;
     }
 
     // Néons et faille : chacun son grésillement, la faille fait tout vaciller.
@@ -114,6 +141,11 @@ export default function YellowStaticIsland() {
     // Proximité du bateau : brume sonore et voile VHS (0 au large → 1 au ponton).
     const boatDistance = Math.hypot(boatState.position.x - CENTER_X, boatState.position.z - CENTER_Z);
     staticSignal.proximity = 1 - smoothstep(ISLAND.radius + 5, ISLAND.influence, boatDistance);
+    audioClock.current += dt;
+    if (audioClock.current >= 0.2) {
+      soundscape.update(proximityNow(), audioClock.current);
+      audioClock.current = 0;
+    }
 
     // L'easter egg : le bateau à moins de ~12 m de la façade ouvre le dossier (une fois par
     // approche ; il faut repartir au large pour qu'il se rouvre tout seul).
@@ -133,46 +165,51 @@ export default function YellowStaticIsland() {
   };
 
   return (
-    <group
-      ref={island}
-      position={[CENTER_X, 0, CENTER_Z]}
-      scale={0}
-      userData={CLEARING_ROOT}
-      onClick={onClick}
-      onPointerOver={(event) => {
-        event.stopPropagation();
-        document.body.style.cursor = 'pointer';
-      }}
-      onPointerOut={() => {
-        document.body.style.cursor = '';
-      }}
-    >
-      <ClearingContext.Provider value={clearings}>
-        <mesh geometry={terrain} material={terrainMaterial} castShadow receiveShadow />
-        <Grass
-          sampler={sampler}
-          radius={ISLAND.radius}
-          plateau={FEATURES.plateau}
-          avoidAngle={ISLAND.dockAngle}
-          seed={97 * 41 + 7}
-          amount={0.9}
-          palette={GRASS_PALETTE}
-        />
-        {CLEARINGS.map(([x, z, radius], index) => (
-          <ClearingAt key={index} x={x} z={z} radius={radius} />
-        ))}
-        <Rocks />
-        <group rotation-y={FACE}>
-          <House position={[HOUSE.x, HOUSE_BASE, HOUSE.z]} rotation={0} />
-          <Rift position={[RIFT.x, FLOOR_Y, RIFT.z]} />
-          <Equipment />
-          <Crew />
-          <Cameras />
-          <Glows />
-        </group>
-      </ClearingContext.Provider>
-      {/* Pas de volume de sélection englobant : il masquerait les caméras cliquables. Le
-          relief (jusqu'au haut-fond) et le décor suffisent comme cible. */}
+    <group>
+      <group
+        ref={island}
+        position={[CENTER_X, 0, CENTER_Z]}
+        scale={0}
+        userData={CLEARING_ROOT}
+        onClick={onClick}
+        onPointerOver={(event) => {
+          event.stopPropagation();
+          document.body.style.cursor = 'pointer';
+        }}
+        onPointerOut={() => {
+          document.body.style.cursor = '';
+        }}
+      >
+        <ClearingContext.Provider value={clearings}>
+          <mesh geometry={terrain} material={terrainMaterial} castShadow receiveShadow />
+          <Grass
+            sampler={sampler}
+            radius={ISLAND.radius}
+            plateau={FEATURES.plateau}
+            avoidAngle={ISLAND.dockAngle}
+            seed={97 * 41 + 7}
+            amount={0.9}
+            palette={GRASS_PALETTE}
+          />
+          {CLEARINGS.map(([x, z, radius], index) => (
+            <ClearingAt key={index} x={x} z={z} radius={radius} />
+          ))}
+          <Rocks />
+          <group rotation-y={FACE}>
+            <House position={[HOUSE.x, HOUSE_BASE, HOUSE.z]} rotation={0} />
+            <Rift position={[RIFT.x, FLOOR_Y, RIFT.z]} />
+            <Equipment />
+            <Crew />
+            <Cameras />
+            <Glows />
+          </group>
+        </ClearingContext.Provider>
+        {/* Pas de volume de sélection englobant : il masquerait les caméras cliquables. Le
+            relief (jusqu'au haut-fond) et le décor suffisent comme cible. */}
+      </group>
+      {/* En coordonnées monde : la brume autour de l'île et les traces au large. */}
+      <Mist />
+      <Traces />
     </group>
   );
 }

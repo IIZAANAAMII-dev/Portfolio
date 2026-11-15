@@ -8,7 +8,7 @@ import { boatState } from '@/lib/boat-state';
 import { ecologyState } from '@/lib/ecology';
 import { useWorld } from '@/lib/store';
 import { hash, smoothstep } from '@/lib/utils/math';
-import { WAVE_GLSL, waveHeight } from '@/lib/waves';
+import { WAVE_GLSL } from '@/lib/waves';
 import { loft, MeshBuilder, tone, type Vec3 } from './geometry';
 import { creatureMaterial, crossed, faunaClock } from './shared';
 import { emitRing } from './Splashes';
@@ -258,7 +258,6 @@ export function SeaTurtles({ mobile }: { mobile: boolean }) {
         const z = lagoon.center[1] + Math.sin(angle) * radius;
         if (Math.hypot(x - boatState.position.x, z - boatState.position.z) < 9) return;
         emitRing(x + Math.cos(angle + Math.PI / 2 * lagoon.direction) * 0.6, z + Math.sin(angle + Math.PI / 2 * lagoon.direction) * 0.6, time, 1.4, 1.6, 0.2, 0.75);
-        void waveHeight;
       }
     });
   });

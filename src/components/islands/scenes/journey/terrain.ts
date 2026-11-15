@@ -135,7 +135,7 @@ export function calanqueDistance(u: number, v: number) {
 /* ------------------------------------------------------------ crique bretonne */
 
 /** Crique de sable sur la rive bretonne du chenal, où le canot est tiré au sec. */
-export const COVE = { u: 5.9, halfLength: 2.0 };
+export const COVE = { u: 6.3, halfLength: 2.6 };
 
 /* ------------------------------------------------------------------- côtes */
 
@@ -206,10 +206,11 @@ export function provencePlateau(u: number, v: number) {
  * dallée qui monte dans le Panier.
  */
 export const TRAIL_BRETON: [number, number][] = [
-  [6.6, -2.9],
-  [5.6, -4.7],
-  [3.6, -6.3],
-  [1.0, -6.9],
+  [6.1, -2.4],
+  [5.9, -4.6],
+  [4.6, -5.9],
+  [2.8, -6.6],
+  [0.6, -6.9],
   [-1.3, -6.0],
   [-1.7, -4.4],
   [-1.1, -3.3],
@@ -299,7 +300,7 @@ export function journeyHeight(x: number, z: number) {
 
 /** Emplacement de chaque étape (repère u, v), dans l'ordre du voyage. */
 export const STEP_SPOTS: Record<string, [number, number]> = {
-  origines: [5.0, -3.15],
+  origines: [4.6, -3.3],
   apprentissage: [-0.2, -7.6],
   marseille: [BRIDGE_U + 0.52, 0.25],
   feeder: [1.2, 10.7],

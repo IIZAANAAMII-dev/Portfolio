@@ -41,6 +41,8 @@ export const staticSignal = {
   proximity: 0,
   /** Forçage de développement (captures d'écran). */
   override: null as number | null,
+  /** Échelle d'apparition de l'île (cercle de révélation de l'intro). */
+  scale: 0,
 };
 
 export function proximityNow() {

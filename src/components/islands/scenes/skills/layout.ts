@@ -29,6 +29,8 @@ const RISE = 0.75;
 
 /** Hauteur des dalles des zones au-dessus du sol aplani. */
 export const PAD_TOP = 0.2;
+/** Échelle des dioramas (une zone est dessinée pour une dalle de rayon `pad`). */
+export const ZONE_SCALE = 1.15;
 /** Hauteur de la place centrale au-dessus du sol. */
 export const PLAZA_TOP = 0.16;
 
@@ -42,8 +44,10 @@ export interface ZoneSpot {
   id: SkillZoneId;
   x: number;
   z: number;
-  /** Rayon de la dalle (octogone). */
+  /** Rayon de la dalle (octogone), dans le repère de la zone. */
   pad: number;
+  /** Rayon réel de la dalle sur l'île (échelle de la zone comprise). */
+  reach: number;
   /** Rotation Y : la face avant de la zone (+Z local) regarde la caméra. */
   facing: number;
   /** Altitude du sol aplani sous la dalle. */
@@ -67,7 +71,7 @@ export const ZONE_SPOTS: ZoneSpot[] = SPOTS.map(({ id, angle, distance, pad }) =
   const x = Math.cos(angle) * distance;
   const z = Math.sin(angle) * distance;
   const facing = Math.atan2(VIEW_X - x, VIEW_Z - z);
-  return { id, x, z, pad, facing, level: slope(x, z), toHub: Math.atan2(HUB.x - x, HUB.z - z) - facing };
+  return { id, x, z, pad, reach: pad * ZONE_SCALE, facing, level: slope(x, z), toHub: Math.atan2(HUB.x - x, HUB.z - z) - facing };
 });
 
 export const zoneSpot = Object.fromEntries(ZONE_SPOTS.map((spot) => [spot.id, spot])) as Record<SkillZoneId, ZoneSpot>;
@@ -79,8 +83,8 @@ export function labGround(x: number, z: number) {
   height = lerp(height, HUB.level, 1 - smoothstep(HUB.radius + 0.25, HUB.radius + 1.3, hub));
   for (const spot of ZONE_SPOTS) {
     const distance = Math.hypot(x - spot.x, z - spot.z);
-    if (distance > spot.pad + 1.3) continue;
-    height = lerp(height, spot.level, 1 - smoothstep(spot.pad + 0.25, spot.pad + 1.3, distance));
+    if (distance > spot.reach + 1.3) continue;
+    height = lerp(height, spot.level, 1 - smoothstep(spot.reach + 0.25, spot.reach + 1.3, distance));
   }
   return height;
 }
@@ -129,7 +133,7 @@ export function pathSpecs(accents: Record<SkillZoneId, string>, islandAccent: st
     const angle = Math.atan2(spot.z, spot.x);
     const distance = Math.hypot(spot.x, spot.z);
     const start = HUB.radius - 0.05;
-    const end = distance - spot.pad * 0.9;
+    const end = distance - spot.reach * 0.9;
     return {
       points: [
         [Math.cos(angle) * start, Math.sin(angle) * start],

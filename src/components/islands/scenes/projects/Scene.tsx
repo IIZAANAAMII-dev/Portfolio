@@ -8,6 +8,7 @@ import { updateWindows } from '@/lib/windows';
 import type { Project } from '@/types';
 import { Hotspot, type SceneProps } from '../../kit';
 import { CyberCenter } from './Cyber';
+import { Gallery } from './Gallery';
 import { SITES, TOWN, sitePosition, siteRotation, type SiteId } from './layout';
 import { Plaque } from './signs';
 import { TechCenter } from './TechCenter';
@@ -43,6 +44,7 @@ export default function ProjectsScene({ island }: SceneProps) {
         if (!(project.building in SITES)) return null;
         if (project.building === 'cyber') return <CyberCenter key={project.id} project={project} />;
         if (project.building === 'tech-center') return <TechCenter key={project.id} project={project} />;
+        if (project.building === 'gallery') return <Gallery key={project.id} project={project} />;
         return <Placeholder key={project.id} project={project} />;
       })}
     </>

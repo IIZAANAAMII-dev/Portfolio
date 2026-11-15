@@ -298,7 +298,8 @@ interface Visit {
 
 const visit: Visit = { act: 'roll', start: -1e5, x: 0, z: 0, heading: 0, stamped: false };
 const DEMO_ACTS: Record<string, Act> = { whale: 'roll', breach: 'breach', fluke: 'fluke', slap: 'slap' };
-const DEMO = faunaDemo.kind !== null && faunaDemo.kind in DEMO_ACTS;
+const DEMO_ACT = (Object.keys(DEMO_ACTS).find((kind) => faunaDemo.kinds.has(kind)) ?? null) as keyof typeof DEMO_ACTS | null;
+const DEMO = DEMO_ACT !== null;
 
 const local = new Vector3();
 const world = new Vector3();
@@ -318,7 +319,7 @@ export function Whale() {
 
     if (DEMO) {
       // Démonstration : le numéro se répète au point visé par la caméra, en travers du champ.
-      const act = DEMO_ACTS[faunaDemo.kind as string];
+      const act = DEMO_ACTS[DEMO_ACT as string];
       const period = act === 'roll' ? 9 : ACT_LENGTH[act] + 3;
       const index = Math.floor(time / period);
       if (index !== memo.lastAct) {

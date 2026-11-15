@@ -33,8 +33,7 @@ type XZ = readonly [number, number];
 const PINES: [number, number, number][] = [
   [-4.7, 3.4, 1.0],
   [0.4, 7.6, 1.1],
-  [9.6, -3.4, 0.95],
-  [-1.9, -9.6, 0.9],
+  [-1.9, -9.6, 0.95],
   [2.0, 10.0, 1.05],
   [-9.0, 5.6, 1.0],
   [-5.6, 8.4, 0.9],
@@ -65,28 +64,29 @@ const OLIVE_LIGHT = new Color('#a7b88a');
 
 function pine(sampler: HeightSampler, x: number, z: number, size: number, seed: number, limbs: Limb[], puffs: Puff[]) {
   const y = groundAt(sampler, x, z, 0.3) - 0.1;
-  const height = (3.1 + hash(seed * 1.7) * 0.7) * size;
+  const height = (3.7 + hash(seed * 1.7) * 0.8) * size;
   const leanAngle = hash(seed * 2.9) * Math.PI * 2;
-  const lean = (0.16 + hash(seed * 3.7) * 0.14) * height;
+  const lean = (0.14 + hash(seed * 3.7) * 0.12) * height;
   const base = new Vector3(x, y, z);
-  // Tronc en deux segments : il penche, puis se redresse sous le houppier.
-  const middle = new Vector3(x + Math.cos(leanAngle) * lean * 0.75, y + height * 0.55, z + Math.sin(leanAngle) * lean * 0.75);
+  // Tronc nu en deux segments : il penche, puis se redresse sous l'ombrelle.
+  const middle = new Vector3(x + Math.cos(leanAngle) * lean * 0.75, y + height * 0.58, z + Math.sin(leanAngle) * lean * 0.75);
   const top = new Vector3(x + Math.cos(leanAngle) * lean, y + height, z + Math.sin(leanAngle) * lean);
-  limbs.push({ from: base, to: middle, radius: 0.2 * size }, { from: middle, to: top, radius: 0.15 * size });
-  const crown = 1.55 * size;
-  puffs.push({ at: top.clone().add(new Vector3(0, 0.35 * size, 0)), scale: new Vector3(crown, crown * 0.36, crown), color: PINE_MID.clone() });
+  limbs.push({ from: base, to: middle, radius: 0.17 * size }, { from: middle, to: top, radius: 0.12 * size });
+  // Houppier en ombrelle : un plateau large et mince, quelques nuages aplatis autour.
+  const crown = 1.3 * size;
+  puffs.push({ at: top.clone().add(new Vector3(0, 0.3 * size, 0)), scale: new Vector3(crown * 1.05, crown * 0.26, crown * 1.05), color: PINE_MID.clone() });
   const count = 5;
   for (let index = 0; index < count; index++) {
     const angle = (index / count) * Math.PI * 2 + hash(seed + index * 1.3) * 0.8;
-    const reach = crown * (0.78 + hash(seed + index * 2.1) * 0.2);
-    const at = top.clone().add(new Vector3(Math.cos(angle) * reach, (hash(seed + index * 3.3) - 0.3) * 0.35 * size, Math.sin(angle) * reach));
-    const scale = crown * (0.62 + hash(seed + index * 4.7) * 0.18);
+    const reach = crown * (0.8 + hash(seed + index * 2.1) * 0.25);
+    const at = top.clone().add(new Vector3(Math.cos(angle) * reach, (hash(seed + index * 3.3) - 0.5) * 0.22 * size, Math.sin(angle) * reach));
+    const scale = crown * (0.5 + hash(seed + index * 4.7) * 0.14);
     puffs.push({
       at,
       scale: new Vector3(scale, scale * 0.42, scale),
       color: (index % 2 ? PINE_DARK : PINE_LIGHT).clone().multiplyScalar(0.92 + hash(seed + index) * 0.16),
     });
-    if (index % 2 === 0) limbs.push({ from: top.clone().setY(top.y - 0.25 * size), to: at.clone().setY(at.y - 0.15), radius: 0.07 * size });
+    if (index % 2 === 0) limbs.push({ from: top.clone().setY(top.y - 0.3 * size), to: at.clone().setY(at.y - 0.12), radius: 0.06 * size });
   }
 }
 

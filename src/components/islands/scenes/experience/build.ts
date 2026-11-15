@@ -180,8 +180,9 @@ export interface HullDesign {
   deck: string;
   /** Hauteur relative du pont sous le livet (0 : pont affleurant). */
   deckDrop: number;
-  /** Bateau ouvert : le bordé intérieur (au-dessus du fond) prend la couleur du pont. */
+  /** Bateau ouvert : le bordé intérieur (au-dessus du fond) est peint de cette couleur. */
   open?: boolean;
+  inner?: string;
 }
 
 /**
@@ -190,7 +191,7 @@ export interface HullDesign {
  * liserés restent nets, sans texture.
  */
 export function hullGeometry(design: HullDesign) {
-  const { length, beam, depth, sheer, transom, bands, deck, deckDrop, open = false } = design;
+  const { length, beam, depth, sheer, transom, bands, deck, deckDrop, open = false, inner = deck } = design;
   const stations = 12;
   const ring = [0, 0.38, 0.72, 1];
   const rows: Vector3[][] = [];
@@ -238,10 +239,10 @@ export function hullGeometry(design: HullDesign) {
       triangle(mirror(b), mirror(c), mirror(d));
       if (open && j === 0) {
         // Bordé vu de l'intérieur : mêmes sommets, enroulement inversé.
-        triangle(a, b, d, deck);
-        triangle(b, c, d, deck);
-        triangle(mirror(a), mirror(d), mirror(b), deck);
-        triangle(mirror(b), mirror(d), mirror(c), deck);
+        triangle(a, b, d, inner);
+        triangle(b, c, d, inner);
+        triangle(mirror(a), mirror(d), mirror(b), inner);
+        triangle(mirror(b), mirror(d), mirror(c), inner);
       }
     }
   }

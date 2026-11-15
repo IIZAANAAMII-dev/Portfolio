@@ -196,19 +196,26 @@ export function sandbankGeometry(shape: SandbankShape) {
   const segments = 30;
   const shelf = shape.shelf ?? -Infinity;
   const reach = shape.shelfReach ?? 1;
+  // Anneaux : la pente du banc, puis (haut-fond) un plateau et un dernier bord qui replonge,
+  // pour que le lagon clair se fonde dans le bleu du large au lieu de s'arrêter net.
+  const profile: { t: number; floor: number }[] = [];
+  for (let ring = 1; ring <= rings; ring++) profile.push({ t: ring / rings, floor: shelf });
+  if (reach > 1) {
+    profile.push({ t: 1 + (reach - 1) * 0.55, floor: shelf });
+    profile.push({ t: reach, floor: shelf - 0.95 });
+  }
   const positions: number[] = [0, shape.top, 0];
-  for (let ring = 1; ring <= rings + (reach > 1 ? 1 : 0); ring++) {
-    const outer = ring > rings;
-    const t = outer ? reach : ring / rings;
+  profile.forEach(({ t, floor }, rank) => {
+    const ring = rank + 1;
     for (let segment = 0; segment < segments; segment++) {
       const angle = (segment / segments) * Math.PI * 2 + (ring % 2) * (Math.PI / segments);
-      const n = shoreNoise(angle, shape.seed) * (1 + (hash(ring * 7.1 + segment * 3.3 + shape.seed) - 0.5) * 0.06);
-      const slope = bankHeight(shape, Math.min(t, 1)) + (hash(segment * 1.9 + ring * 5.3 + shape.seed) - 0.5) * 0.06 * (1 - t);
-      const y = Math.max(slope, shelf);
+      const n = shoreNoise(angle, shape.seed) * (1 + (hash(ring * 7.1 + segment * 3.3 + shape.seed) - 0.5) * (t > 1 ? 0.14 : 0.06));
+      const slope = bankHeight(shape, Math.min(t, 1)) + (hash(segment * 1.9 + ring * 5.3 + shape.seed) - 0.5) * 0.06 * Math.max(0, 1 - t);
+      const y = t > 1 ? floor : Math.max(slope, floor);
       positions.push(Math.cos(angle) * shape.rx * t * n, y, Math.sin(angle) * shape.rz * t * n);
     }
-  }
-  const totalRings = rings + (reach > 1 ? 1 : 0);
+  });
+  const totalRings = profile.length;
   const index: number[] = [];
   for (let segment = 0; segment < segments; segment++) index.push(0, 1 + ((segment + 1) % segments), 1 + segment);
   for (let ring = 1; ring < totalRings; ring++) {

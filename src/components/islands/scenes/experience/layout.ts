@@ -52,7 +52,7 @@ function band(x: number, from: number, to: number, blendIn: number, blendOut = b
 /** Le port : quai au pied de la falaise, bassin creusé entre le Bec et le ponton. */
 export const HARBOR = {
   frame: frame(-1.72),
-  quay: { from: 11.9, to: 13.1, left: -3.4, right: 4.6, y: 0.95 },
+  quay: { from: 11.9, to: 13.1, left: -2.9, right: 4.6, y: 0.95 },
   basin: { from: 13.3, left: -9.5, right: 3.4, y: -1.15 },
   /** Bateaux amarrés perpendiculairement au quai (abscisse v), poupe au quai. */
   moorings: [-1.9, 0.35, 2.5],
@@ -73,11 +73,11 @@ export const YARD = {
 
 /** Bec de l'Aigle : dos qui monte depuis le plateau, tête en falaise, bec vers le port. */
 export const BEC = {
-  back: [-6.6, -6.4] as const,
-  head: [-7.8, -11.46] as const,
-  backY: 5.4,
-  headY: 12.6,
-  headRadius: 2.9,
+  back: [-6.2, -5.2] as const,
+  head: [-8.6, -11.3] as const,
+  backY: 5.0,
+  headY: 10.9,
+  headRadius: 3.0,
   /** Direction du bec (angle) : vers le nord, au-dessus du port. */
   beak: -1.5,
 };
@@ -132,18 +132,20 @@ function ramp(
   return height + (y0 + (y1 - y0) * t - height) * weight;
 }
 
-/** Hauteur du Bec de l'Aigle seul (ou -100 hors de son emprise). */
+/** Hauteur du Bec de l'Aigle seul (très négative hors de son emprise). */
 export function becHeight(x: number, z: number) {
   const [hx, hz] = BEC.head;
-  // Tête : dôme rond, bord en falaise presque verticale, contour irrégulier.
+  // Tête : dôme rond. Côté port et côté large (nord, est), falaise à pic ; côté terre
+  // (ouest, sud), un éboulis qui s'évase jusqu'à la grève.
   const dx = x - hx;
   const dz = z - hz;
   const d = Math.hypot(dx, dz);
   const angle = Math.atan2(dz, dx);
-  const rim = BEC.headRadius * (1 + Math.sin(angle * 3 + 0.7) * 0.09 + Math.sin(angle * 5 - 1.3) * 0.05);
+  const rim = BEC.headRadius * (1 + Math.sin(angle * 3 + 0.7) * 0.1 + Math.sin(angle * 5 - 1.3) * 0.06);
+  const steep = smooth(-0.25, 0.45, d > 0.001 ? (dx * 0.55 - dz * 0.83) / d : 0);
   const head = d < rim
-    ? BEC.headY - (d / rim) ** 2 * 0.95
-    : BEC.headY - 0.95 - (d - rim) * 9;
+    ? BEC.headY - (d / rim) ** 2 * 1.1
+    : BEC.headY - 1.1 - (d - rim) * (3.2 + steep * 6.6);
   // Dos : arête qui descend vers le plateau, plus large et plus basse vers l'arrière.
   const [bx, bz] = BEC.back;
   const ex = hx - bx;
@@ -153,15 +155,17 @@ export function becHeight(x: number, z: number) {
   // Au-delà de la tête : plus d'arête, seulement la falaise du dôme.
   if (s > 1) return head;
   const t = Math.max(0, s);
-  const across = Math.abs(((x - bx) * ez - (z - bz) * ex) / length);
-  const halfWidth = 2.3 - t * 0.5;
+  // Signé : négatif côté est (le port, à pic), positif côté ouest (le chantier, en pente).
+  const side = ((x - bx) * ez - (z - bz) * ex) / length;
+  const across = Math.abs(side);
+  const halfWidth = 2.5 - t * 0.6;
   // En arrière du dos, l'arête continue de descendre et se fond dans le plateau.
   const crest = s >= 0
-    ? BEC.backY + (BEC.headY - 0.6 - BEC.backY) * t ** 1.35
-    : BEC.backY + s * length * 0.9;
+    ? BEC.backY + (BEC.headY - 0.7 - BEC.backY) * t ** 1.6
+    : BEC.backY + s * length * 0.8;
   const ridge = across < halfWidth
-    ? crest - (across / halfWidth) ** 2 * 0.8
-    : crest - 0.8 - (across - halfWidth) * 6;
+    ? crest - (across / halfWidth) ** 2 * 0.7
+    : crest - 0.7 - (across - halfWidth) * (side < 0 ? 7 : 2.8);
   return Math.max(head, ridge);
 }
 

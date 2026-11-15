@@ -16,11 +16,11 @@ import { BEC } from './layout';
 
 /** Sections le long du bec : distance devant la tête, hauteur, demi-largeur, dessus, dessous. */
 const SECTIONS: [number, number, number, number, number][] = [
-  [1.1, 11.95, 1.55, 0.42, 1.35],
-  [2.55, 12.08, 1.2, 0.4, 0.9],
-  [3.55, 11.8, 0.78, 0.32, 0.55],
-  [4.3, 11.05, 0.4, 0.2, 0.28],
-  [4.72, 10.3, 0.03, 0.03, 0.03],
+  [1.2, 10.25, 1.55, 0.4, 1.35],
+  [2.65, 10.38, 1.2, 0.4, 0.9],
+  [3.65, 10.1, 0.78, 0.32, 0.55],
+  [4.4, 9.35, 0.4, 0.2, 0.28],
+  [4.82, 8.6, 0.03, 0.03, 0.03],
 ];
 
 /** Contour d'une section (côté, hauteur) : dessus aplati, dessous en carène. */

@@ -137,16 +137,11 @@ function buildGrounds(sampler: HeightSampler, specs: PathSpec[]): Built {
     const direction = new Vector3(next.x - point.x, 0, next.z - point.z).normalize();
     for (const sideSign of [-1, 1]) lamps.push([point.x - direction.z * 0.95 * sideSign, point.z + direction.x * 0.95 * sideSign]);
   }
-  for (const spot of ZONE_SPOTS) {
-    const angle = Math.atan2(spot.z, spot.x);
-    const distance = Math.hypot(spot.x, spot.z) - spot.pad - 0.25;
-    lamps.push([Math.cos(angle) * distance - Math.sin(angle) * 0.7, Math.sin(angle) * distance + Math.cos(angle) * 0.7]);
-  }
   for (const [x, z] of lamps) {
     const y = sampler(x, z) - 0.04;
-    paint.cylinder(0.09, 0.12, 0.08, 8, '#5b6472', [x, y + 0.04, z]);
-    paint.cylinder(0.03, 0.04, 1.1, 6, '#3d4658', [x, y + 0.58, z], undefined, 0);
-    paint.cylinder(0.02, 0.13, 0.08, 8, '#3d4658', [x, y + 1.31, z], undefined, 0);
+    paint.cylinder(0.09, 0.12, 0.08, 8, '#7a8396', [x, y + 0.04, z]);
+    paint.cylinder(0.026, 0.034, 1.1, 6, '#5f6879', [x, y + 0.58, z], undefined, 0);
+    paint.cylinder(0.02, 0.13, 0.08, 8, '#e2553f', [x, y + 1.31, z], undefined, 0);
     glow.box([0.13, 0.17, 0.13], '#ffd98a', [x, y + 1.19, z], undefined, 0);
   }
 
@@ -288,7 +283,7 @@ export function Grounds({ sampler, accents, islandAccent }: { sampler: HeightSam
     }
     for (const spot of ZONE_SPOTS) {
       const angle = Math.atan2(spot.z, spot.x);
-      const middle = (HUB.radius + Math.hypot(spot.x, spot.z) - spot.pad) / 2;
+      const middle = (HUB.radius + Math.hypot(spot.x, spot.z) - spot.reach) / 2;
       list.push({ x: Math.cos(angle) * middle, z: Math.sin(angle) * middle, radius: 0.85 });
     }
     return list;

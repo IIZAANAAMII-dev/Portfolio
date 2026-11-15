@@ -19,7 +19,7 @@ import { useWorld } from '@/lib/store';
 import { clamp, damp, hash, shortestAngle } from '@/lib/utils/math';
 import { waveHeight } from '@/lib/waves';
 import { loft, MeshBuilder, tone, type Section, type Vec3 } from './geometry';
-import { creatureMaterial, crossed, distanceToLand, faunaClock, faunaDemo } from './shared';
+import { creatureMaterial, crossed, demoHas, distanceToLand, faunaClock, faunaDemo } from './shared';
 import { spout, splash } from './Splashes';
 
 /**
@@ -179,7 +179,7 @@ interface PodState {
 const DEPTH = -0.6;
 const LEAP_FLOOR = -0.75;
 const STEP = 1 / 30;
-const DEMO = faunaDemo.kind === 'dolphins';
+const DEMO = demoHas('dolphins');
 
 // Mère + petit, trois adultes : formation en flèche devant l'étrave. Un seul pod au monde,
 // donc un état de module (comme les objets flottants).
@@ -233,7 +233,7 @@ function chooseLeap(dolphin: Dolphin, time: number, playful: boolean) {
       : 1.9 + draw(dolphin) * 0.7;
   dolphin.leapHeight = height * (calf ? 0.7 : 1);
   dolphin.leapDuration = kind === 'porpoise' ? 0.95 + draw(dolphin) * 0.25 : 1.35 + draw(dolphin) * 0.3;
-  const calm = playful ? 2.6 + draw(dolphin) * 4.2 : 0.7 + draw(dolphin) * 1.4;
+  const calm = DEMO ? 0.5 + draw(dolphin) * 1.1 : playful ? 2.6 + draw(dolphin) * 4.2 : 0.7 + draw(dolphin) * 1.4;
   dolphin.nextLeap = time + dolphin.leapDuration + calm;
   // Saut synchronisé : un voisin adulte s'élance avec lui.
   if (kind === 'high' && draw(dolphin) > 0.6) {

@@ -7,20 +7,25 @@ import { clamp, shortestAngle } from '@/lib/utils/math';
 /**
  * Outils communs de la faune marine.
  *
- * Démonstration (captures, réglages) : `?demo=dolphins|whale|breach|fluke|slap|shark|jumps|rays`
+ * Démonstration (captures, réglages) : `?demo=dolphins|whale|breach|fluke|slap|shark|jumps|rays|jelly`
  * force la rencontre correspondante autour du bateau, même à quai ; `&freeze=<s>` fige l'horloge
  * de la faune à cet instant : poses, éclaboussures et gerbes sont alors identiques d'une capture
  * à l'autre (la houle, elle, continue de vivre).
  */
 function readDemo() {
-  if (typeof window === 'undefined') return { kind: null as string | null, freeze: null as number | null };
+  if (typeof window === 'undefined') return { kinds: new Set<string>(), freeze: null as number | null };
   const params = new URLSearchParams(window.location.search);
   const raw = params.get('freeze');
   const freeze = raw !== null && raw !== '' && Number.isFinite(Number(raw)) ? Number(raw) : null;
-  return { kind: params.get('demo'), freeze };
+  return { kinds: new Set((params.get('demo') ?? '').split(',').filter(Boolean)), freeze };
 }
 
+/** Plusieurs rencontres combinables : `?demo=dolphins,breach,shark`. */
 export const faunaDemo = readDemo();
+
+export function demoHas(kind: string) {
+  return faunaDemo.kinds.has(kind);
+}
 
 /** Horloge de la faune : celle du rendu, sauf capture figée. */
 export function faunaClock(elapsed: number) {

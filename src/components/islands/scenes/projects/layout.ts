@@ -84,6 +84,11 @@ export function faceToward(x: number, z: number, tx: number, tz: number) {
 /** Rotation d'une parcelle : entre le ponton (caméras d'accostage) et le centre de la place. */
 export function siteRotation(id: SiteId, towardCenter = SITES[id].toward) {
   const [x, z] = sitePosition(id);
+  return facing(x, z, towardCenter);
+}
+
+/** Même règle pour un point quelconque de la ville. */
+export function facing(x: number, z: number, towardCenter: number) {
   const toView = faceToward(x, z, VIEWPOINT[0], VIEWPOINT[1]);
   const toCenter = faceToward(x, z, 0, 0);
   let delta = toCenter - toView;

@@ -107,6 +107,18 @@ function dockGeometry(start: number, end: number) {
     wood.add(new BoxGeometry(0.05, 0.04, 0.54), '#7c5639', pose([end + 0.07, DECK - 0.22 - rung * 0.3, 0]), 0.12);
   }
 
+  // Deux pare-battages blancs à bande bleue, pendus au bout du ponton (côté bateau).
+  for (const side of [-1, 1]) {
+    const fz = side * 0.66;
+    wood.add(new CylinderGeometry(0.012, 0.012, 0.3, 4), ROPE, pose([end + 0.1, DECK - 0.12, fz]));
+    wood.addLocal(new CylinderGeometry(0.11, 0.11, 0.34, 10, 3), (_x, y, _z, _ny, out) => {
+      out.set(Math.abs(y) < 0.06 ? '#3b7fc4' : '#f5efe3');
+    }, pose([end + 0.13, DECK - 0.45, fz], [0, 0, 0.08 * side]), 0.08);
+    for (const cap of [-1, 1]) {
+      wood.add(new SphereGeometry(0.11, 10, 4, 0, Math.PI * 2, cap > 0 ? 0 : Math.PI / 2, Math.PI / 2), '#f5efe3', pose([end + 0.13 - 0.08 * side * cap * 0.17, DECK - 0.45 + cap * 0.17, fz]));
+    }
+  }
+
   // Grand pieu de la lanterne, au bout, côté gauche.
   const [lx, ly, lz] = lanternSpot(end);
   addLanternPost(wood, { x: lx, y: ly, z: lz, seed });

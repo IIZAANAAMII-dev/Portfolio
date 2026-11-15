@@ -180,7 +180,7 @@ function lagoonFloor() {
   return merge(parts.map((part) => (part.index ? part.toNonIndexed() : part)));
 }
 
-const ROCK_COUNT = 10;
+const ROCK_COUNT = 13;
 
 const brassMaterial = new MeshStandardMaterial({
   vertexColors: true,
@@ -230,9 +230,10 @@ export function MechaFish() {
     for (let index = 0; index < ROCK_COUNT; index++) {
       const k = index / (ROCK_COUNT - 1);
       const angle = TOWARD_ISLET + Math.PI * 0.42 + k * Math.PI * 1.16;
-      const radius = POOL + 0.5 + hash(index * 2.3) * 0.5;
-      const size = 0.7 + hash(index * 4.7) * 0.55;
-      _dummy.position.set(Math.cos(angle) * radius, -0.55 + hash(index * 3.1) * 0.25, Math.sin(angle) * radius);
+      const radius = POOL + 0.45 + hash(index * 2.3) * 0.6;
+      // Gros blocs et galets alternés : un récif, pas un mur.
+      const size = index % 2 === 0 ? 0.62 + hash(index * 4.7) * 0.38 : 0.36 + hash(index * 4.7) * 0.22;
+      _dummy.position.set(Math.cos(angle) * radius, -0.62 + hash(index * 3.1) * 0.3, Math.sin(angle) * radius);
       _dummy.rotation.set(hash(index) * 0.5, index * 1.9, hash(index * 5.5) * 0.4);
       _dummy.scale.set(size * 1.25, size * (0.9 + hash(index * 6.1) * 0.5), size);
       _dummy.updateMatrix();
@@ -342,7 +343,7 @@ export function MechaFish() {
         <meshStandardMaterial roughness={0.95} flatShading />
       </instancedMesh>
       <group ref={fish}>
-        <Hotspot onActivate={activate} hoverScale={1.08}>
+        <Hotspot onActivate={activate} hoverScale={1.08} scale={1.4}>
           <mesh geometry={front} material={paintMaterial()} castShadow />
           <group ref={tail} position={[-0.42, 0, 0]}>
             <mesh geometry={tailShape} material={paintMaterial()} />

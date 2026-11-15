@@ -43,7 +43,7 @@ import { at, inSight, merge, paintMaterial, piece } from './shared';
 const LENGTH = 4.2;
 const RADIUS = 0.72;
 /** Profondeur du centre de la coque selon l'état. */
-const DEPTH_CRUISE = -1.5;
+const DEPTH_CRUISE = -1.25;
 const DEPTH_SURFACE = -0.18;
 const DEPTH_DIVE = -3.3;
 const SPEED = 1.5;

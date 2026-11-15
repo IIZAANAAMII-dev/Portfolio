@@ -47,6 +47,18 @@ export class MeshBuilder {
     return this;
   }
 
+  /** Triangle dont la normale est tournée vers (nx, ny, nz) : l'ordre des sommets est corrigé. */
+  facing(a: Vec3, b: Vec3, c: Vec3, color: Color, nx: number, ny: number, nz: number) {
+    const ux = b[0] - a[0];
+    const uy = b[1] - a[1];
+    const uz = b[2] - a[2];
+    const vx = c[0] - a[0];
+    const vy = c[1] - a[1];
+    const vz = c[2] - a[2];
+    const dot = (uy * vz - uz * vy) * nx + (uz * vx - ux * vz) * ny + (ux * vy - uy * vx) * nz;
+    return dot >= 0 ? this.tri(a, b, c, color) : this.tri(a, c, b, color);
+  }
+
   /** Triangle visible des deux côtés (nageoires très fines). */
   sheet(a: Vec3, b: Vec3, c: Vec3, color: Color) {
     this.tri(a, b, c, color);

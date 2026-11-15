@@ -9,7 +9,7 @@ import { useWorld } from '@/lib/store';
 import { hash } from '@/lib/utils/math';
 import { waveHeight } from '@/lib/waves';
 import { MeshBuilder, tone } from './geometry';
-import { crossed, faunaClock, faunaDemo, schoolMarkers, type SchoolMarker } from './shared';
+import { crossed, demoHas, faunaClock, schoolMarkers, type SchoolMarker } from './shared';
 import { splash } from './Splashes';
 
 /**
@@ -81,7 +81,7 @@ export function FishJumps() {
     m.prev = time;
     const world = useWorld.getState();
     const awake = (world.phase === 'playing' || world.phase === 'docked') && world.reveal > 0.8;
-    const demo = faunaDemo.kind === 'jumps';
+    const demo = demoHas('jumps');
 
     if (awake && time >= m.next) {
       // Un banc proche du bateau (donc du cadre), choisi au hasard parmi les vivants.
