@@ -189,7 +189,11 @@ function addChimney(details: Mesher, x: number, base: number, top: number, depth
  * ordinaire tout va au même endroit ; l'atelier de Kyliann sépare façade et toit, qui
  * s'animent.
  */
-export function buildHouse(plan: HousePlan, pick: (section: HouseSection) => HouseParts, options: { door?: number } = {}): HouseInfo {
+export function buildHouse(
+  plan: HousePlan,
+  pick: (section: HouseSection) => HouseParts,
+  options: { door?: number; hinged?: boolean } = {},
+): HouseInfo {
   const width = plan.width;
   const depth = plan.depth;
   const wall = plan.wall;
@@ -208,7 +212,9 @@ export function buildHouse(plan: HousePlan, pick: (section: HouseSection) => Hou
     else parts.walls.box(size, position);
   };
   const inner = width - WALL * 2;
-  addWall(facade, [inner, wall + PLINTH, WALL], [0, (wall - PLINTH) / 2, front - WALL / 2]);
+  // Façade articulée (l'atelier) : pas de fondation, elle pivote sur son pied.
+  if (options.hinged) addWall(facade, [inner, wall + 0.05, WALL], [0, (wall - 0.05) / 2, front - WALL / 2]);
+  else addWall(facade, [inner, wall + PLINTH, WALL], [0, (wall - PLINTH) / 2, front - WALL / 2]);
   addWall(body, [inner, wall + PLINTH, WALL], [0, (wall - PLINTH) / 2, -front + WALL / 2]);
   const gable = gableGeometry(depth, wall, rise, WALL);
   for (const side of [-1, 1]) {

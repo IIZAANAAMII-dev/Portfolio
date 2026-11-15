@@ -24,10 +24,8 @@ import {
   Shape,
   ShaderMaterial,
   SphereGeometry,
-  SpriteMaterial,
   SRGBColorSpace,
   type Points,
-  type Sprite,
 } from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { Hotspot } from '@/components/islands/kit';
@@ -136,36 +134,6 @@ function woodTextures() {
     woodLid.needsUpdate = true;
   }
   return { side: woodSide, lid: woodLid };
-}
-
-let glintTexture: CanvasTexture | null = null;
-
-/** Éclat en étoile à quatre branches (reflet d'or vu de loin). */
-function glint() {
-  if (glintTexture) return glintTexture;
-  const canvas = document.createElement('canvas');
-  canvas.width = 128;
-  canvas.height = 128;
-  const ctx = canvas.getContext('2d')!;
-  const glow = ctx.createRadialGradient(64, 64, 0, 64, 64, 40);
-  glow.addColorStop(0, 'rgba(255, 250, 225, 1)');
-  glow.addColorStop(0.25, 'rgba(255, 214, 120, 0.7)');
-  glow.addColorStop(1, 'rgba(255, 190, 80, 0)');
-  ctx.fillStyle = glow;
-  ctx.fillRect(0, 0, 128, 128);
-  ctx.fillStyle = 'rgba(255, 246, 214, 0.95)';
-  for (const [w, h] of [[5, 62], [62, 5]]) {
-    ctx.beginPath();
-    ctx.moveTo(64, 64 - h);
-    ctx.lineTo(64 + w, 64);
-    ctx.lineTo(64, 64 + h);
-    ctx.lineTo(64 - w, 64);
-    ctx.closePath();
-    ctx.fill();
-  }
-  glintTexture = new CanvasTexture(canvas);
-  glintTexture.colorSpace = SRGBColorSpace;
-  return glintTexture;
 }
 
 /* --------------------------------------------------------------- géométries */
@@ -442,7 +410,6 @@ export function TreasureChest() {
   const lid = useRef<Group>(null);
   const shaft = useRef<ShaderMaterial>(null);
   const sparkles = useRef<Points>(null);
-  const glintSprite = useRef<Sprite>(null);
   const coins = useRef<InstancedMesh>(null);
   const gems = useRef<InstancedMesh>(null);
   const [open, setOpen] = useState(false);
@@ -463,10 +430,6 @@ export function TreasureChest() {
   const shaftGeometry = useMemo(() => new CylinderGeometry(0.78, 0.42, 3.4, 18, 1, true).translate(0, 1.7, 0), []);
   const sparkleGeo = useMemo(() => sparkleGeometry(), []);
   const wood = useMemo(() => woodTextures(), []);
-  const glintMaterial = useMemo(
-    () => new SpriteMaterial({ map: glint(), transparent: true, depthWrite: false, blending: AdditiveBlending, color: '#ffe3a0' }),
-    [],
-  );
 
   const chestY = surface(CHEST_LOCAL[0], CHEST_LOCAL[2]) - 0.3;
 
@@ -517,13 +480,7 @@ export function TreasureChest() {
     if (gemMesh.instanceColor) gemMesh.instanceColor.needsUpdate = true;
   }, [chestY]);
 
-  useEffect(
-    () => () => {
-      foamMaterial.dispose();
-      glintMaterial.dispose();
-    },
-    [foamMaterial, glintMaterial],
-  );
+  useEffect(() => () => foamMaterial.dispose(), [foamMaterial]);
 
   const toggle = () => {
     // Groupe masqué (hors de vue) : les maillages restent touchables par le rayon, on ignore.
@@ -595,16 +552,6 @@ export function TreasureChest() {
       sparkleMesh.visible = a.glow > 0.01 || burst < 2;
     }
 
-    // Éclat doré visible de loin, tant que le coffre est fermé.
-    const sprite = glintSprite.current;
-    if (sprite) {
-      const flash = isOpen ? 0 : Math.pow(Math.max(0, Math.sin(time * 1.9)), 24) + peek * 0.6;
-      sprite.scale.setScalar(0.25 + flash * 1.5);
-      sprite.material.rotation = time * 0.6;
-      sprite.material.opacity = Math.min(1, flash * 1.4);
-      sprite.visible = flash > 0.02;
-    }
-
     // Le bateau s'éloigne : on referme la fiche (une seule fois).
     if (isOpen && Math.hypot(boatState.position.x - CHEST_SPOT.x, boatState.position.z - CHEST_SPOT.z) > 75) close();
   });
@@ -633,30 +580,32 @@ export function TreasureChest() {
         <mesh visible={false} position={[0, 0.7, 0.1]}>
           <boxGeometry args={[2.6, 2, 2.2]} />
         </mesh>
-        <mesh geometry={shaftGeometry} position={[0, H - 0.1, 0]} renderOrder={6} raycast={() => null}>
-          <shaderMaterial
-            ref={shaft}
-            uniforms={{ uTime: { value: 0 }, uIntensity: { value: 0 } }}
-            vertexShader={shaftVertex}
-            fragmentShader={shaftFragment}
-            transparent
-            depthWrite={false}
-            blending={AdditiveBlending}
-            side={DoubleSide}
-          />
-        </mesh>
-        <points ref={sparkles} geometry={sparkleGeo} position={[0, H - 0.05, 0]} frustumCulled={false} renderOrder={7} raycast={() => null}>
-          <shaderMaterial
-            uniforms={{ uTime: { value: 0 }, uIntensity: { value: 0 }, uBurst: { value: 10 }, uScale: { value: 800 } }}
-            vertexShader={sparkleVertex}
-            fragmentShader={sparkleFragment}
-            transparent
-            depthWrite={false}
-            blending={AdditiveBlending}
-          />
-        </points>
-        <sprite ref={glintSprite} material={glintMaterial} position={[0.22, H + 0.08, D / 2 + 0.08]} renderOrder={8} raycast={() => null} />
       </Hotspot>
+      {/* Lumière du trésor : hors du Hotspot, pour que l'éclat « cliquable » se pose sur le coffre. */}
+      <group position={[CHEST_LOCAL[0], chestY, CHEST_LOCAL[2]]} rotation={CHEST_ROTATION}>
+          <mesh geometry={shaftGeometry} position={[0, H - 0.1, 0]} renderOrder={6} raycast={() => null}>
+            <shaderMaterial
+              ref={shaft}
+              uniforms={{ uTime: { value: 0 }, uIntensity: { value: 0 } }}
+              vertexShader={shaftVertex}
+              fragmentShader={shaftFragment}
+              transparent
+              depthWrite={false}
+              blending={AdditiveBlending}
+              side={DoubleSide}
+            />
+          </mesh>
+          <points ref={sparkles} geometry={sparkleGeo} position={[0, H - 0.05, 0]} frustumCulled={false} renderOrder={7} raycast={() => null}>
+            <shaderMaterial
+              uniforms={{ uTime: { value: 0 }, uIntensity: { value: 0 }, uBurst: { value: 10 }, uScale: { value: 800 } }}
+              vertexShader={sparkleVertex}
+              fragmentShader={sparkleFragment}
+              transparent
+              depthWrite={false}
+              blending={AdditiveBlending}
+            />
+          </points>
+      </group>
 
       {open && (
         <SecretCard

@@ -124,21 +124,40 @@ export function fishingNet() {
 
 let digits: CanvasTexture | null = null;
 
-/** Planche des chiffres 1 à 5 pour les médaillons des étapes (une case par chiffre). */
-export function stepDigits(family: string) {
+/**
+ * Planche des badges des étapes 1 à 5 (une case de 256 px par chiffre) : disque à la
+ * couleur de l'étape, liseré crème, gros chiffre blanc cerné de brun (lisible de loin).
+ */
+export function stepDigits(family: string, accents: string[]) {
   if (digits) return digits;
-  const { element, ctx } = canvas(640, 128);
+  const size = 256;
+  const { element, ctx } = canvas(size * 5, size);
   for (let index = 0; index < 5; index++) {
-    const cx = index * 128 + 64;
-    ctx.fillStyle = '#fbf3df';
+    const cx = index * size + size / 2;
+    const cy = size / 2;
+    ctx.fillStyle = accents[index % accents.length];
     ctx.beginPath();
-    ctx.arc(cx, 64, 62, 0, Math.PI * 2);
+    ctx.arc(cx, cy, size / 2 - 2, 0, Math.PI * 2);
     ctx.fill();
-    ctx.fillStyle = '#3b2f25';
-    ctx.font = `700 92px ${family}`;
+    // Lumière peinte : un croissant plus clair en haut à gauche.
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.16)';
+    ctx.beginPath();
+    ctx.arc(cx - 18, cy - 22, size / 2 - 30, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = '#fbf3df';
+    ctx.lineWidth = 10;
+    ctx.beginPath();
+    ctx.arc(cx, cy, size / 2 - 18, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.font = `700 190px ${family}`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText(String(index + 1), cx, 70);
+    ctx.lineJoin = 'round';
+    ctx.lineWidth = 16;
+    ctx.strokeStyle = '#3b2a1e';
+    ctx.strokeText(String(index + 1), cx, cy + 12);
+    ctx.fillStyle = '#ffffff';
+    ctx.fillText(String(index + 1), cx, cy + 12);
   }
   digits = finish(element);
   return digits;
