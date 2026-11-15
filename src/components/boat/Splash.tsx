@@ -3,7 +3,11 @@
 import { useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { InstancedMesh, Mesh, MeshBasicMaterial, Object3D } from 'three';
+import { boatState } from '@/lib/boat-state';
+import { useWorld } from '@/lib/store';
+import { waveHeight } from '@/lib/waves';
 import { hash } from '@/lib/utils/math';
+import { BOAT_FRAME } from './BoatModel';
 
 /**
  * Éclaboussure : déclenchée par `triggerSplash`, elle dessine deux anneaux d'écume qui
@@ -88,5 +92,83 @@ export function Splash() {
         <meshBasicMaterial color="#f4fbf8" transparent opacity={0} depthWrite={false} />
       </mesh>
     </>
+  );
+}
+
+/**
+ * Embruns d'étrave : en route, l'étrave fend la houle et jette des gouttes de chaque bord
+ * (« moustaches ») ; un choc en projette une gerbe (`sprayState.burst`). Gouttes balistiques
+ * en coordonnées monde, une seule InstancedMesh.
+ */
+export const sprayState = { burst: 0 };
+
+const SPRAY = 44;
+const sprayDummy = new Object3D();
+type Drop = { born: number; x: number; y: number; z: number; vx: number; vy: number; vz: number; size: number };
+
+export function BowSpray() {
+  const mesh = useRef<InstancedMesh>(null);
+  const drops = useRef<Drop[] | null>(null);
+  const cursor = useRef(0);
+  const budget = useRef(0);
+
+  useFrame((state, delta) => {
+    const target = mesh.current;
+    if (!target) return;
+    // Débit sur le temps réel (borné) : la durée de vie des gouttes suit aussi l'horloge.
+    const dt = Math.min(delta, 0.25);
+    const time = state.clock.elapsedTime;
+    const { phase, quality } = useWorld.getState();
+    target.visible = (phase === 'playing' || phase === 'docked') && quality !== 'low';
+    if (!target.visible) return;
+    drops.current ??= Array.from({ length: SPRAY }, () => ({ born: -99, x: 0, y: -50, z: 0, vx: 0, vy: 0, vz: 0, size: 0 }));
+    const list = drops.current;
+    const speed = boatState.speed;
+    const rate = Math.min(Math.max((speed - 4.5) / 9, 0), 1);
+    budget.current = Math.min(budget.current + dt * rate * 38 + sprayState.burst * 14, SPRAY / 2);
+    const burst = sprayState.burst;
+    sprayState.burst = 0;
+    const forwardX = Math.cos(boatState.heading);
+    const forwardZ = Math.sin(boatState.heading);
+    while (budget.current >= 1) {
+      budget.current -= 1;
+      const drop = list[cursor.current];
+      cursor.current = (cursor.current + 1) % SPRAY;
+      const side = Math.random() < 0.5 ? -1 : 1;
+      const strength = Math.max(rate, burst * 0.8);
+      const bowX = boatState.position.x + forwardX * BOAT_FRAME.bow * 0.66 - forwardZ * side * 0.42;
+      const bowZ = boatState.position.z + forwardZ * BOAT_FRAME.bow * 0.66 + forwardX * side * 0.42;
+      const out = (1.2 + Math.random() * 1.8) * (0.6 + strength);
+      drop.born = time;
+      drop.x = bowX;
+      drop.y = waveHeight(bowX, bowZ, time) + 0.12;
+      drop.z = bowZ;
+      drop.vx = -forwardZ * side * out + forwardX * speed * 0.55;
+      drop.vy = (1.5 + Math.random() * 1.9) * (0.6 + strength * 0.7);
+      drop.vz = forwardX * side * out + forwardZ * speed * 0.55;
+      drop.size = 0.045 + Math.random() * 0.06;
+    }
+    for (let index = 0; index < SPRAY; index++) {
+      const drop = list[index];
+      const age = time - drop.born;
+      const y = drop.y + drop.vy * age - 5.5 * age * age;
+      if (age < 0 || age > 1.2 || y < drop.y - 0.25) {
+        sprayDummy.position.set(0, -50, 0);
+        sprayDummy.scale.setScalar(0);
+      } else {
+        sprayDummy.position.set(drop.x + drop.vx * age, y, drop.z + drop.vz * age);
+        sprayDummy.scale.setScalar(drop.size * (1 - age * 0.55));
+      }
+      sprayDummy.updateMatrix();
+      target.setMatrixAt(index, sprayDummy.matrix);
+    }
+    target.instanceMatrix.needsUpdate = true;
+  });
+
+  return (
+    <instancedMesh ref={mesh} args={[undefined, undefined, SPRAY]} frustumCulled={false} raycast={() => null} visible={false}>
+      <icosahedronGeometry args={[1, 0]} />
+      <meshStandardMaterial color="#eaf8f4" roughness={0.35} />
+    </instancedMesh>
   );
 }

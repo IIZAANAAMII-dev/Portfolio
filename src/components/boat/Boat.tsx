@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useRef } from 'react';
+import { useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { Group, InstancedMesh, Object3D, PointLight } from 'three';
 import { ambience } from '@/lib/audio/ambience';
@@ -10,15 +10,19 @@ import { ecologyState } from '@/lib/ecology';
 import { skyState } from '@/lib/sky';
 import { useWorld } from '@/lib/store';
 import { waveHeight } from '@/lib/waves';
-import { damp } from '@/lib/utils/math';
+import { clamp, damp, shortestAngle } from '@/lib/utils/math';
 import { MAX_SPEED, useBoatNavigation } from '@/hooks/useBoatNavigation';
-import { Splash, triggerSplash } from './Splash';
+import { BowSpray, Splash, sprayState, triggerSplash } from './Splash';
+import { StackSmoke } from './Smoke';
 import { Wake } from './Wake';
 import { BOAT_FRAME, BoatModel } from './BoatModel';
+import { boatMotion } from './motion';
 
 const MAX_VISUAL_SPEED = MAX_SPEED;
 /** Hauteur d'où tombe le bateau au clic d'intro (au-dessus du cadre de la caméra). */
 const DROP_HEIGHT = 13;
+const EXHAUST = [...BOAT_FRAME.exhaust] as [number, number, number];
+const LAMP = [...BOAT_FRAME.lamp] as [number, number, number];
 
 /**
  * Chute d'intro : le bateau tombe du ciel (gravité constante), s'étire pendant la chute,
@@ -42,45 +46,10 @@ function dropPose(seconds: number) {
   };
 }
 
-function ExhaustSmoke() {
-  const mesh = useRef<InstancedMesh>(null);
-  const dummy = useMemo(() => new Object3D(), []);
-  const count = 9;
-
-  useFrame((state) => {
-    if (!mesh.current) return;
-    const strength = Math.min(boatState.speed / MAX_VISUAL_SPEED, 1);
-    mesh.current.visible = strength > 0.08 && useWorld.getState().quality !== 'low';
-    if (!mesh.current.visible) return;
-    const time = state.clock.elapsedTime;
-    const [ex, ey, ez] = BOAT_FRAME.exhaust;
-    for (let index = 0; index < count; index++) {
-      const life = (time * (0.34 + strength * 0.18) + index / count) % 1;
-      // La fumée sort de la cheminée de la timonerie et file vers l'arrière avec la vitesse.
-      dummy.position.set(
-        ex - life * (0.5 + strength * 2.2),
-        ey + life * (1.6 + (1 - strength) * 1.2),
-        ez + Math.sin(index * 4.7 + time) * life * 0.4,
-      );
-      const scale = (0.08 + life * 0.5) * (0.5 + strength * 0.6);
-      dummy.scale.setScalar(scale);
-      dummy.updateMatrix();
-      mesh.current.setMatrixAt(index, dummy.matrix);
-    }
-    mesh.current.instanceMatrix.needsUpdate = true;
-  });
-
-  return (
-    <instancedMesh ref={mesh} args={[undefined, undefined, count]}>
-      <dodecahedronGeometry args={[0.65, 0]} />
-      <meshBasicMaterial color="#8c9799" transparent opacity={0.2} depthWrite={false} />
-    </instancedMesh>
-  );
-}
+const foamDummy = new Object3D();
 
 function HullFoam() {
   const mesh = useRef<InstancedMesh>(null);
-  const dummy = useMemo(() => new Object3D(), []);
   const count = 12;
   useFrame((state) => {
     if (!mesh.current) return;
@@ -92,15 +61,15 @@ function HullFoam() {
       const life = (time * (0.55 + strength * 0.65) + index / count) % 1;
       const side = index % 2 === 0 ? -1 : 1;
       // L'étrave fend l'eau : l'écume naît à l'avant et glisse le long des flancs.
-      dummy.position.set(
+      foamDummy.position.set(
         BOAT_FRAME.bow * 0.82 - life * (BOAT_FRAME.bow + BOAT_FRAME.stern) * 0.78,
         0.04 + Math.sin(time * 2 + index) * 0.04,
         side * (BOAT_FRAME.halfBeam * (0.55 + Math.min(life * 3, 1) * 0.45) + life * 0.4),
       );
       const scalar = (0.08 + life * 0.19) * (0.45 + strength);
-      dummy.scale.set(scalar * 1.8, scalar * 0.35, scalar);
-      dummy.updateMatrix();
-      mesh.current.setMatrixAt(index, dummy.matrix);
+      foamDummy.scale.set(scalar * 1.8, scalar * 0.35, scalar);
+      foamDummy.updateMatrix();
+      mesh.current.setMatrixAt(index, foamDummy.matrix);
     }
     mesh.current.instanceMatrix.needsUpdate = true;
   });
@@ -116,9 +85,13 @@ export function Boat() {
   const group = useRef<Group>(null);
   const rocker = useRef<Group>(null);
   const drop = useRef<Group>(null);
+  const stackTip = useRef<Object3D>(null);
   const boatLight = useRef<PointLight>(null);
   const splashed = useRef(false);
   const engineClock = useRef(0);
+  // Mesures du mouvement et ressort du choc (tout hors React, lu à chaque image).
+  const previous = useRef({ heading: boatState.heading, speed: boatState.speed, collision: 0, phase: '' });
+  const attitude = useRef({ pitch: 0, roll: 0, yaw: 0, bump: 0, bumpVelocity: 0 });
   const quality = useWorld((state) => state.quality);
 
   useBoatNavigation();
@@ -127,15 +100,19 @@ export function Boat() {
     const dt = Math.min(delta, 1 / 30);
     const time = state.clock.elapsedTime;
     const { position, heading, speed } = boatState;
-    const { phase, gameTransition } = useWorld.getState();
+    const { phase, gameTransition, reducedMotion } = useWorld.getState();
     // Avant le clic, il n'y a pas encore de bateau : il tombe dans l'anneau au départ.
     const waiting = phase === 'loading' || phase === 'intro';
     const dropping = phase === 'transitioning' && gameTransition * INTRO_DURATION < INTRO_SPLASH_AT * INTRO_DURATION + 2.2;
     const pose = dropping ? dropPose(gameTransition * INTRO_DURATION) : null;
+    const last = previous.current;
+    const body = attitude.current;
 
     if (group.current) group.current.visible = !waiting;
+    if (waiting) boatMotion.splashAt = -1;
     if (phase === 'transitioning' && !splashed.current && gameTransition >= INTRO_SPLASH_AT) {
       splashed.current = true;
+      boatMotion.splashAt = time;
       triggerSplash(time, position.x, position.z, 1);
       ambience.splash();
     }
@@ -151,6 +128,30 @@ export function Boat() {
       const silhouetteLight = Math.max(skyState.dayNight, ecologyState.stormCover * 0.52);
       boatLight.current.intensity = damp(boatLight.current.intensity, silhouetteLight * 18, 2, dt);
     }
+
+    // Mouvement mesuré : lacet, accélération, barre. Le modèle, le patron et la fumée le lisent.
+    if (dt > 0) {
+      const turn = shortestAngle(last.heading, heading) / dt;
+      const accel = (speed - last.speed) / dt;
+      boatMotion.turn = damp(boatMotion.turn, clamp(turn, -2.5, 2.5), 5, dt);
+      boatMotion.accel = damp(boatMotion.accel, clamp(accel, -24, 24), 4, dt);
+      boatMotion.throttle = clamp(speed / MAX_VISUAL_SPEED, 0, 1);
+      boatMotion.steer = damp(boatMotion.steer, clamp(boatMotion.turn * 1.6, -0.55, 0.55), 3, dt);
+    }
+    last.heading = heading;
+    last.speed = speed;
+    // Événements : accostage (le patron salue), choc contre une côte (sursaut, gerbe d'embruns).
+    if (phase === 'docked' && last.phase !== 'docked') boatMotion.dockedAt = time;
+    last.phase = phase;
+    if (boatState.collision > last.collision + 0.05) {
+      body.bumpVelocity += boatState.collision * 2.6;
+      boatMotion.bumpAt = time;
+      sprayState.burst = Math.max(sprayState.burst, boatState.collision);
+    }
+    last.collision = boatState.collision;
+    // Ressort amorti : un petit cabrage qui s'éteint en deux ou trois oscillations.
+    body.bumpVelocity += (-body.bump * 95 - body.bumpVelocity * 7.5) * dt;
+    body.bump += body.bumpVelocity * dt;
 
     if (group.current) {
       const y = waveHeight(position.x, position.z, time);
@@ -173,9 +174,10 @@ export function Boat() {
     }
 
     if (drop.current) {
-      const squash = pose?.squash ?? 0;
+      const squash = (pose?.squash ?? 0) + body.bump * 0.06;
       drop.current.scale.set(1 + squash * 0.5, 1 - squash, 1 + squash * 0.5);
       drop.current.rotation.set(pose?.roll ?? 0, 0, pose?.pitch ?? 0);
+      drop.current.position.y = body.bump * 0.08;
     }
 
     if (rocker.current) {
@@ -190,33 +192,51 @@ export function Boat() {
         position.z - Math.sin(heading) * sampleDistance,
         time,
       );
-      const port = waveHeight(
+      // Tribord (+Z du bateau) est en (−sin, cos) dans le monde : rotation.y = −cap.
+      const starboard = waveHeight(
         position.x - Math.sin(heading) * 1.05,
         position.z + Math.cos(heading) * 1.05,
         time,
       );
-      const starboard = waveHeight(
+      const port = waveHeight(
         position.x + Math.sin(heading) * 1.05,
         position.z - Math.cos(heading) * 1.05,
         time,
       );
       const damping = 1 - Math.min(speed / 14, 0.5);
-      rocker.current.rotation.z = damp(
-        rocker.current.rotation.z,
+      const motion = reducedMotion ? 0.35 : 1;
+      const throttle = boatMotion.throttle;
+      // Assiette : l'avant se lève quand le moteur pousse, pique au freinage, et le bateau
+      // déjauge un peu en route. Gîte : il se couche dans les virages, d'autant plus qu'il va vite.
+      const surge = clamp(boatMotion.accel * 0.0055, -0.06, 0.075) * motion;
+      const lean = clamp(boatMotion.turn * throttle * 0.2, -0.12, 0.12) * motion;
+      body.pitch = damp(
+        body.pitch,
         (ahead - behind) * 0.34 * damping
           + Math.sin(time * 1.13) * ecologyState.stormWind * 0.055
-          + ecologyState.leviathanAttack * 0.72,
+          + ecologyState.leviathanAttack * 0.72
+          + surge + throttle * 0.028,
         4,
         dt,
       );
-      rocker.current.rotation.x = damp(
-        rocker.current.rotation.x,
+      body.roll = damp(
+        body.roll,
         (port - starboard) * 0.52 * damping + boatState.collision * 0.08
           + Math.sin(time * 0.83 + 1.2) * ecologyState.stormWind * 0.075
-          - ecologyState.leviathanAttack * 0.38,
+          - ecologyState.leviathanAttack * 0.38
+          + lean,
         3,
         dt,
       );
+      // Au mouillage, il évite doucement sur son amarre ; en virage, l'arrière dérape un peu.
+      body.yaw = damp(
+        body.yaw,
+        Math.sin(time * 0.37) * 0.022 * (1 - throttle) * motion - boatMotion.turn * throttle * 0.05 * motion,
+        2,
+        dt,
+      );
+      rocker.current.rotation.set(body.roll + body.bump * 0.18, body.yaw + body.bump * 0.05, body.pitch + body.bump * 0.42);
+      boatMotion.roll = rocker.current.rotation.x;
     }
   });
 
@@ -227,7 +247,7 @@ export function Boat() {
           {quality !== 'low' && (
             <pointLight
               ref={boatLight}
-              position={[0, 2.2, 0]}
+              position={LAMP}
               color="#fff4e6"
               intensity={0}
               distance={22}
@@ -236,11 +256,13 @@ export function Boat() {
           )}
           <group ref={drop}>
             <BoatModel />
+            <object3D ref={stackTip} position={EXHAUST} />
           </group>
           <HullFoam />
-          <ExhaustSmoke />
         </group>
       </group>
+      <StackSmoke anchor={stackTip} />
+      <BowSpray />
       <Wake />
       <Splash />
     </>
