@@ -1045,6 +1045,9 @@
     flex: 1 1 auto;
     justify-content: center;
   }
+  .actions .btnPrimary {
+    flex-basis: 100%;
+  }
 }
 
 /* --- Impression : un CV sur papier blanc, sans les commandes ------------------------- */
@@ -1056,6 +1059,11 @@
     background: transparent !important;
     box-shadow: none !important;
     text-shadow: none !important;
+  }
+  /* La mer de nuit du site (body) ne doit pas finir sur le papier. */
+  :global(html):has(.root),
+  :global(body):has(.root) {
+    background: #fff !important;
   }
   .root {
     min-height: 0;

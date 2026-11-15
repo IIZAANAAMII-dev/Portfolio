@@ -5,6 +5,7 @@ import { useFrame } from '@react-three/fiber';
 import {
   InstancedBufferAttribute,
   Matrix4,
+  Object3D,
   PerspectiveCamera,
   PlaneGeometry,
   Vector3,
@@ -179,9 +180,23 @@ export function KrakenRig() {
   const veil = useRef<Mesh>(null);
   // La doublure du bateau n'est montée qu'à l'approche (le patron est un maillage articulé).
   const [proxy, setProxy] = useState(false);
+  const warmed = useRef(false);
 
   useFrame((state, delta) => {
     const time = state.clock.elapsedTime;
+    // Shaders compilés dès le montage (première alerte), pas à la première apparition.
+    if (!warmed.current && root.current) {
+      warmed.current = true;
+      const hidden: Object3D[] = [];
+      root.current.traverse((object) => {
+        if (!object.visible) {
+          hidden.push(object);
+          object.visible = true;
+        }
+      });
+      state.gl.compile(root.current, state.camera, state.scene);
+      for (const object of hidden) object.visible = false;
+    }
     stepKraken(delta, time);
     const visible = krakenState.visible;
     if (root.current) root.current.visible = visible;

@@ -303,7 +303,7 @@ const DEMO_POSES: Record<KrakenPose, { stage: Stage; timer: number }> = {
   eye: { stage: 'coil', timer: 0.55 },
   wrap: { stage: 'coil', timer: 1.92 },
   lift: { stage: 'attack', timer: 1.75 },
-  toss: { stage: 'impact', timer: 0.8 },
+  toss: { stage: 'impact', timer: 0.95 },
   ink: { stage: 'impact', timer: 1.18 },
 };
 
@@ -624,9 +624,9 @@ function poseSequence(T: number, time: number, calm: number) {
   if (carried) {
     const lift = smoothstep(T_ATTACK + 0.18, T_ATTACK + 2.0, T);
     // Le bateau pend, se balance, puis est armé en arrière avant d'être lancé.
-    hold.x = seq.anchorX + thx * lift * 3.5;
-    hold.z = seq.anchorZ + thz * lift * 3.5;
-    hold.y = 0.05 + lift * 12.5 + Math.sin(T * 9) * 0.25 * (1 - lift) * calm;
+    hold.x = seq.anchorX + thx * lift * 5;
+    hold.z = seq.anchorZ + thz * lift * 5;
+    hold.y = 0.05 + lift * 14.5 + Math.sin(T * 9) * 0.25 * (1 - lift) * calm;
     hold.pitch = lift * 0.32 + Math.sin(time * 1.7) * 0.1 * lift * calm;
     hold.roll = Math.sin(time * 2.2 + 0.6) * 0.22 * lift * calm;
     hold.yaw = -seq.anchorHeading + lift * 0.5 * seq.side;
@@ -641,11 +641,11 @@ function poseSequence(T: number, time: number, calm: number) {
       // Lancé balistique vers l'archipel, en culbutant.
       const t = T - T_RELEASE;
       const speed = calm < 1 ? 20 : 34;
-      const releaseX = seq.anchorX + thx * 7.5;
-      const releaseZ = seq.anchorZ + thz * 7.5;
+      const releaseX = seq.anchorX + thx * 9;
+      const releaseZ = seq.anchorZ + thz * 9;
       hold.x = releaseX - seq.outX * speed * t;
       hold.z = releaseZ - seq.outZ * speed * t;
-      hold.y = 16.05 + 13 * t - 8 * t * t;
+      hold.y = 18.05 + 13 * t - 8 * t * t;
       hold.pitch = 0.32 - 0.6 + t * 7.5 * calm;
       hold.roll = t * 2.6 * calm;
       hold.yaw = -seq.anchorHeading + 0.5 * seq.side + t * 1.2 * calm;
@@ -673,12 +673,17 @@ function poseSequence(T: number, time: number, calm: number) {
     const start = T_APPROACH + spec.order * 0.32;
     const up = smoothstep(start, start + 2.0, T);
     const down = smoothstep(T_IMPACT + 0.3 + spec.order * 0.07, T_RESPAWN + 0.3, T);
-    const rise = up * (1 - down);
+    const angle = Math.atan2(seq.outZ, seq.outX) + spec.angle * seq.side;
+    // Les bras côté caméra (CameraRig cadre toujours depuis la gauche de l'axe bateau → tête)
+    // replongent à moitié pendant l'assaut : la scène s'ouvre sur le bateau soulevé.
+    const cameraSide = Math.sin(angle) * seq.outX - Math.cos(angle) * seq.outZ;
+    const grabber = i === GRAB_FRONT || i === GRAB_BACK;
+    const clear = !grabber && cameraSide > 0.25 ? smoothstep(T_ATTACK - 0.2, T_ATTACK + 0.8, T) * 0.5 : 0;
+    const rise = up * (1 - down) * (1 - clear);
     if (rise <= 0.001) {
       hideArm(arm);
       continue;
     }
-    const angle = Math.atan2(seq.outZ, seq.outX) + spec.angle * seq.side;
     arm.visible = 1;
     arm.rootX = anchorX + Math.cos(angle) * spec.radius;
     arm.rootZ = anchorZ + Math.sin(angle) * spec.radius;

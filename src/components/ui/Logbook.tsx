@@ -193,7 +193,7 @@ export function StampToast() {
           <strong>{complete ? 'Merci d’avoir navigué jusqu’ici' : stamp.title}</strong>
           {complete && (
             <button type="button" className="stamp-toast__cta" onClick={() => sailTo('contact')}>
-              On se parle ?
+              On se parle ?
             </button>
           )}
         </div>

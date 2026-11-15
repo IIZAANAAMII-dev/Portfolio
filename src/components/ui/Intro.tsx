@@ -142,7 +142,7 @@ export function Intro() {
               <circle cx="8" cy="8" r="4.2" />
               <path d="M8 1.2v3M8 11.8v3M1.2 8h3M11.8 8h3" />
             </svg>
-            {touch ? 'Touchez la mer pour naviguer' : 'Naviguez au clic sur la mer'}
+            {touch ? 'Touche la mer pour naviguer' : 'Navigue au clic sur la mer'}
           </span>
           <span>
             <svg className="intro-hint__icon" viewBox="0 0 16 16" aria-hidden="true">
@@ -162,7 +162,7 @@ export function Intro() {
               useWorld.getState().setQuickView(true);
             }}
           >
-            <em>Pressé ?</em>
+            <em>Pressé ?</em>
             <span>Version rapide · 2 min</span>
           </button>
         )}

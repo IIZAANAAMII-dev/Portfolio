@@ -508,7 +508,7 @@ export function QuickView() {
               <div className={styles.factWide}>
                 <dt>Aujourd’hui</dt>
                 <dd>
-                  {site.current.contract} chez <strong>{site.current.company}</strong>,{' '}
+                  {site.current.contract} chez <strong className={styles.nowrap}>{site.current.company}</strong>,{' '}
                   <span className={styles.nowrap}>{site.current.place}</span>
                 </dd>
               </div>
