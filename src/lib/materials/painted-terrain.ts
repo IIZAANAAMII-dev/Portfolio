@@ -92,7 +92,7 @@ float tSmall = terrainNoise(tP * 1.6);
 
 // Sable : sec et clair en haut de plage, mouillé près de l'eau. La limite mouillée monte et
 // redescend au rythme du ressac, soulignée d'une dentelle d'écume ; le sable sec porte des
-// rides de vent et quelques grains de coquillages.
+// rides de vent.
 float tSwash = sin(uCloudTime * 0.9 + atan(tP.z, tP.x) * 2.0 + tLarge * 6.0) * 0.06;
 float tWetLevel = tP.y + (tSmall - 0.5) * 0.14 - tSwash;
 float tWet = 1.0 - smoothstep(${WATERLINE_HEIGHT.toFixed(2)} - 0.1, ${WATERLINE_HEIGHT.toFixed(2)} + 0.5, tWetLevel);
@@ -105,7 +105,6 @@ tSand = mix(tSand, uSandWet, tWet * 0.88);
 float tFoam = (1.0 - smoothstep(0.0, 0.035, abs(tWetLevel - ${(WATERLINE_HEIGHT + 0.33).toFixed(2)}))) * smoothstep(0.35, 0.6, terrainNoise(tP * 2.3));
 tSand = mix(tSand, vec3(0.97, 0.95, 0.9), tFoam * 0.55);
 tSand *= 1.0 - step(0.972, terrainHash(floor(tP * 8.0))) * 0.1;
-tSand = mix(tSand, vec3(0.96, 0.82, 0.78), step(0.988, terrainHash(floor(tP * 13.0) + 5.0)) * (1.0 - tWet) * 0.7);
 
 // Falaise : strates ondulées, bord de strate net, arêtes supérieures éclaircies. Chaque
 // strate est « brossée » de traînées horizontales, comme une peinture au pinceau sec.

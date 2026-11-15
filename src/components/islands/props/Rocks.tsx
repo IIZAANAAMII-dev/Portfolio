@@ -79,12 +79,12 @@ vec3 rockShape( vec3 p, vec4 data ) {
   float r = 1.0
     + 0.13 * sin( dot( dir, rockAxis( seed + 1.1 ) ) * 3.0 + seed * 2.7 )
     + 0.07 * sin( dot( dir, rockAxis( seed + 2.3 ) ) * 5.0 + seed * 1.3 );
-  float depth = mix( 0.95, 0.64, data.z );
-  for ( int k = 0; k < 7; k ++ ) {
+  float depth = mix( 0.9, 0.52, data.z );
+  for ( int k = 0; k < 9; k ++ ) {
     float fk = float( k );
     vec3 n = rockAxis( seed * 1.37 + fk * 3.17 );
     float c = dot( dir, n );
-    if ( c > 0.08 ) r = min( r, ( depth + rockHash( seed + fk * 7.7 ) * 0.22 ) / c );
+    if ( c > 0.08 ) r = min( r, ( depth + rockHash( seed + fk * 7.7 ) * 0.2 ) / c );
   }
   vec3 q = dir * r;
   q.y = max( q.y, - 0.5 );
@@ -166,7 +166,7 @@ function createRockMaterial() {
       .replace('#include <common>', `#include <common>\n${ROCK_FRAGMENT_PARS}`)
       .replace('#include <color_fragment>', ROCK_FRAGMENT);
   };
-  material.customProgramCacheKey = () => 'procedural-rocks-v1';
+  material.customProgramCacheKey = () => 'procedural-rocks-v2';
   return material;
 }
 
@@ -178,7 +178,7 @@ function createRockDepthMaterial() {
       .replace('#include <common>', `#include <common>\n${ROCK_PARS}`)
       .replace('#include <begin_vertex>', ROCK_VERTEX);
   };
-  material.customProgramCacheKey = () => 'procedural-rocks-depth-v1';
+  material.customProgramCacheKey = () => 'procedural-rocks-depth-v2';
   return material;
 }
 

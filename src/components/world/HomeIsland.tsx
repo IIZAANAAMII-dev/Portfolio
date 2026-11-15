@@ -4,7 +4,6 @@ import { useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { Group } from 'three';
 import { Dock } from '@/components/islands/docks';
-import { SubstanceProp, SubstanceScatter } from '@/components/islands/bell-island';
 import { CLEARING_ROOT, ClearingContext, ClearingStore } from '@/components/islands/clearings';
 import { Grass } from '@/components/islands/Grass';
 import { Trees } from '@/components/islands/Trees';
@@ -15,7 +14,6 @@ import { Bunting } from '@/components/islands/props/Bunting';
 import { FlagPole } from '@/components/islands/props/FlagPole';
 import { FlowerScatter } from '@/components/islands/props/Flowers';
 import { Kiosk } from '@/components/islands/props/Kiosk';
-import { legacyProps } from '@/components/islands/props/legacy';
 import { RockScatter, type RockGroup } from '@/components/islands/props/Rocks';
 import { StonePath } from '@/components/islands/props/StonePath';
 import { WIND_DIRECTION } from '@/components/islands/props/wind';
@@ -56,9 +54,10 @@ function harborPlan(sampler: HeightSampler) {
   const porch: [number, number] = [kioskX + Math.sin(kioskYaw) * 1.7, kioskZ + Math.cos(kioskYaw) * 1.7];
   // Pignon avant (point d'attache des fanions), dans le repère de l'îlot.
   const gable: [number, number, number] = [kioskX + Math.sin(kioskYaw) * 1.02, kioskY + 2.78, kioskZ + Math.cos(kioskYaw) * 1.02];
-  // Le mât, à gauche en haut de l'escalier ; un piquet à droite.
-  const mastX = 0.62;
-  const mastZ = -4.1;
+  // Le mât se dresse derrière la capitainerie (son drapeau flotte au-dessus du toit) ;
+  // un piquet tient l'autre bout de la guirlande en haut de l'escalier.
+  const mastX = 4.45;
+  const mastZ = 0.15;
   const mastY = groundAt(sampler, mastX, mastZ, 0.3) - 0.05;
   const postX = stairTo[0] + 0.85;
   const postZ = stairTo[1] + 0.55;
@@ -82,7 +81,7 @@ function Post({ position }: { position: [number, number, number] }) {
   );
 }
 
-/** Habillage procédural de l'îlot (version de production). */
+/** Habillage procédural de l'îlot : identique en local et en production. */
 function HarborDressing({ sampler, plateau }: { sampler: HeightSampler; plateau: number }) {
   const plan = useMemo(() => harborPlan(sampler), [sampler]);
   const avoid = { avoidAngle: DOCK_ANGLE, avoidWidth: 0.55 };
@@ -118,8 +117,9 @@ function HarborDressing({ sampler, plateau }: { sampler: HeightSampler; plateau:
       />
       <FlagPole position={mast} rotation={FLAG_YAW} height={4.6} texture={gwennHaDu} width={1.35} />
       <Post position={post} />
-      <Bunting from={[mastTop[0], mastTop[1] - 0.6, mastTop[2]]} to={gable} sag={0.55} seed={3} />
-      <Bunting from={[mastTop[0], mastTop[1] - 0.75, mastTop[2]]} to={[post[0], post[1] + 1.68, post[2]]} sag={0.4} seed={11} />
+      {/* Guirlande continue : du mât au pignon, puis du pignon au piquet de l'escalier. */}
+      <Bunting from={[mastTop[0], mastTop[1] - 0.6, mastTop[2]]} to={gable} sag={0.35} seed={3} />
+      <Bunting from={gable} to={[post[0], post[1] + 1.68, post[2]]} sag={0.22} spacing={0.38} seed={11} />
       <RockScatter sampler={sampler} groups={rocks} />
       <FlowerScatter
         sampler={sampler}
@@ -136,39 +136,6 @@ function HarborDressing({ sampler, plateau }: { sampler: HeightSampler; plateau:
         seed={9}
       />
       <Butterflies spots={butterflies} seed={4} />
-    </>
-  );
-}
-
-/** Anciens accessoires Bell Island (`?props=old`, développement seulement). */
-function LegacyDressing({ sampler, plateau }: { sampler: HeightSampler; plateau: number }) {
-  const kioskAngle = DOCK_ANGLE + 0.62;
-  const kioskX = Math.cos(kioskAngle) * RADIUS * 0.5;
-  const kioskZ = Math.sin(kioskAngle) * RADIUS * 0.5;
-  const flagsAngle = DOCK_ANGLE - 0.55;
-  const flagsX = Math.cos(flagsAngle) * RADIUS * 0.66;
-  const flagsZ = Math.sin(flagsAngle) * RADIUS * 0.66;
-  const avoid = { avoidAngle: DOCK_ANGLE, avoidWidth: 0.55 };
-  return (
-    <>
-      <SubstanceProp name="kiosk" position={[kioskX, groundAt(sampler, kioskX, kioskZ, 1.1) - 0.05, kioskZ]} rotation={Math.atan2(-kioskX, -kioskZ) + Math.PI} scale={1.1} />
-      <SubstanceProp name="flags-multi" position={[flagsX, groundAt(sampler, flagsX, flagsZ, 0.3) - 0.04, flagsZ]} rotation={-flagsAngle} scale={1.2} />
-      <SubstanceScatter name="rocks-small" sampler={sampler} zone={{ inner: RADIUS * 0.85, outer: RADIUS * 1.12, minHeight: -0.6, maxHeight: 0.55, ...avoid }} count={9} seed={3} scale={[0.7, 1.25]} variety={4} sink={0.25} />
-      <SubstanceScatter name="flower-clump" sampler={sampler} mode="together" zone={{ inner: 0, outer: RADIUS * 0.74, minHeight: plateau - 0.3, maxSlope: 0.25, ...avoid }} count={10} seed={5} scale={[1.5, 2.4]} sink={0.02} shadows={false} />
-      <SubstanceScatter name="starfish" sampler={sampler} mode="together" zone={{ inner: RADIUS * 0.8, outer: RADIUS * 1.0, minHeight: 0.1, maxHeight: 0.85, ...avoid }} count={3} seed={9} scale={[1.8, 2.3]} sink={0} shadows={false} />
-      <group rotation-y={-DOCK_ANGLE}>
-        <group position={[RADIUS + 4.05, 0.78, 0.62]}>
-          <mesh castShadow position={[0, 0.7, 0]}>
-            <cylinderGeometry args={[0.05, 0.06, 1.4, 6]} />
-            <meshStandardMaterial color="#4a3b2c" roughness={1} />
-          </mesh>
-          <mesh position={[0, 1.55, 0]}>
-            <octahedronGeometry args={[0.2, 0]} />
-            <meshStandardMaterial color="#ffe6b8" emissive="#ffcf8a" emissiveIntensity={2.4} />
-          </mesh>
-          <pointLight position={[0, 1.55, 0]} color="#ffcf8a" intensity={9} distance={16} decay={2} />
-        </group>
-      </group>
     </>
   );
 }
@@ -208,13 +175,10 @@ export function HomeIsland() {
         <AssetBoundary blocking>
           {/* Au départ, le bateau est amarré de flanc (rayon + 5,8 m) : le ponton s'arrête contre sa coque. */}
           <Dock angle={DOCK_ANGLE} reach={RADIUS} end={RADIUS + 4.35} />
-          {legacyProps && <LegacyDressing sampler={sampler} plateau={features.plateau} />}
         </AssetBoundary>
-        {!legacyProps && (
-          <AssetBoundary>
-            <HarborDressing sampler={sampler} plateau={features.plateau} />
-          </AssetBoundary>
-        )}
+        <AssetBoundary>
+          <HarborDressing sampler={sampler} plateau={features.plateau} />
+        </AssetBoundary>
 
         {/* Lumière chaude de la lanterne du bout du ponton : c'est elle qui accroche l'œil dans le noir. */}
         {quality === 'high' && (

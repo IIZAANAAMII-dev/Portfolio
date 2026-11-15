@@ -341,6 +341,7 @@ interface TreeDesign {
 
 /** Feuilles réparties sur l'écorce d'une masse (surtout en surface : silhouette nette). */
 function cover(masses: Mass[], count: number, seed: number, crownCenter: Vector3, crownTop: number, paint: (direction: Vector3, key: number) => Color, size: number) {
+  // Les feuilles du cœur du houppier, à l'ombre des autres, sont plus sombres : du volume.
   const leaves: Leaf[] = [];
   const volume = masses.reduce((sum, mass) => sum + mass.radius ** 2, 0);
   for (let index = 0; index < count; index++) {
@@ -373,7 +374,7 @@ function cover(masses: Mass[], count: number, seed: number, crownCenter: Vector3
       rotation,
       size: (0.24 + hash(key + 5.9) * 0.17) * size,
       sway: Math.min(1, Math.max(0.15, offset.y / crownTop)),
-      color: paint(direction, key),
+      color: paint(direction, key).multiplyScalar(0.84 + 0.22 * Math.min(1, (distance / mass.radius - 0.62) / 0.38)),
     });
   }
   return leaves;
