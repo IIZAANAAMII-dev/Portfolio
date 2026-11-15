@@ -3,12 +3,16 @@ import {
   BufferAttribute,
   BufferGeometry,
   CapsuleGeometry,
+  CircleGeometry,
   ConeGeometry,
   CylinderGeometry,
   Euler,
+  LatheGeometry,
+  Matrix4,
   Quaternion,
   SphereGeometry,
   TorusGeometry,
+  Vector2,
   Vector3,
 } from 'three';
 import { PaintShop, quad, seeded, type Paint, type Vec3 } from './build';
@@ -16,6 +20,7 @@ import {
   addBulwarks,
   addDeck,
   addKeel,
+  addRubbingStrake,
   deckHeight,
   hullShell,
   rakeX,
@@ -186,8 +191,9 @@ export type BoatGeometries = ReturnType<typeof buildBoatGeometries>;
 export function buildBoatGeometries() {
   const shop = new PaintShop();
 
-  /* --- Coque : pavois, plat-bord, pont, quille. */
+  /* --- Coque : pavois, plat-bord, liston, pont, quille. */
   addBulwarks(shop, C.inside, C.rail);
+  addRubbingStrake(shop, C.pinstripe);
   addDeck(shop, [...C.wood], C.caulk);
   addKeel(shop, C.antifouling);
 
@@ -342,19 +348,45 @@ export function buildBoatGeometries() {
   }
   const stemX = rakeX(1, sheer(1), 0);
   const stemY = sheer(1);
-  shop.add(new BoxGeometry(0.34, 0.06, 0.12), C.navyDark, { at: [stemX - 0.02, stemY + 0.03, 0], flat: true });
-  shop.add(new CylinderGeometry(0.04, 0.04, 0.1, 8), C.steel, { at: [stemX + 0.13, stemY + 0.05, 0], rot: [Math.PI / 2, 0, 0] });
+  // Davier : semelle, deux joues et un rouleau d'acier, posés sur la tête d'étrave.
+  shop.add(new BoxGeometry(0.24, 0.03, 0.13), C.navyDark, { at: [stemX - 0.01, stemY + 0.05, 0], flat: true });
+  for (const side of [1, -1]) {
+    shop.add(new BoxGeometry(0.24, 0.09, 0.02), C.navyDark, { at: [stemX, stemY + 0.1, side * 0.055], flat: true });
+  }
+  shop.add(new CylinderGeometry(0.03, 0.03, 0.09, 10), C.steel, { at: [stemX + 0.07, stemY + 0.1, 0], rot: [Math.PI / 2, 0, 0] });
+  // Jonc d'étrave marine, de la flottaison au davier : il dessine le fil de la proue.
+  rod(shop, new Vector3(rakeX(1, -0.04, 0) + 0.012, -0.04, 0), new Vector3(stemX + 0.012, stemY + 0.035, 0), 0.026, C.pinstripe);
   {
-    // Ancre à jas saisie à plat sur la plage avant : sa silhouette se lit depuis la caméra haute.
+    // Ancre pendue à la joue bâbord sous son écubier (côté large, face à la caméra à quai) :
+    // la proue a un « visage », lisible de loin comme de près.
     const anchor = new PaintShop()
-      .add(new CylinderGeometry(0.022, 0.022, 0.5, 6), C.black, { at: [0, 0.25, 0] })
+      .add(new CylinderGeometry(0.024, 0.02, 0.5, 6), C.black, { at: [0, 0.25, 0] })
       .add(new TorusGeometry(0.15, 0.024, 5, 12, Math.PI), C.black, { at: [0, 0.14, 0], rot: [0, 0, Math.PI] })
-      .add(new ConeGeometry(0.05, 0.13, 4), C.black, { at: [0.15, 0.17, 0], rot: [0, 0, 20 * deg], flat: true })
-      .add(new ConeGeometry(0.05, 0.13, 4), C.black, { at: [-0.15, 0.17, 0], rot: [0, 0, -20 * deg], flat: true })
+      .add(new ConeGeometry(0.05, 0.13, 4), C.black, { at: [0.15, 0.17, 0], rot: [0, 0, 20 * deg], scale: [1, 1, 0.45], flat: true })
+      .add(new ConeGeometry(0.05, 0.13, 4), C.black, { at: [-0.15, 0.17, 0], rot: [0, 0, -20 * deg], scale: [1, 1, 0.45], flat: true })
       .add(new TorusGeometry(0.035, 0.01, 4, 8), C.steel, { at: [0, 0.52, 0] })
       .build();
-    // Couchée (le plan de l'ancre devient horizontal), diamant vers l'arrière, organeau vers l'étrave.
-    shop.add(anchor, null, { at: [2.3, deckAt(2.3) + 0.03, 0], rot: [-Math.PI / 2, 0, -Math.PI / 2] });
+    const u = 0.83;
+    const surface = (station: number, y: number) => {
+      const z = -sideAt(station, y);
+      return new Vector3(rakeX(station, y, z), y, z);
+    };
+    const ringY = sheer(u) - 0.36;
+    const crownY = ringY - 0.52;
+    const midY = (ringY + crownY) / 2;
+    // Repère de la joue : « haut » le long du bordé évasé, « long » vers l'arrière, normale dehors.
+    const up = surface(u, ringY).sub(surface(u, crownY)).normalize();
+    const along = surface(u - 0.02, midY).sub(surface(u + 0.02, midY));
+    along.addScaledVector(up, -along.dot(up)).normalize();
+    const out = new Vector3().crossVectors(along, up);
+    const turn = new Euler().setFromRotationMatrix(new Matrix4().makeBasis(along, up, out));
+    const rot: Vec3 = [turn.x, turn.y, turn.z];
+    const crown = surface(u, crownY).addScaledVector(out, 0.04);
+    shop.add(anchor, null, { at: [crown.x, crown.y, crown.z], rot });
+    const hawse = surface(u, ringY + 0.06).addScaledVector(out, 0.012);
+    shop.add(new TorusGeometry(0.045, 0.016, 5, 14), C.steel, { at: [hawse.x, hawse.y, hawse.z], rot });
+    const hole = hawse.clone().addScaledVector(out, -0.004);
+    shop.add(new CircleGeometry(0.032, 10), '#141619', { at: [hole.x, hole.y, hole.z], rot });
   }
 
   /* --- Glènes de cordage. */
@@ -371,38 +403,81 @@ export function buildBoatGeometries() {
   coil(-2.72, 0.4);
   coil(-0.98, -0.12, 0.75);
 
-  /* --- Enrouleur de filet sur la plage arrière : bâti, joues rouges, filet et ralingue. */
+  /* --- Enrouleur de filet sur la plage arrière : bâti, joues rouges à bord roulé, filet
+     enroulé en spires (renflé au milieu, ralingues orange), nappe qui retombe en tas sur le pont. */
   const drumX = -2.3;
   const drumY = deckAt(drumX) + 0.56;
   for (const side of [1, -1]) {
     shop.add(new BoxGeometry(0.46, 0.08, 0.06), C.navy, { at: [drumX, drumY - 0.52, side * 0.62], flat: true });
     shop.add(new BoxGeometry(0.08, 0.6, 0.05), C.navy, { at: [drumX - 0.14, drumY - 0.24, side * 0.62], rot: [0, 0, -12 * deg], flat: true });
     shop.add(new BoxGeometry(0.08, 0.6, 0.05), C.navy, { at: [drumX + 0.14, drumY - 0.24, side * 0.62], rot: [0, 0, 12 * deg], flat: true });
-    shop.add(new CylinderGeometry(0.4, 0.4, 0.035, 18), C.hull, { at: [drumX, drumY, side * 0.53], rot: [Math.PI / 2, 0, 0] });
+    shop.add(new CylinderGeometry(0.4, 0.4, 0.035, 26), C.hull, { at: [drumX, drumY, side * 0.53], rot: [Math.PI / 2, 0, 0] });
+    shop.add(new TorusGeometry(0.4, 0.022, 5, 26), C.hullSeam, { at: [drumX, drumY, side * 0.53] });
     shop.add(new CylinderGeometry(0.07, 0.07, 0.08, 10), C.navyDark, { at: [drumX, drumY, side * 0.6], rot: [Math.PI / 2, 0, 0] });
   }
-  shop.add(new CylinderGeometry(0.3, 0.3, 1.02, 16), (x, y, z) => {
-    const turn = Math.atan2(z, x);
-    const band = Math.abs((y * 3.1 + turn / (Math.PI * 2)) % 1);
-    if (band < 0.12 || band > 0.94) return C.orange;
-    return Math.floor(turn * 2.5) % 2 === 0 ? C.net : C.netDark;
-  }, { at: [drumX, drumY, 0], rot: [Math.PI / 2, 0, 0], flat: true });
   {
-    // Une nappe de filet retombe de l'enrouleur vers le tableau.
-    const net: number[] = [];
-    const steps = 6;
-    const point = (t: number, z: number): Vec3 => {
-      const x = drumX - 0.28 - t * 0.55;
-      const y = drumY - 0.05 - Math.sin(t * Math.PI * 0.5) * (drumY - deckAt(x) - 0.06);
-      return [x, y + Math.sin(z * 9 + t * 4) * 0.012, z];
-    };
-    for (let index = 0; index < steps; index++) {
-      const t0 = index / steps;
-      const t1 = (index + 1) / steps;
-      quad(net, point(t0, -0.4), point(t1, -0.4), point(t1, 0.38), point(t0, 0.38));
-      quad(net, point(t0, -0.4), point(t0, 0.38), point(t1, 0.38), point(t1, -0.4));
+    const rings = 14;
+    const profile: Vector2[] = [];
+    for (let index = 0; index <= rings; index++) {
+      const t = index / rings;
+      profile.push(new Vector2(0.255 + 0.07 * Math.pow(Math.sin(t * Math.PI), 0.7), (t - 0.5) * 1.02));
     }
-    shop.raw(net, (x, _y, z) => (Math.abs(Math.floor(z * 7 + x * 3)) % 3 === 0 ? C.netDark : C.net));
+    shop.add(new LatheGeometry(profile, 24), (_x, y) => {
+      const ring = Math.floor((y / 1.02 + 0.5) * rings);
+      if (ring === 3 || ring === 10) return C.orange;
+      return ring % 2 === 0 ? C.net : C.netDark;
+    }, { at: [drumX, drumY, 0], rot: [Math.PI / 2, 0, 0] });
+  }
+  {
+    // Nappe : elle quitte l'enrouleur à l'arrière, tombe presque à pic puis se couche sur le pont.
+    const columns = 7;
+    const rows = 8;
+    const x0 = drumX - 0.3;
+    const y0 = drumY - 0.02;
+    const x1 = -2.8;
+    const y1 = deckAt(x1) + 0.06;
+    const point = (t: number, s: number): Vec3 => {
+      const fall = Math.sin(t * Math.PI * 0.5);
+      const width = 0.25 - t * 0.04;
+      const z = -0.025 + s * width + Math.sin(t * 7 + s * 2) * 0.012;
+      const x = x0 + (x1 - x0) * (1 - Math.cos(t * Math.PI * 0.5));
+      const y = y0 + (y1 - y0) * fall + Math.cos(s * Math.PI * 2.5 + t * 3) * 0.022 * t;
+      return [x, y, z];
+    };
+    const positions: number[] = [];
+    const indices: number[] = [];
+    for (let i = 0; i <= rows; i++) {
+      for (let j = 0; j <= columns; j++) positions.push(...point(i / rows, (j / columns) * 2 - 1));
+    }
+    for (let i = 0; i < rows; i++) {
+      for (let j = 0; j < columns; j++) {
+        const a = i * (columns + 1) + j;
+        const b = a + columns + 1;
+        indices.push(a, b, a + 1, b, b + 1, a + 1);
+      }
+    }
+    const drape = new BufferGeometry();
+    drape.setAttribute('position', new BufferAttribute(new Float32Array(positions), 3));
+    drape.setIndex(indices);
+    drape.computeVertexNormals();
+    shop.add(drape, (x, y, z) => {
+      if (z > 0.17) return C.orange;
+      if (z < -0.22) return C.netDark;
+      return (Math.floor(z * 16) + Math.floor((x + y) * 9)) % 2 === 0 ? C.net : C.netDark;
+    });
+    // Le tas de filet au pied de la nappe et quelques flotteurs de liège sur la ralingue.
+    for (const [hx, hz, sx, sy, sz, color] of [
+      [-2.86, -0.02, 0.2, 0.085, 0.24, C.net],
+      [-2.97, -0.14, 0.12, 0.07, 0.12, C.netDark],
+      [-2.78, 0.1, 0.13, 0.075, 0.11, C.netDark],
+    ] as const) {
+      shop.add(new SphereGeometry(1, 12, 7), color, { at: [hx, deckAt(hx, hz) + sy * 0.55, hz], scale: [sx, sy, sz] });
+    }
+    for (const t of [0.3, 0.62, 0.9]) {
+      const [fx, fy, fz] = point(t, 1);
+      shop.add(new SphereGeometry(0.032, 8, 6), C.orange, { at: [fx - 0.01, fy + 0.02, fz + 0.01], scale: [1.3, 0.8, 1] });
+    }
+    shop.add(new SphereGeometry(0.034, 8, 6), C.orange, { at: [-2.9, deckAt(-2.9, 0.12) + 0.1, 0.12], scale: [1.3, 0.8, 1] });
   }
 
   /* --- Casiers à homards (bâbord) : semelle en bois, voûte de filet, arceaux, goulotte. */
@@ -462,7 +537,7 @@ export function buildBoatGeometries() {
   for (const x of [-1.95, -0.5, 0.86]) {
     for (const side of [1, -1]) {
       const u = stationU(x);
-      const y = 0.46;
+      const y = 0.42;
       const z = (sideAt(u, y) + 0.06) * side;
       const tx = rakeX(u, y, z);
       shop.add(new TorusGeometry(0.16, 0.06, 6, 14), C.tire, { at: [tx, y, z], rot: [side * -8 * deg, 0, 0], flat: true });
@@ -477,19 +552,19 @@ export function buildBoatGeometries() {
   for (const face of [2, 4]) {
     const at = lampAt(face);
     const color = face === 2 ? '#3fd07a' : '#ff4a3d';
-    lamps.add(new BoxGeometry(0.09, 0.1, 0.07), color, { at, rot: [0, (face === 2 ? -45 : 45) * deg, 0], flat: true });
-    halos.push({ at, color, size: 1.1 });
+    lamps.add(new BoxGeometry(0.1, 0.12, 0.08), color, { at, rot: [0, (face === 2 ? -45 : 45) * deg, 0], flat: true });
+    halos.push({ at, color, size: 1.55 });
   }
   const mastLight: Vec3 = [mx + 0.01, 3.28, 0];
   lamps.add(new CylinderGeometry(0.04, 0.04, 0.07, 8), '#fff6dc', { at: mastLight });
-  halos.push({ at: mastLight, color: '#fff2cf', size: 1.2 });
+  halos.push({ at: mastLight, color: '#fff2cf', size: 1.35 });
   const sternLight: Vec3 = [rakeX(0, sheer(0), 0) + 0.02, sheer(0) + 0.12, 0];
   lamps.add(new CylinderGeometry(0.035, 0.035, 0.07, 8), '#fff6dc', { at: sternLight });
   shop.add(new BoxGeometry(0.06, 0.07, 0.06), C.navyDark, { at: [sternLight[0] + 0.03, sternLight[1] - 0.07, 0], flat: true });
-  halos.push({ at: sternLight, color: '#fff2cf', size: 0.9 });
+  halos.push({ at: sternLight, color: '#fff2cf', size: 1.0 });
   const workLens: Vec3 = [wx - 0.02, wy, 0];
   lamps.add(new BoxGeometry(0.02, 0.06, 0.12), '#ffe7b0', { at: workLens, flat: true });
-  halos.push({ at: workLens, color: '#ffd9a0', size: 1.4 });
+  halos.push({ at: workLens, color: '#ffd9a0', size: 1.3 });
   lamps.add(new CylinderGeometry(0.062, 0.062, 0.01, 10), '#fff3d8', { at: [1.675, ROOF_TOP + 0.11, 0.3], rot: [0, 0, -Math.PI / 2] });
 
   /* --- Pièces animées. */

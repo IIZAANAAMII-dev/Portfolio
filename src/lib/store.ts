@@ -7,7 +7,7 @@ import { INTRO_RADIUS_START, introGlowFromGameTransition, introRadiusFromGameTra
 import { logbook } from '@/lib/logbook';
 import { isNightTime } from '@/lib/sky';
 import type { IslandId, Vec2, WorldPhase } from '@/types';
-import type { QualityLevel } from '@/lib/quality';
+import { initialQuality, type QualityLevel } from '@/lib/quality';
 
 /** Point d'accostage d'une île, calculé depuis son dockAngle. */
 export function dockPosition(id: IslandId): Vec2 {
@@ -89,7 +89,7 @@ export const useWorld = create<WorldState>((set, get) => ({
   reducedMotion: false,
   webglFailed: false,
   timeOfDay: 0.45,
-  quality: 'high',
+  quality: initialQuality(),
 
   ready: () =>
     set((s) => (s.phase === 'loading' ? { phase: 'intro', sceneReady: true } : { sceneReady: true })),

@@ -62,7 +62,9 @@ export function NightLights({ island }: { island: IslandConfig }) {
       const worldZ = island.position[1];
       const distance = Math.hypot(boatState.position.x - worldX, boatState.position.z - worldZ);
       const quality = useWorld.getState().quality;
-      const lightRange = quality === 'high' ? 56 : quality === 'medium' ? 42 : 0;
+      // Haute qualité seulement : allumer une lumière change le nombre de lumières de la
+      // scène et fait recompiler tous les shaders (à-coup visible sur téléphone).
+      const lightRange = quality === 'high' ? 56 : 0;
       const nearby = distance < lightRange;
       const target = nearby ? night * (island.id === 'projects' ? 34 : 42) : 0;
       importantLight.current.intensity = damp(importantLight.current.intensity, target, 2.2, Math.min(delta, 1 / 30));

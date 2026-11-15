@@ -12,8 +12,9 @@ import { QuickView } from '@/components/ui/QuickView';
 import { useDeepLink } from '@/hooks/useDeepLink';
 import { ambience } from '@/lib/audio/ambience';
 import { useWorld } from '@/lib/store';
+import { useRenderDpr } from '@/lib/quality';
 import { boatState } from '@/lib/boat-state';
-import { isCoarsePointer, prefersReducedMotion, supportsWebGL } from '@/lib/utils/device';
+import { isMobileDevice, prefersReducedMotion, supportsWebGL } from '@/lib/utils/device';
 import { Scene } from './Scene';
 import { IntroStage } from '@/components/world/IntroStage';
 
@@ -35,10 +36,11 @@ export function Experience() {
   const quickView = useWorld((s) => s.quickView);
   const soundOn = useWorld((s) => s.soundOn);
   const failWebgl = useWorld((s) => s.failWebgl);
+  const dpr = useRenderDpr((s) => s.dpr);
   // Le composant n'est monté que côté client (voir ExperienceLoader) : on peut
   // interroger l'appareil dès le premier rendu, sans passer par un effet.
   const [device] = useState(() => ({
-    mobile: isCoarsePointer() || window.innerWidth < 820,
+    mobile: isMobileDevice(),
     reducedMotion: prefersReducedMotion(),
     webgl: supportsWebGL(),
   }));
@@ -72,7 +74,7 @@ export function Experience() {
       <Canvas
         className="fixed inset-0"
         shadows={!mobile}
-        dpr={[1, 1.5]}
+        dpr={dpr}
         gl={{
           antialias: !mobile,
           powerPreference: 'high-performance',

@@ -10,6 +10,7 @@ import { boatState } from '@/lib/boat-state';
 import { ecologyState } from '@/lib/ecology';
 import { skyState } from '@/lib/sky';
 import { cameraProgress, cinematicEase, INTRO_ANTICIPATION } from '@/lib/cinematic';
+import { SHEET_PEEK, sheetState } from '@/lib/sheet';
 import { useWorld } from '@/lib/store';
 import { damp, smoothstep } from '@/lib/utils/math';
 import { MAX_SPEED } from '@/hooks/useBoatNavigation';
@@ -26,6 +27,14 @@ const positionPoints = Array.from({ length: 5 }, () => new Vector3());
 const targetPoints = Array.from({ length: 5 }, () => new Vector3());
 const positionCurve = new CatmullRomCurve3(positionPoints, false, 'centripetal', 0.45);
 const targetCurve = new CatmullRomCurve3(targetPoints, false, 'centripetal', 0.45);
+// Vecteurs de travail réutilisés (aucune allocation par image).
+const workForward = new Vector3();
+const workSide = new Vector3();
+
+/** Téléphone en portrait, à quai : champ vertical plus ouvert (le cadre est étroit). */
+const PORTRAIT_DOCK_FOV = 50;
+/** Bande occupée par la barre du HUD en haut d'un téléphone (part de la hauteur d'écran). */
+const HUD_TOP_SHARE = 0.085;
 
 /**
  * Mode photo : `?cam=x,y,z,tx,ty,tz` fige la caméra sur une position et une cible (relevés
@@ -50,8 +59,8 @@ function introPose(mobile: boolean, aspect: number) {
   // l'îlot n'est qu'un petit décor derrière / sur le côté.
   const bx = boatState.position.x;
   const bz = boatState.position.z;
-  const forward = new Vector3(Math.cos(boatState.heading), 0, Math.sin(boatState.heading)).normalize();
-  const side = new Vector3(forward.z, 0, -forward.x);
+  const forward = workForward.set(Math.cos(boatState.heading), 0, Math.sin(boatState.heading)).normalize();
+  const side = workSide.set(forward.z, 0, -forward.x);
   const dist = portrait ? 30 : mobile ? 27 : 26;
   const sideShift = portrait ? -5.5 : mobile ? -4.5 : -4.0;
   const height = portrait ? 11 : mobile ? 10 : 9.5;
@@ -116,8 +125,8 @@ function updateCinematicCurves() {
   const [cx, cz] = homeIsland.position;
   const bx = boatState.position.x;
   const bz = boatState.position.z;
-  const forward = new Vector3(Math.cos(boatState.heading), 0, Math.sin(boatState.heading)).normalize();
-  const side = new Vector3(forward.z, 0, -forward.x);
+  const forward = workForward.set(Math.cos(boatState.heading), 0, Math.sin(boatState.heading)).normalize();
+  const side = workSide.set(forward.z, 0, -forward.x);
 
   positionPoints[0].copy(introPosition);
   // Le bateau reste visible longtemps : orbit autour, puis recul en hauteur.
@@ -152,11 +161,27 @@ export function CameraRig({ mobile }: { mobile: boolean }) {
   const position = useRef(new Vector3());
   const target = useRef(new Vector3());
   const initialized = useRef(false);
+  const lens = useRef({ shift: 0, applied: 0 });
 
   useFrame((state, delta) => {
     const camera = state.camera;
     const dt = Math.min(delta, 1 / 30);
     const { phase, gameTransition, activeIsland, reducedMotion } = useWorld.getState();
+    // Téléphone en portrait, page ouverte : décentrage optique (la perspective ne change
+    // pas), l'île se place au milieu de l'espace libre entre le HUD et la feuille.
+    const portraitDock = mobile && aspect < 1 && phase === 'docked' && activeIsland !== null;
+    // (+ un peu plus haut : le ponton et le bateau, côté caméra, prolongent l'île vers le bas.)
+    const lensGoal = portraitDock && sheetState.cover > 0
+      ? Math.max(0, (Math.min(sheetState.cover, SHEET_PEEK) - HUD_TOP_SHARE) * 0.5 + 0.035)
+      : 0;
+    const optics = lens.current;
+    optics.shift = reducedMotion ? lensGoal : damp(optics.shift, lensGoal, 2.4, dt);
+    if (lensGoal === 0 && Math.abs(optics.shift) < 0.0006) optics.shift = 0;
+    if (camera instanceof PerspectiveCamera && Math.abs(optics.shift - optics.applied) > 0.00002) {
+      optics.applied = optics.shift;
+      if (optics.shift === 0) camera.clearViewOffset();
+      else camera.setViewOffset(1, 1, 0, optics.shift, 1, 1);
+    }
     if (photoCamera && phase !== 'loading' && phase !== 'intro') {
       camera.position.copy(photoCamera.position);
       camera.lookAt(photoCamera.target);
@@ -226,7 +251,14 @@ export function CameraRig({ mobile }: { mobile: boolean }) {
       // Cadrage propre à chaque île (scenes/<île>/config.ts) : « À propos » recule pour
       // montrer ses îlots de personnalité, La Ciotat relève la visée vers son portique…
       const framing = sceneConfigs[activeIsland].camera;
-      const zoomOut = (mobile ? 1.35 : 1) * (framing?.zoom ?? 1);
+      let zoomOut = (mobile ? 1.35 : 1) * (framing?.zoom ?? 1);
+      if (portraitDock) {
+        // Le cadre d'un téléphone est étroit : on recule juste assez pour voir l'île entière
+        // (le recul propre à l'île n'est gardé que s'il est plus grand).
+        const halfWidth = Math.tan(((PORTRAIT_DOCK_FOV * Math.PI) / 180) * 0.5) * aspect;
+        const reach = Math.hypot(0.78 * (island.radius + 26), 32);
+        zoomOut = Math.max(framing?.zoom ?? 1, (island.radius * 1.15) / halfWidth / reach);
+      }
       const distance = (island.radius + 26) * zoomOut;
       // La caméra se place entre le ponton et le soleil : l'île est éclairée de face
       // (couleurs franches, ombres derrière les objets) et le bateau reste au premier plan.
@@ -279,7 +311,7 @@ export function CameraRig({ mobile }: { mobile: boolean }) {
 
     if (camera instanceof PerspectiveCamera) {
       const speedZoom = phase === 'playing' ? Math.min(boatState.speed / MAX_SPEED, 1) * 2.8 : 0;
-      const gameplayFov = 42 + speedZoom;
+      const gameplayFov = (portraitDock ? PORTRAIT_DOCK_FOV : 42) + speedZoom;
       const boundaryBlend = ecologyState.boundaryCinematic;
       const nextFov = damp(camera.fov, gameplayFov + boundaryBlend * (48 - gameplayFov), 3, dt);
       if (Math.abs(nextFov - camera.fov) > 0.001) {

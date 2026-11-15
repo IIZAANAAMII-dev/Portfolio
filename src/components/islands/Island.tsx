@@ -15,6 +15,7 @@ import { Grass } from './Grass';
 import { Trees } from './Trees';
 import { NightLights } from './NightLights';
 import { IslandLife } from './IslandLife';
+import { createDecorLod, updateDecorLod, type DecorLod } from './lod';
 import { sceneConfigs } from './scenes/registry';
 import type { IslandConfig } from '@/types';
 
@@ -51,11 +52,14 @@ function DeferredDecor({
 
 export function Island({ island, index }: { island: IslandConfig; index: number }) {
   const group = useRef<Group>(null);
+  const decor = useRef<Group>(null);
+  const lod = useRef<DecorLod>(createDecorLod());
   const sailTo = useWorld((s) => s.sailTo);
   const hover = useWorld((s) => s.hover);
   const isHovered = useWorld((s) => s.hovered === island.id);
   const isActive = useWorld((s) => s.activeIsland === island.id);
-  const reveal = useWorld((s) => s.reveal);
+  // Booléen dérivé : l'île ne se re-rend pas à chaque image de la cinématique d'intro.
+  const labelVisible = useWorld((s) => s.reveal > 0.72);
   const shape = useMemo<TerrainShape>(
     () => ({ radius: island.radius, elevation: island.elevation, seed: index * 17 + 3 }),
     [index, island.elevation, island.radius],
@@ -73,10 +77,10 @@ export function Island({ island, index }: { island: IslandConfig; index: number 
 
   // Les îles n'apparaissent pas toutes en même temps pendant la révélation :
   // elles émergent une à une (voir useWorldReveal).
-  useFrame((_, delta) => {
+  useFrame((state, delta) => {
     if (!group.current) return;
     const dt = Math.min(delta, 1 / 30);
-    const { introCenter, introRadius } = useWorld.getState();
+    const { introCenter, introRadius, quality, reducedMotion, activeIsland, destination } = useWorld.getState();
     const dx = island.position[0] - introCenter[0];
     const dz = island.position[1] - introCenter[1];
     const d = Math.hypot(dx, dz);
@@ -88,6 +92,21 @@ export function Island({ island, index }: { island: IslandConfig; index: number 
     const scale = damp(group.current.scale.x, target, 7.5, dt);
     group.current.scale.setScalar(scale);
     group.current.visible = scale > 0.006;
+
+    // LOD (qualité basse / moyenne) : loin de la caméra, le décor détaillé disparaît.
+    if (decor.current) {
+      updateDecorLod(
+        decor.current,
+        lod.current,
+        state.camera,
+        { x: island.position[0], z: island.position[1], radius: island.radius, depth: island.elevation + 9 },
+        quality,
+        activeIsland === island.id || destination === island.id,
+        activeIsland !== null,
+        reducedMotion || !group.current.visible,
+        dt,
+      );
+    }
   });
 
   const onClick = (event: ThreeEvent<MouseEvent>) => {
@@ -118,17 +137,23 @@ export function Island({ island, index }: { island: IslandConfig; index: number 
     >
       <ClearingContext.Provider value={clearings}>
         <Terrain shape={shape} sampler={sampler} cliff={island.terrain.cliff} top={island.terrain.top} cliffTint={config.cliffTint} />
-        {config.grass > 0 && (
-          <Grass
-            sampler={sampler}
-            radius={island.radius}
-            plateau={features.plateau}
-            avoidAngle={island.dockAngle}
-            seed={index * 41 + 7}
-            amount={config.grass}
-            palette={config.grassPalette}
-          />
-        )}
+        {/* Décor détaillé, soumis au LOD de distance (qualité basse / moyenne). */}
+        <group ref={decor}>
+          {config.grass > 0 && (
+            <Grass
+              sampler={sampler}
+              radius={island.radius}
+              plateau={features.plateau}
+              avoidAngle={island.dockAngle}
+              seed={index * 41 + 7}
+              amount={config.grass}
+              palette={config.grassPalette}
+            />
+          )}
+          <DeferredDecor island={island} index={index} sampler={sampler} shape={shape} />
+          <NightLights island={island} />
+          <IslandLife island={island} index={index} />
+        </group>
         {config.trees > 0 && (
           <Trees
             sampler={sampler}
@@ -140,10 +165,7 @@ export function Island({ island, index }: { island: IslandConfig; index: number 
             count={config.trees}
           />
         )}
-        <DeferredDecor island={island} index={index} sampler={sampler} shape={shape} />
         <Dock angle={island.dockAngle} reach={island.radius} />
-        <NightLights island={island} />
-        <IslandLife island={island} index={index} />
       </ClearingContext.Provider>
 
       {/* Volume de sélection : garantit une cible cliquable généreuse et stable. */}
@@ -151,7 +173,7 @@ export function Island({ island, index }: { island: IslandConfig; index: number 
         <cylinderGeometry args={[island.radius * 1.05, island.radius * 1.05, island.elevation + 6, 8]} />
       </mesh>
 
-      {reveal > 0.72 && (
+      {labelVisible && (
         <Html
           position={[0, island.elevation + 7, 0]}
           center

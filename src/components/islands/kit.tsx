@@ -81,6 +81,16 @@ export function useHandFont() {
   return family;
 }
 
+/**
+ * Taille de police qui fait tenir le texte dans la planche : on réduit le corps plutôt que
+ * de compresser les lettres (une police large serait sinon écrasée).
+ */
+function fitFont(ctx: CanvasRenderingContext2D, text: string, size: number, family: string, room = 456) {
+  ctx.font = `500 ${size}px ${family}`;
+  const width = ctx.measureText(text).width;
+  if (width > room) ctx.font = `500 ${Math.max(36, Math.floor((size * room) / width))}px ${family}`;
+}
+
 export function signTexture(lines: string[], family: string, accent: string) {
   const canvas = document.createElement('canvas');
   canvas.width = 512;
@@ -105,13 +115,13 @@ export function signTexture(lines: string[], family: string, accent: string) {
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   if (lines.length === 1) {
-    ctx.font = `500 104px ${family}`;
-    ctx.fillText(lines[0], 256, 132, 470);
+    fitFont(ctx, lines[0], 104, family);
+    ctx.fillText(lines[0], 256, 132);
   } else {
-    ctx.font = `500 84px ${family}`;
-    ctx.fillText(lines[0], 256, 88, 470);
-    ctx.font = `500 58px ${family}`;
-    ctx.fillText(lines[1], 256, 178, 470);
+    fitFont(ctx, lines[0], 84, family);
+    ctx.fillText(lines[0], 256, 88);
+    fitFont(ctx, lines[1], 58, family);
+    ctx.fillText(lines[1], 256, 178);
   }
   const texture = new CanvasTexture(canvas);
   texture.colorSpace = SRGBColorSpace;

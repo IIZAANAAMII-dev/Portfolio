@@ -32,15 +32,40 @@ export function Stamp({ stamp, earned, size = 'normal' }: { stamp: StampInfo; ea
   );
 }
 
-/** Bouton du HUD : « Carnet 5/16 ». */
+function BookIcon() {
+  return (
+    <svg className="hud-btn__icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M10 5.2C8.3 3.9 5.9 3.5 3.2 3.8v11.6c2.7-.3 5.1.1 6.8 1.4 1.7-1.3 4.1-1.7 6.8-1.4V3.8c-2.7-.3-5.1.1-6.8 1.4z" fill="currentColor" fillOpacity="0.14" />
+      <path d="M10 5.2v11.6" />
+    </svg>
+  );
+}
+
+/**
+ * Bouton du HUD : un carnet et sa pastille d'encre (nombre de tampons). Même gabarit que
+ * les autres réglages (icône seule de 44 px sur téléphone) ; la pastille rejoue son coup
+ * de tampon à chaque nouvelle entrée.
+ */
 export function LogbookButton() {
   const stamps = useLogbook((state) => state.stamps);
+  const latest = useLogbook((state) => state.latest);
   const setOpen = useLogbook((state) => state.setOpen);
   const hydrate = useLogbook((state) => state.hydrate);
   useEffect(() => hydrate(), [hydrate]);
   return (
-    <button type="button" className="ghost-button" onClick={() => setOpen(true)} aria-haspopup="dialog">
-      Carnet {stamps.length}/{STAMPS.length}
+    <button
+      type="button"
+      className="hud-btn"
+      onClick={() => setOpen(true)}
+      aria-haspopup="dialog"
+      aria-label={`Carnet de bord : ${stamps.length} tampons sur ${STAMPS.length}`}
+      title="Carnet de bord"
+    >
+      <BookIcon />
+      <span className="hud-btn__label">Carnet</span>
+      <span key={latest?.at ?? 0} className="hud-badge" data-fresh={latest ? 'true' : undefined} aria-hidden="true">
+        {stamps.length}
+      </span>
     </button>
   );
 }

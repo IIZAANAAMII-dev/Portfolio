@@ -1,18 +1,41 @@
 import type { Metadata, Viewport } from 'next';
-import { Caveat, Inter } from 'next/font/google';
+import { Big_Shoulders, DM_Mono, Fraunces } from 'next/font/google';
 import { site } from '@/data/site';
 import './globals.css';
 
-const inter = Inter({
-  variable: '--font-inter',
+/*
+ * Typographie : trois voix, comme sur un port breton (rôles et réglages dans globals.css,
+ * section « Typographie »).
+ *  - Big Shoulders, l'affichage : capitales étroites et grasses, celles des immatriculations
+ *    peintes sur les coques et de la signalétique des quais (nom, îles, grands titres).
+ *  - Fraunces, le récit : un serif chaleureux à tailles optiques, dont l'italique tient la
+ *    voix du carnet (accroches, notes, invitations) et le romain le texte des pages.
+ *  - DM Mono, les instruments : étiquettes, boutons, coordonnées, pourcentages, horaires.
+ *
+ * Sous-ensemble « latin » préchargé : il couvre tout le français (accents, œ, guillemets,
+ * apostrophe typographique). Les autres sous-ensembles (latin-ext…) restent servis à la
+ * demande par unicode-range, sans préchargement inutile.
+ */
+const display = Big_Shoulders({
+  variable: '--font-big-shoulders',
   subsets: ['latin'],
+  // Axe de taille optique : la coupe « Display », plus serrée, s'applique d'elle-même en grand.
+  axes: ['opsz'],
   display: 'swap',
 });
 
-const caveat = Caveat({
-  variable: '--font-caveat',
+const serif = Fraunces({
+  variable: '--font-fraunces',
   subsets: ['latin'],
-  weight: ['500'],
+  style: ['normal', 'italic'],
+  axes: ['opsz'],
+  display: 'swap',
+});
+
+const mono = DM_Mono({
+  variable: '--font-dm-mono',
+  subsets: ['latin'],
+  weight: ['400', '500'],
   display: 'swap',
 });
 
@@ -50,7 +73,11 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: LayoutProps<'/'>) {
   return (
-    <html lang="fr" suppressHydrationWarning className={`${inter.variable} ${caveat.variable} h-full antialiased`}>
+    <html
+      lang="fr"
+      suppressHydrationWarning
+      className={`${display.variable} ${serif.variable} ${mono.variable} h-full antialiased`}
+    >
       <body className="min-h-full">{children}</body>
     </html>
   );

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { useFrame } from '@react-three/fiber';
 import {
   AdditiveBlending,
@@ -16,6 +16,15 @@ import { boatState } from '@/lib/boat-state';
 import { ecologyState } from '@/lib/ecology';
 import { useWorld } from '@/lib/store';
 import { clamp, hash } from '@/lib/utils/math';
+import { AssetBoundary } from './AssetBoundary';
+import { krakenDemo } from './kraken/demo';
+import { krakenState } from './kraken/state';
+
+/**
+ * Le kraken (rig + séquence) n'est chargé qu'à la première alerte ou pour la démo. MarineLife
+ * le monte aussi dans le monde complet : un seul hôte le possède (voir WorldBoundary).
+ */
+const LazyKraken = lazy(() => import('./WorldBoundary').then((module) => ({ default: module.WorldBoundary })));
 
 // Un seul draw call : la densité augmente, pas le nombre d'objets Three.js.
 const RAIN_COUNT = 560;
@@ -48,13 +57,15 @@ void main() {
 
 /** Pluie locale poolée + éclairs lointains. La couverture vit dans le shader du ciel. */
 export function BoundaryStorm() {
+  const [kraken, setKraken] = useState(false);
+  const strikeSeen = useRef(krakenState.strike);
   const root = useRef<Group>(null);
   const rain = useRef<Points>(null);
   const lightning = useRef<LineSegments>(null);
   const lightningLight = useRef<PointLight>(null);
   const lightningMaterial = useRef<LineBasicMaterial>(null);
   const audioClock = useRef(0);
-  const storm = useRef({ flash: 0, next: 7.5, strikeX: 58, strikeZ: -42 });
+  const storm = useRef({ flash: 0, next: 7.5, strikeX: 58, strikeZ: -42, kraken: false });
   const rainUniforms = useMemo(() => ({
     uTime: { value: 0 },
     uIntensity: { value: 0 },
@@ -85,7 +96,8 @@ export function BoundaryStorm() {
 
   useFrame((state, delta) => {
     const dt = Math.min(delta, 1 / 30);
-    const phase = useWorld.getState().phase;
+    if (!kraken && (ecologyState.boundaryWarning > 0.035 || krakenDemo.request > 0)) setKraken(true);
+    const { phase, reducedMotion } = useWorld.getState();
     const active = phase === 'playing' || phase === 'docked';
     const hush = ecologyState.boundaryHush;
     const cover = active ? ecologyState.stormCover : 0;
@@ -132,13 +144,29 @@ export function BoundaryStorm() {
         const distance = 46 + Math.random() * 42;
         lightningState.strikeX = Math.cos(angle) * distance;
         lightningState.strikeZ = Math.sin(angle) * distance;
+        lightningState.kraken = false;
         ambience.thunder(0.42 + rainStrength * 0.5);
       }
     } else {
       lightningState.next = Math.min(lightningState.next, 7.5);
     }
+    // Éclair commandé par le kraken (cercle de bras révélé, lancer du bateau), tout près de lui.
+    if (krakenState.strike !== strikeSeen.current) {
+      strikeSeen.current = krakenState.strike;
+      if (cover > 0.2) {
+        lightningState.flash = 1;
+        lightningState.next = Math.max(lightningState.next, 4 + Math.random() * 3);
+        lightningState.strikeX = krakenState.strikeX - boatState.position.x;
+        lightningState.strikeZ = krakenState.strikeZ - boatState.position.z;
+        lightningState.kraken = true;
+        ambience.thunder(0.9);
+      }
+    }
 
-    const flash = lightningState.flash * rainStrength;
+    // Avec « réduire les animations », les éclairs restent de simples lueurs (pas de stroboscope).
+    const flash = lightningState.flash
+      * (lightningState.kraken ? Math.max(rainStrength, 0.6) : rainStrength)
+      * (reducedMotion ? 0.35 : 1);
     ecologyState.stormFlash = flash;
     if (lightning.current) {
       lightning.current.visible = flash > 0.025;
@@ -152,35 +180,45 @@ export function BoundaryStorm() {
   });
 
   return (
-    <group ref={root} visible={false}>
-      <points ref={rain} frustumCulled={false}>
-        <bufferGeometry>
-          <bufferAttribute attach="attributes-position" args={[rainPositions, 3]} />
-        </bufferGeometry>
-        <shaderMaterial
-          uniforms={rainUniforms}
-          vertexShader={rainVertex}
-          fragmentShader={rainFragment}
-          transparent
-          depthWrite={false}
-          blending={AdditiveBlending}
-        />
-      </points>
+    <>
+      <group ref={root} visible={false}>
+        <points ref={rain} frustumCulled={false}>
+          <bufferGeometry>
+            <bufferAttribute attach="attributes-position" args={[rainPositions, 3]} />
+          </bufferGeometry>
+          <shaderMaterial
+            uniforms={rainUniforms}
+            vertexShader={rainVertex}
+            fragmentShader={rainFragment}
+            transparent
+            depthWrite={false}
+            blending={AdditiveBlending}
+          />
+        </points>
 
-      <lineSegments ref={lightning} visible={false} renderOrder={20}>
-        <bufferGeometry>
-          <bufferAttribute attach="attributes-position" args={[boltPositions, 3]} />
-        </bufferGeometry>
-        <lineBasicMaterial
-          ref={lightningMaterial}
-          color="#dff7ff"
-          transparent
-          opacity={0}
-          depthWrite={false}
-          fog={false}
-        />
-      </lineSegments>
-      <pointLight ref={lightningLight} color="#c8eaff" intensity={0} distance={180} decay={1.45} />
-    </group>
+        <lineSegments ref={lightning} visible={false} renderOrder={20}>
+          <bufferGeometry>
+            <bufferAttribute attach="attributes-position" args={[boltPositions, 3]} />
+          </bufferGeometry>
+          <lineBasicMaterial
+            ref={lightningMaterial}
+            color="#dff7ff"
+            transparent
+            opacity={0}
+            depthWrite={false}
+            fog={false}
+          />
+        </lineSegments>
+        <pointLight ref={lightningLight} color="#c8eaff" intensity={0} distance={180} decay={1.45} />
+      </group>
+      {/* En coordonnées monde (hors du groupe qui suit le bateau). */}
+      {kraken && (
+        <AssetBoundary>
+          <Suspense fallback={null}>
+            <LazyKraken />
+          </Suspense>
+        </AssetBoundary>
+      )}
+    </>
   );
 }

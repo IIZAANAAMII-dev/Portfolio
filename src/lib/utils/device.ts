@@ -21,3 +21,9 @@ export function isCoarsePointer() {
   if (typeof window === 'undefined') return false;
   return window.matchMedia('(pointer: coarse)').matches;
 }
+
+/** Téléphone ou tablette (écran tactile, ou fenêtre étroite) : réglages graphiques allégés. */
+export function isMobileDevice() {
+  if (typeof window === 'undefined') return false;
+  return isCoarsePointer() || window.innerWidth < 820;
+}

@@ -6,6 +6,7 @@ import { Group } from 'three';
 import { ClearingAt } from '@/components/islands/kit';
 import { CLEARING_ROOT, ClearingContext, ClearingStore } from '@/components/islands/clearings';
 import { Grass } from '@/components/islands/Grass';
+import { createDecorLod, updateDecorLod, type DecorLod } from '@/components/islands/lod';
 import { buildTerrainGeometry } from '@/components/islands/terrain-shape';
 import { boatState } from '@/lib/boat-state';
 import { useWorld } from '@/lib/store';
@@ -66,6 +67,8 @@ const soundscape = new StaticAmbience();
 
 export default function YellowStaticIsland() {
   const island = useRef<Group>(null);
+  const decor = useRef<Group>(null);
+  const lod = useRef<DecorLod>(createDecorLod());
   const clearings = useMemo(() => new ClearingStore(), []);
   const terrain = useMemo(() => buildTerrainGeometry(SHAPE, sampler), []);
   const terrainMaterial = useMemo(() => staticTerrainMaterial(), []);
@@ -109,6 +112,20 @@ export default function YellowStaticIsland() {
       group.scale.setScalar(scale);
       group.visible = scale > 0.006;
       staticSignal.scale = scale;
+      // LOD (qualité basse / moyenne) : de loin, la maison seule dans la brume.
+      if (decor.current) {
+        updateDecorLod(
+          decor.current,
+          lod.current,
+          state.camera,
+          { x: CENTER_X, z: CENTER_Z, radius: ISLAND.radius, depth: 9 },
+          world.quality,
+          staticSignal.proximity > 0.05,
+          world.activeIsland !== null,
+          world.reducedMotion || !group.visible,
+          dt,
+        );
+      }
     }
 
     // Néons et faille : chacun son grésillement, la faille fait tout vaciller.
@@ -182,26 +199,31 @@ export default function YellowStaticIsland() {
       >
         <ClearingContext.Provider value={clearings}>
           <mesh geometry={terrain} material={terrainMaterial} castShadow receiveShadow />
-          <Grass
-            sampler={sampler}
-            radius={ISLAND.radius}
-            plateau={FEATURES.plateau}
-            avoidAngle={ISLAND.dockAngle}
-            seed={97 * 41 + 7}
-            amount={0.9}
-            palette={GRASS_PALETTE}
-          />
           {CLEARINGS.map(([x, z, radius], index) => (
             <ClearingAt key={index} x={x} z={z} radius={radius} />
           ))}
-          <Rocks />
           <group rotation-y={FACE}>
             <House position={[HOUSE.x, HOUSE_BASE, HOUSE.z]} rotation={0} />
-            <Rift position={[RIFT.x, FLOOR_Y, RIFT.z]} />
-            <Equipment />
-            <Crew />
-            <Cameras />
-            <Glows />
+          </group>
+          {/* Décor détaillé : LOD de distance (qualité basse / moyenne). */}
+          <group ref={decor}>
+            <Grass
+              sampler={sampler}
+              radius={ISLAND.radius}
+              plateau={FEATURES.plateau}
+              avoidAngle={ISLAND.dockAngle}
+              seed={97 * 41 + 7}
+              amount={0.9}
+              palette={GRASS_PALETTE}
+            />
+            <Rocks />
+            <group rotation-y={FACE}>
+              <Rift position={[RIFT.x, FLOOR_Y, RIFT.z]} />
+              <Equipment />
+              <Crew />
+              <Cameras />
+              <Glows />
+            </group>
           </group>
         </ClearingContext.Provider>
         {/* Pas de volume de sélection englobant : il masquerait les caméras cliquables. Le

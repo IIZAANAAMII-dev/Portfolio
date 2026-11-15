@@ -2,7 +2,7 @@
 
 import { useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
-import { InstancedMesh, Mesh, MeshBasicMaterial, Object3D } from 'three';
+import { InstancedMesh, Mesh, MeshBasicMaterial, Object3D, Vector3 } from 'three';
 import { boatState } from '@/lib/boat-state';
 import { useWorld } from '@/lib/store';
 import { waveHeight } from '@/lib/waves';
@@ -25,6 +25,8 @@ export function triggerSplash(time: number, x: number, z: number, strength = 1) 
 const DROPS = 46;
 const DURATION = 1.6;
 const GRAVITY = 16;
+const UP = new Vector3(0, 1, 0);
+const heading = new Vector3();
 
 export function Splash() {
   const drops = useRef<InstancedMesh>(null);
@@ -36,7 +38,7 @@ export function Splash() {
       angle: hash(i * 3.17) * Math.PI * 2,
       speed: 3.5 + hash(i * 5.31) * 6,
       lift: 6 + hash(i * 7.77) * 9,
-      size: 0.12 + hash(i * 9.13) * 0.22,
+      size: 0.08 + hash(i * 9.13) * 0.15,
     })),
     [],
   );
@@ -60,7 +62,14 @@ export function Splash() {
           splashState.z + Math.sin(seed.angle) * (1.4 + reach),
         );
         const fade = height < 0 ? 0 : 1 - t / DURATION;
-        dummy.scale.setScalar(seed.size * (0.6 + fade * 0.8));
+        // Gouttes étirées dans le sens de leur vol : on lit de l'eau projetée, pas des cailloux.
+        const rise = seed.lift * k - GRAVITY * t;
+        const along = seed.speed * k;
+        heading.set(Math.cos(seed.angle) * along, rise, Math.sin(seed.angle) * along).normalize();
+        dummy.quaternion.setFromUnitVectors(UP, heading);
+        const size = seed.size * (0.6 + fade * 0.8);
+        const stretch = 1 + Math.min(Math.hypot(along, rise) * 0.09, 1.4);
+        dummy.scale.set(size, size * stretch, size);
         dummy.updateMatrix();
         drops.current!.setMatrixAt(i, dummy.matrix);
       });
@@ -81,7 +90,7 @@ export function Splash() {
     <>
       <instancedMesh ref={drops} args={[undefined, undefined, DROPS]} frustumCulled={false} visible={false}>
         <icosahedronGeometry args={[1, 0]} />
-        <meshStandardMaterial color="#e9f7f4" roughness={0.3} />
+        <meshStandardMaterial color="#eefbf8" emissive="#a9e3dc" emissiveIntensity={0.45} roughness={0.3} />
       </instancedMesh>
       <mesh ref={ringA} rotation-x={-Math.PI / 2} renderOrder={7} visible={false}>
         <ringGeometry args={[0.82, 1, 48]} />
@@ -168,7 +177,7 @@ export function BowSpray() {
   return (
     <instancedMesh ref={mesh} args={[undefined, undefined, SPRAY]} frustumCulled={false} raycast={() => null} visible={false}>
       <icosahedronGeometry args={[1, 0]} />
-      <meshStandardMaterial color="#eaf8f4" roughness={0.35} />
+      <meshStandardMaterial color="#eefbf8" emissive="#a9e3dc" emissiveIntensity={0.4} roughness={0.35} />
     </instancedMesh>
   );
 }

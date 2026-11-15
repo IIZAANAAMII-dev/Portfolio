@@ -23,6 +23,7 @@ import {
 } from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { skyState } from '@/lib/sky';
+import type { QualityLevel } from '@/lib/quality';
 import { useWorld } from '@/lib/store';
 import { hash } from '@/lib/utils/math';
 import { waveHeight } from '@/lib/waves';
@@ -40,10 +41,14 @@ import styles from './card.module.css';
  * Le secret est-il à montrer ? Pas avant que le cercle d'intro l'ait atteint, et seulement
  * quand la caméra est assez proche pour le voir (sinon : ni dessin, ni animation).
  */
+/** Portée relative selon la qualité : sur téléphone, un secret lointain (un point à
+ *  l'horizon) ne coûte ni draw calls ni animation. */
+const SIGHT_SCALE: Record<QualityLevel, number> = { high: 1, medium: 0.85, low: 0.65 };
+
 export function inSight(camera: Camera, x: number, z: number, range = 150) {
-  const { introCenter, introRadius } = useWorld.getState();
+  const { introCenter, introRadius, quality } = useWorld.getState();
   if (Math.hypot(x - introCenter[0], z - introCenter[1]) > introRadius - 2) return false;
-  return Math.hypot(camera.position.x - x, camera.position.z - z) < range;
+  return Math.hypot(camera.position.x - x, camera.position.z - z) < range * SIGHT_SCALE[quality];
 }
 
 /* ------------------------------------------------------------------ matériaux */

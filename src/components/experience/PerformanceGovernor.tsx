@@ -2,37 +2,40 @@
 
 import { useEffect, useRef } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
-import { QUALITY_LEVELS, type QualityLevel } from '@/lib/quality';
+import { Frustum, Matrix4, Sphere } from 'three';
+import { forcedQuality, qualityDpr, useRenderDpr, type QualityLevel } from '@/lib/quality';
 import { useWorld } from '@/lib/store';
 
 const ORDER: QualityLevel[] = ['low', 'medium', 'high'];
 const SAMPLE_SECONDS = 4;
 const COOLDOWN_SECONDS = 14;
 const UPGRADE_SECONDS = 20;
+/** Résolution minimale du réglage fin (qualité basse) : en dessous, l'image devient floue. */
+const MIN_DPR = 0.8;
+const DPR_STEP = 0.1;
+/** Délai entre deux changements de résolution (chacun réalloue les tampons du canvas). */
+const DPR_COOLDOWN_SECONDS = 8;
+
+function setRenderDpr(value: number) {
+  const dpr = Math.round(value * 100) / 100;
+  if (Math.abs(useRenderDpr.getState().dpr - dpr) > 0.001) useRenderDpr.setState({ dpr });
+}
 
 /**
  * Régulation volontairement lente : une moyenne sur plusieurs secondes, puis un long
  * cooldown. La qualité ne peut donc pas osciller à chaque variation ponctuelle de FPS.
+ *  - le niveau de départ est fixé avant la première image (lib/quality : téléphone 'low') ;
+ *  - un téléphone ne monte jamais au-delà de 'medium' (le bloom et son MSAA coûtent trop) ;
+ *  - en qualité basse, si les FPS restent sous 27, la résolution baisse par petits pas
+ *    (jusqu'à 0,8) puis remonte quand la marge revient : dernier levier avant le saccadé.
  */
-/** `?quality=high|medium|low` fige le niveau (captures, démonstrations, tests). */
-function forcedQuality(): QualityLevel | null {
-  if (typeof window === 'undefined') return null;
-  const value = new URLSearchParams(window.location.search).get('quality');
-  return value === 'high' || value === 'medium' || value === 'low' ? value : null;
-}
-
 export function PerformanceGovernor({ mobile }: { mobile: boolean }) {
-  const setDpr = useThree((state) => state.setDpr);
   const elapsed = useRef(0);
   const frames = useRef(0);
   const cooldown = useRef(COOLDOWN_SECONDS);
+  const dprCooldown = useRef(0);
   const upgradeTime = useRef(0);
   const forced = useRef(forcedQuality());
-
-  useEffect(() => {
-    const initial: QualityLevel = forced.current ?? (mobile ? 'low' : 'high');
-    useWorld.getState().setQuality(initial);
-  }, [mobile]);
 
   useFrame((_, delta) => {
     if (forced.current) return;
@@ -40,6 +43,7 @@ export function PerformanceGovernor({ mobile }: { mobile: boolean }) {
     elapsed.current += dt;
     frames.current += 1;
     cooldown.current += dt;
+    dprCooldown.current += dt;
     if (elapsed.current < SAMPLE_SECONDS) return;
 
     const fps = frames.current / elapsed.current;
@@ -48,6 +52,7 @@ export function PerformanceGovernor({ mobile }: { mobile: boolean }) {
 
     const current = useWorld.getState().quality;
     const index = ORDER.indexOf(current);
+    const top = mobile ? ORDER.indexOf('medium') : ORDER.length - 1;
     const downgradeThreshold = current === 'high' ? 48 : 38;
 
     if (fps < downgradeThreshold && index > 0 && cooldown.current >= COOLDOWN_SECONDS) {
@@ -57,7 +62,24 @@ export function PerformanceGovernor({ mobile }: { mobile: boolean }) {
       return;
     }
 
-    if (fps >= 57 && index < ORDER.length - 1) {
+    // Qualité basse : réglage fin de la résolution.
+    if (current === 'low' && dprCooldown.current >= DPR_COOLDOWN_SECONDS) {
+      const ceiling = qualityDpr('low');
+      const dpr = useRenderDpr.getState().dpr;
+      if (fps < 27 && dpr > MIN_DPR + 0.001) {
+        setRenderDpr(Math.max(MIN_DPR, dpr - DPR_STEP));
+        dprCooldown.current = 0;
+        upgradeTime.current = 0;
+        return;
+      }
+      if (fps > 48 && dpr < ceiling - 0.001) {
+        setRenderDpr(Math.min(ceiling, dpr + DPR_STEP));
+        dprCooldown.current = 0;
+        return;
+      }
+    }
+
+    if (fps >= 57 && index < top) {
       upgradeTime.current += SAMPLE_SECONDS;
       if (upgradeTime.current >= UPGRADE_SECONDS && cooldown.current >= COOLDOWN_SECONDS) {
         useWorld.getState().setQuality(ORDER[index + 1]);
@@ -69,11 +91,11 @@ export function PerformanceGovernor({ mobile }: { mobile: boolean }) {
     }
   });
 
+  // Chaque niveau a son plafond de résolution (repart du plafond à chaque changement).
   const quality = useWorld((state) => state.quality);
   useEffect(() => {
-    const config = QUALITY_LEVELS[quality];
-    setDpr(Math.min(window.devicePixelRatio || 1, config.dpr));
-  }, [quality, setDpr]);
+    setRenderDpr(qualityDpr(quality));
+  }, [quality]);
 
   return null;
 }
@@ -81,9 +103,21 @@ export function PerformanceGovernor({ mobile }: { mobile: boolean }) {
 /** Petit relevé en développement uniquement, sans setState ni rerender React. */
 export function PerformanceDebug() {
   const gl = useThree((state) => state.gl);
+  const getState = useThree((state) => state.get);
   const panel = useRef<HTMLDivElement | null>(null);
   const elapsed = useRef(0);
   const frames = useRef(0);
+
+  // Relevés automatisés (répartition des draw calls par île) : accès à la scène, en
+  // développement seulement.
+  useEffect(() => {
+    if (process.env.NODE_ENV === 'production') return;
+    const target = window as unknown as Record<string, unknown>;
+    target.__three = { get: getState, Frustum, Matrix4, Sphere };
+    return () => {
+      delete target.__three;
+    };
+  }, [getState]);
 
   useEffect(() => {
     if (process.env.NODE_ENV === 'production') return;

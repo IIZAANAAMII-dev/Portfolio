@@ -336,6 +336,43 @@ export function addBulwarks(shop: PaintShop, inside: string, rail: string) {
   shop.raw(top, rail);
 }
 
+/**
+ * Liston : baguette demi-ronde rapportée sur le bordé, sous la préceinte blanche, de la
+ * poupe à l'étrave (où les deux bords se rejoignent). Elle accroche la lumière sur le dessus
+ * et dessine un trait d'ombre net dessous : la coque gagne un relief que la peinture seule
+ * n'a pas. Le filet peint de la texture passe dessous.
+ */
+export function addRubbingStrake(shop: PaintShop, color: string) {
+  const faces: number[] = [];
+  const depth = 0.2;
+  const half = 0.026;
+  const out = 0.032;
+  for (const side of [1, -1]) {
+    const profile = (u: number): Vec3[] => {
+      const centre = sheer(u) - depth;
+      const at = (y: number, lift: number): Vec3 => {
+        const z = (sideAt(u, y) + lift) * side;
+        return [rakeX(u, y, z), y, z];
+      };
+      return [at(centre + half + 0.014, 0), at(centre + half, out * 0.8), at(centre - half, out), at(centre - half - 0.016, 0)];
+    };
+    for (let i = 0; i < STATIONS; i++) {
+      const p0 = profile(i / STATIONS);
+      const p1 = profile((i + 1) / STATIONS);
+      // Le profil descend le long du bordé : faces tournées vers l'extérieur.
+      for (let f = 0; f < 3; f++) {
+        if (side > 0) quad(faces, p0[f], p0[f + 1], p1[f + 1], p1[f]);
+        else quad(faces, p0[f], p1[f], p1[f + 1], p0[f + 1]);
+      }
+    }
+    // Bout coupé net contre le tableau (face vers l'arrière).
+    const end = profile(0);
+    if (side > 0) quad(faces, end[0], end[3], end[2], end[1]);
+    else quad(faces, end[0], end[1], end[2], end[3]);
+  }
+  shop.raw(faces, color);
+}
+
 /** Quille et talon : un aileron sous la coque, devant l'hélice. */
 export function addKeel(shop: PaintShop, color: string) {
   const fin: number[] = [];

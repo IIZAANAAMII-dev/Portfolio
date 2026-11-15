@@ -6,6 +6,7 @@ import { useFrame, type ThreeEvent } from '@react-three/fiber';
 import { AdditiveBlending, Color, Group, Mesh, ShaderMaterial, Vector2 } from 'three';
 import { CLEARING_ROOT, ClearingContext, ClearingStore } from '@/components/islands/clearings';
 import { Grass } from '@/components/islands/Grass';
+import { createDecorLod, updateDecorLod, type DecorLod } from '@/components/islands/lod';
 import { Terrain } from '@/components/islands/Terrain';
 import { Trees } from '@/components/islands/Trees';
 import { createHeightSampler, terrainFeatures, type TerrainShape } from '@/components/islands/terrain-shape';
@@ -63,6 +64,8 @@ function Decor(props: IsletDecorProps) {
 
 function Islet({ islet }: { islet: IsletConfig }) {
   const group = useRef<Group>(null);
+  const decor = useRef<Group>(null);
+  const lod = useRef<DecorLod>(createDecorLod());
   const label = useRef<HTMLDivElement>(null);
   const aura = useRef<Mesh>(null);
   const sailToPoint = useWorld((state) => state.sailToPoint);
@@ -87,7 +90,7 @@ function Islet({ islet }: { islet: IsletConfig }) {
     const target = group.current;
     if (!target) return;
     const dt = Math.min(delta, 1 / 30);
-    const { introCenter, introRadius, activeIsland } = useWorld.getState();
+    const { introCenter, introRadius, activeIsland, quality, reducedMotion } = useWorld.getState();
 
     // Révélation : même onde que les îles.
     const d = Math.hypot(islet.position[0] - introCenter[0], islet.position[1] - introCenter[1]);
@@ -95,6 +98,20 @@ function Islet({ islet }: { islet: IsletConfig }) {
     const scale = damp(target.scale.x, raw * (1 + 0.09 * Math.sin(raw * Math.PI) * (1 - raw)), 7.5, dt);
     target.scale.setScalar(scale);
     target.visible = scale > 0.006;
+    if (decor.current) {
+      updateDecorLod(
+        decor.current,
+        lod.current,
+        state.camera,
+        { x: islet.position[0], z: islet.position[1], radius: islet.radius, depth: islet.elevation + 7 },
+        quality,
+        // Les îlots de personnalité font partie du cadrage de leur île parente.
+        activeIsland === islet.parent,
+        activeIsland !== null,
+        reducedMotion || !target.visible,
+        dt,
+      );
+    }
 
     // Réveil : bateau proche, ou panneau de l'île parente ouvert.
     const boatDistance = Math.hypot(boatState.position.x - islet.position[0], boatState.position.z - islet.position[1]);
@@ -148,11 +165,14 @@ function Islet({ islet }: { islet: IsletConfig }) {
     >
       <ClearingContext.Provider value={clearings}>
         <Terrain shape={shape} sampler={sampler} cliff={islet.terrain.cliff} top={islet.terrain.top} cliffTint={islet.terrain.cliffTint} />
-        <Grass sampler={sampler} radius={islet.radius} plateau={features.plateau} seed={islet.seed} palette={islet.grass} />
         {islet.id === 'design' && (
           <Trees sampler={sampler} radius={islet.radius} plateau={features.plateau} seed={islet.seed} flame="#e8668c" count={1} />
         )}
-        <Decor islet={islet} sampler={sampler} features={features} awake={isletAwake[islet.id]} />
+        {/* Herbe et décor : LOD de distance (qualité basse / moyenne). */}
+        <group ref={decor}>
+          <Grass sampler={sampler} radius={islet.radius} plateau={features.plateau} seed={islet.seed} palette={islet.grass} />
+          <Decor islet={islet} sampler={sampler} features={features} awake={isletAwake[islet.id]} />
+        </group>
       </ClearingContext.Provider>
 
       {/* Anneau de réveil, posé sur l'eau autour de l'îlot. */}

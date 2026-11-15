@@ -32,6 +32,11 @@ const BEARD = '#eeeae2';
 
 export const BONE = { base: 0, pelvis: 1, spine: 2, head: 3, shoulderR: 4, elbowR: 5, shoulderL: 6, elbowL: 7, wheel: 8 } as const;
 
+/** Hauteur de l'os de la tête au repos (bassin 0,5 + buste 0,06 + cou 0,55). */
+const HEAD_Y = 1.11;
+/** Fourneau de la pipe dans le repère de l'os de la tête. */
+const PIPE_BOWL = new Vector3(0.262, 1.245 - HEAD_Y, 0.072);
+
 /** [parent, x, y, z] : position de repos de chaque os, relative à son parent. */
 function restPose(wheel: Vec3): [number, number, number, number][] {
   return [
@@ -85,6 +90,9 @@ export function buildCaptain(material: Material, wheel: Vec3) {
     shop.add(new SphereGeometry(1, 8, 6), BEARD, { at: [0.168, 1.214, side * 0.04], scale: [0.03, 0.022, 0.052] }, B.head);
   }
   shop.add(new SphereGeometry(1, 14, 10), BEARD, { at: [0.06, 1.16, 0], scale: [0.14, 0.125, 0.165] }, B.head);
+  // Couronne de cheveux blancs sous la casquette, de la nuque aux favoris (le plan d'intro le
+  // montre de dos : plus de crâne nu sous la visière).
+  shop.add(new SphereGeometry(0.172, 16, 8, -Math.PI / 2 - 0.42, Math.PI + 0.84, 0.9, 1.04), BEARD, { at: [0, 1.27, 0] }, B.head);
   shop.add(new CylinderGeometry(0.172, 0.168, 0.08, 16), CAP, { at: [0, 1.405, 0] }, B.head);
   shop.add(new CylinderGeometry(0.185, 0.175, 0.035, 16), CAP, { at: [-0.01, 1.455, 0], rot: [0, 0, 0.08] }, B.head);
   shop.add(new CylinderGeometry(0.12, 0.12, 0.016, 12, 1, false, 0, Math.PI), '#1c2026', { at: [0.11, 1.372, 0], rot: [0, 0, -0.18] }, B.head);
@@ -130,7 +138,17 @@ export function buildCaptain(material: Material, wheel: Vec3) {
   mesh.bind(new Skeleton(bones));
   mesh.frustumCulled = false;
   mesh.name = 'patron';
-  return { mesh, bones, wheel, state: { wave: 0, whoa: 0, fall: 0, yaw: 0, headYaw: 0, headPitch: 0, lookYaw: 0, lookPitch: 0, nextLook: 0, wheelAngle: 0 } };
+  return {
+    mesh,
+    bones,
+    wheel,
+    state: { wave: 0, whoa: 0, fall: 0, yaw: 0, lean: 0, headYaw: 0, headPitch: 0, lookYaw: 0, lookPitch: 0, nextLook: 0, wheelAngle: 0 },
+  };
+}
+
+/** Position monde du fourneau de la pipe (matrices de l'image précédente : un retard invisible). */
+export function pipeBowl(rig: CaptainRig, out: Vector3) {
+  return rig.bones[BONE.head].localToWorld(out.copy(PIPE_BOWL));
 }
 
 /* ------------------------------------------------------------------ Animation */
@@ -192,6 +210,11 @@ export type CaptainCue = {
   /** Angle de la roue (rad) et gîte du bateau à compenser. */
   steer: number;
   roll: number;
+  /** Accélération (m/s²) et vitesse de lacet (rad/s) du bateau : inertie du buste, regard. */
+  accel: number;
+  turn: number;
+  /** 1 = mouvements réduits (préférence système) : gestes plus lents et plus amples de moitié. */
+  calm: number;
 };
 
 /** Une image d'animation du patron : barre, regards, salut, surprise, chute. */
@@ -203,14 +226,17 @@ export function animateCaptain(rig: CaptainRig, cue: CaptainCue) {
   state.fall = damp(state.fall, cue.fall, 7, dt);
 
   // Le bassin se tourne vers la caméra pour saluer (le reste du temps, face à la barre).
+  const calm = 1 - cue.calm * 0.5;
   const toCamera = Math.max(-2.5, Math.min(2.5, Math.atan2(-cue.camera.z, cue.camera.x)));
   state.yaw = damp(state.yaw, toCamera * state.wave, 4, dt);
   bones[BONE.pelvis].rotation.set(0, state.yaw, 0);
-  bones[BONE.pelvis].position.y = 0.5 + Math.abs(Math.sin(time * 9)) * 0.025 * state.wave + state.whoa * 0.03;
+  bones[BONE.pelvis].position.y = 0.5 + Math.abs(Math.sin(time * 9 * calm)) * 0.025 * calm * state.wave + state.whoa * 0.03;
 
-  // Le buste compense la gîte, respire, se penche un peu sur la barre.
+  // Le buste compense la gîte, respire, se penche un peu sur la barre ; inertie : il part en
+  // arrière quand le moteur pousse, en avant quand on réduit les gaz.
+  state.lean = damp(state.lean, Math.max(-0.08, Math.min(0.08, cue.accel * 0.007)), 3, dt);
   const spine = bones[BONE.spine];
-  spine.rotation.set(-cue.roll * 0.7, 0, -0.05 * (1 - state.wave) + state.fall * 0.08);
+  spine.rotation.set(-cue.roll * 0.7, 0, -0.05 * (1 - state.wave) + state.fall * 0.08 + state.lean);
   spine.scale.set(1, 1 + Math.sin(time * 1.7) * 0.012, 1);
 
   // Regards : de temps en temps vers le large, ou vers la caméra quand il salue.
@@ -221,7 +247,10 @@ export function animateCaptain(rig: CaptainRig, cue: CaptainCue) {
     state.nextLook = time + 2.4 + seeded(pick + 3.1) * 3.6;
   }
   const facing = Math.max(-1, Math.min(1, toCamera - state.yaw));
-  const lookYaw = state.lookYaw * (1 - state.wave) + facing * state.wave;
+  // En virage, il regarde où va l'étrave (cap positif = vers tribord, à sa droite).
+  const turning = Math.min(Math.abs(cue.turn) * 2, 1);
+  const intoTurn = Math.max(-0.6, Math.min(0.6, -cue.turn * 0.55));
+  const lookYaw = (state.lookYaw * (1 - turning) + intoTurn) * (1 - state.wave) + facing * state.wave;
   const lookPitch = state.lookPitch * (1 - state.wave) + 0.18 * state.wave + state.fall * 0.35 - state.whoa * 0.1;
   state.headYaw = damp(state.headYaw, lookYaw, 4, dt);
   state.headPitch = damp(state.headPitch, lookPitch, 4, dt);
@@ -252,7 +281,7 @@ export function animateCaptain(rig: CaptainRig, cue: CaptainCue) {
     // Salut (bras droit levé qui balance), l'autre bras ballant.
     if (side > 0) {
       upperDir.set(0.18, 0.8, 0.58).normalize();
-      lowerDir.set(0.05, 1, Math.sin(time * 8.5) * 0.55).normalize();
+      lowerDir.set(0.05, 1, Math.sin(time * 8.5 * calm) * 0.55 * calm).normalize();
     } else {
       upperDir.set(0.08, -1, -0.22).normalize();
       lowerDir.set(0.35, -1, -0.05).normalize();
@@ -265,7 +294,7 @@ export function animateCaptain(rig: CaptainRig, cue: CaptainCue) {
     blend(poseUpper, upperDir, state.whoa);
     blend(poseLower, lowerDir, state.whoa);
     // Chute de l'intro : bras en l'air qui s'agitent.
-    upperDir.set(0.05, 1, side * (0.45 + Math.sin(time * 14 + side) * 0.12)).normalize();
+    upperDir.set(0.05, 1, side * (0.45 + Math.sin(time * 14 * calm + side) * 0.12 * calm)).normalize();
     lowerDir.set(0, 1, side * 0.15).normalize();
     blend(poseUpper, upperDir, state.fall);
     blend(poseLower, lowerDir, state.fall);

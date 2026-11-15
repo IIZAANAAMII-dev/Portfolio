@@ -2,7 +2,7 @@
 
 import { useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
-import { Group, InstancedMesh, Object3D, PointLight } from 'three';
+import { Color, Group, InstancedMesh, MeshBasicMaterial, Object3D, PointLight } from 'three';
 import { ambience } from '@/lib/audio/ambience';
 import { boatState } from '@/lib/boat-state';
 import { INTRO_DURATION, INTRO_SPLASH_AT } from '@/lib/cinematic';
@@ -10,7 +10,7 @@ import { ecologyState } from '@/lib/ecology';
 import { skyState } from '@/lib/sky';
 import { useWorld } from '@/lib/store';
 import { waveHeight } from '@/lib/waves';
-import { clamp, damp, shortestAngle } from '@/lib/utils/math';
+import { clamp, damp, hash, shortestAngle } from '@/lib/utils/math';
 import { MAX_SPEED, useBoatNavigation } from '@/hooks/useBoatNavigation';
 import { BowSpray, Splash, sprayState, triggerSplash } from './Splash';
 import { StackSmoke } from './Smoke';
@@ -46,37 +46,97 @@ function dropPose(seconds: number) {
   };
 }
 
+const BOW_FOAM = 16;
+const PROP_FOAM = 10;
+/** Tableau arrière à la flottaison (repère du bateau) : le remous de l'hélice en sort. */
+const TRANSOM_X = -3.08;
 const foamDummy = new Object3D();
+/** Écume : blanche le jour, éteinte la nuit (matériau non éclairé), bleu-vert si le plancton luit. */
+const FOAM_DAY = new Color('#effcf7');
+const FOAM_NIGHT = new Color('#5f8c92');
+const FOAM_BIO = new Color('#46f2dc');
 
+/**
+ * Écume au ras de l'eau, en coordonnées monde (elle reste sur la houle quand la coque tangue) :
+ * moustaches d'étrave qui glissent le long des flancs en route, et remous de l'hélice derrière
+ * le tableau — un bouillonnement paisible au ralenti, un panache brassé quand on met les gaz.
+ * Chaque flocon naît et meurt en douceur (taille nulle aux deux bouts du cycle) et les cycles
+ * sont intégrés (phase += vitesse × dt) : changer d'allure ne fait jamais sauter l'écume.
+ */
 function HullFoam() {
   const mesh = useRef<InstancedMesh>(null);
-  const count = 12;
-  useFrame((state) => {
-    if (!mesh.current) return;
-    const strength = Math.min(Math.max((boatState.speed - 0.5) / 7.5, 0), 1);
-    mesh.current.visible = strength > 0.025;
-    if (!mesh.current.visible) return;
+  const material = useRef<MeshBasicMaterial>(null);
+  const churn = useRef(0);
+  const phases = useRef({ bow: 0, prop: 0 });
+  useFrame((state, delta) => {
+    const target = mesh.current;
+    if (!target) return;
+    const dt = Math.min(delta, 1 / 30);
     const time = state.clock.elapsedTime;
-    for (let index = 0; index < count; index++) {
-      const life = (time * (0.55 + strength * 0.65) + index / count) % 1;
-      const side = index % 2 === 0 ? -1 : 1;
-      // L'étrave fend l'eau : l'écume naît à l'avant et glisse le long des flancs.
-      foamDummy.position.set(
-        BOAT_FRAME.bow * 0.82 - life * (BOAT_FRAME.bow + BOAT_FRAME.stern) * 0.78,
-        0.04 + Math.sin(time * 2 + index) * 0.04,
-        side * (BOAT_FRAME.halfBeam * (0.55 + Math.min(life * 3, 1) * 0.45) + life * 0.4),
-      );
-      const scalar = (0.08 + life * 0.19) * (0.45 + strength);
-      foamDummy.scale.set(scalar * 1.8, scalar * 0.35, scalar);
+    const { phase } = useWorld.getState();
+    // Le moteur tourne dès que le bateau a touché l'eau (comme l'hélice et la fumée).
+    const running = phase === 'playing' || phase === 'docked' || (phase === 'transitioning' && boatMotion.splashAt >= 0);
+    const throttle = boatMotion.throttle;
+    const strength = clamp((boatState.speed - 0.5) / 7.5, 0, 1);
+    churn.current = damp(churn.current, running ? 0.3 + throttle * 0.7 : 0, 2.5, dt);
+    const prop = churn.current * (1 - ecologyState.leviathanAttack);
+    const cycle = phases.current;
+    cycle.bow = (cycle.bow + dt * (0.55 + strength * 0.65)) % 1;
+    cycle.prop = (cycle.prop + dt * (0.5 + prop * 0.8)) % 1;
+    target.visible = strength > 0.025 || prop > 0.02;
+    if (!target.visible) return;
+    material.current?.color.copy(FOAM_DAY).lerp(FOAM_NIGHT, skyState.dayNight).lerp(FOAM_BIO, ecologyState.plankton * 0.75);
+    const { position, heading } = boatState;
+    const forwardX = Math.cos(heading);
+    const forwardZ = Math.sin(heading);
+    // (x, z) dans le repère du bateau ; tribord (+Z) est en (−sin, cos) dans le monde.
+    const place = (index: number, x: number, z: number, size: number, flat: number) => {
+      const worldX = position.x + forwardX * x - forwardZ * z;
+      const worldZ = position.z + forwardZ * x + forwardX * z;
+      foamDummy.position.set(worldX, waveHeight(worldX, worldZ, time) + 0.07 + Math.sin(time * 2 + index) * 0.025, worldZ);
+      foamDummy.rotation.set(0, -heading, 0);
+      foamDummy.scale.set(size * 1.8, size * flat, size);
       foamDummy.updateMatrix();
-      mesh.current.setMatrixAt(index, foamDummy.matrix);
+      target.setMatrixAt(index, foamDummy.matrix);
+    };
+    const bow = Math.min(strength * 6, 1);
+    for (let index = 0; index < BOW_FOAM; index++) {
+      const life = (cycle.bow + index / BOW_FOAM) % 1;
+      const side = index % 2 === 0 ? -1 : 1;
+      const envelope = Math.min(life * 6, 1) * Math.sqrt(1 - life);
+      place(
+        index,
+        BOAT_FRAME.bow * 0.82 - life * (BOAT_FRAME.bow + BOAT_FRAME.stern) * 0.78,
+        side * (BOAT_FRAME.halfBeam * (0.55 + Math.min(life * 3, 1) * 0.45) + life * 0.4),
+        (0.08 + life * 0.18) * (0.45 + strength) * bow * envelope * (0.8 + hash(index * 3.3) * 0.4),
+        0.32,
+      );
     }
-    mesh.current.instanceMatrix.needsUpdate = true;
+    for (let index = 0; index < PROP_FOAM; index++) {
+      const seed = hash(index * 7.31);
+      const life = (cycle.prop + index / PROP_FOAM + seed * 0.07) % 1;
+      const envelope = Math.min(life * 5, 1) * Math.pow(1 - life, 0.7);
+      place(
+        BOW_FOAM + index,
+        TRANSOM_X - 0.15 - life * (0.55 + throttle * 3.4),
+        (seed - 0.5) * (0.3 + life * (0.7 + throttle * 1.4)) + Math.sin(time * 2.6 + index * 1.7) * 0.05,
+        (0.12 + life * (0.18 + throttle * 0.24)) * prop * envelope,
+        0.28,
+      );
+    }
+    target.instanceMatrix.needsUpdate = true;
   });
   return (
-    <instancedMesh ref={mesh} args={[undefined, undefined, count]} renderOrder={6}>
-      <dodecahedronGeometry args={[1, 0]} />
-      <meshBasicMaterial color="#dffcf2" transparent opacity={0.48} depthWrite={false} />
+    <instancedMesh
+      ref={mesh}
+      args={[undefined, undefined, BOW_FOAM + PROP_FOAM]}
+      renderOrder={6}
+      frustumCulled={false}
+      raycast={() => null}
+      visible={false}
+    >
+      <icosahedronGeometry args={[1, 1]} />
+      <meshBasicMaterial ref={material} color="#effcf7" transparent opacity={0.58} depthWrite={false} />
     </instancedMesh>
   );
 }
@@ -144,7 +204,7 @@ export function Boat() {
     if (phase === 'docked' && last.phase !== 'docked') boatMotion.dockedAt = time;
     last.phase = phase;
     if (boatState.collision > last.collision + 0.05) {
-      body.bumpVelocity += boatState.collision * 2.6;
+      body.bumpVelocity += boatState.collision * (reducedMotion ? 1.1 : 2.6);
       boatMotion.bumpAt = time;
       sprayState.burst = Math.max(sprayState.burst, boatState.collision);
     }
@@ -155,9 +215,9 @@ export function Boat() {
 
     if (group.current) {
       const y = waveHeight(position.x, position.z, time);
-      const drift = Math.sin(time * 0.74) * 0.16
+      const drift = (Math.sin(time * 0.74) * 0.16
         + Math.sin(time * 1.3 + 1.1) * 0.07
-        + Math.sin(time * 2.1 + 2.5) * 0.03;
+        + Math.sin(time * 2.1 + 2.5) * 0.03) * (reducedMotion ? 0.5 : 1);
       const swallowed = ecologyState.leviathanAttack;
       const heave = y + drift
         + Math.sin(time * 1.35) * Math.min(speed / MAX_VISUAL_SPEED, 1) * 0.055
@@ -258,9 +318,9 @@ export function Boat() {
             <BoatModel />
             <object3D ref={stackTip} position={EXHAUST} />
           </group>
-          <HullFoam />
         </group>
       </group>
+      <HullFoam />
       <StackSmoke anchor={stackTip} />
       <BowSpray />
       <Wake />

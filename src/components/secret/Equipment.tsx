@@ -556,25 +556,22 @@ function Stands({ tops }: { tops: { x: number; y: number; z: number; yaw: number
     target.instanceMatrix.needsUpdate = true;
   }, [tops]);
 
+  // Sans allocation par image : deux projecteurs, écrits un par un.
   useFrame(() => {
     const night = skyState.dayNight;
-    const levels = [flicker.standA, flicker.standB];
-    [tubeMaterialA.current, tubeMaterialB.current].forEach((material, index) => {
-      if (!material) return;
-      const level = levels[index];
-      material.color.copy(COOL_TUBE).multiplyScalar(0.35 + level * (1.1 + night * 0.9));
-    });
     const target = pools.current;
-    if (target?.instanceColor) {
-      levels.forEach((level, index) => {
+    for (let index = 0; index < 2; index++) {
+      const level = index === 0 ? flicker.standA : flicker.standB;
+      const material = index === 0 ? tubeMaterialA.current : tubeMaterialB.current;
+      material?.color.copy(COOL_TUBE).multiplyScalar(0.35 + level * (1.1 + night * 0.9));
+      if (target?.instanceColor) {
         lift.set(0.85, 0.95, 0.7).multiplyScalar(level * (0.12 + night * 0.55));
-        target.instanceColor?.setXYZ(index, lift.x, lift.y, lift.z);
-      });
-      target.instanceColor.needsUpdate = true;
+        target.instanceColor.setXYZ(index, lift.x, lift.y, lift.z);
+      }
+      const top = tops[index];
+      if (top) setGlow(GLOW.stand + index, top.x + Math.sin(top.yaw) * 0.12, top.y, top.z + Math.cos(top.yaw) * 0.12, 1.9, COOL_TUBE, level * 0.6, 0.08);
     }
-    tops.forEach((top, index) => {
-      setGlow(GLOW.stand + index, top.x + Math.sin(top.yaw) * 0.12, top.y, top.z + Math.cos(top.yaw) * 0.12, 1.9, COOL_TUBE, levels[index] * 0.6, 0.08);
-    });
+    if (target?.instanceColor) target.instanceColor.needsUpdate = true;
   });
 
   return (

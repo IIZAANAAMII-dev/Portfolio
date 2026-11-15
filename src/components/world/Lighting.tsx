@@ -149,15 +149,19 @@ export function Lighting({ shadows }: { shadows: boolean }) {
         shadow-camera-bottom={-58}
       />
       <ambientLight ref={ambient} intensity={0.16} color="#a0c4d4" />
-      {/* Spot chaud d'ambiance pour l'intro : donne l'impression d'un décor éclairé. */}
-      <pointLight
-        ref={pool}
-        position={[0, 10.5, 0]}
-        color="#fff0d8"
-        intensity={76}
-        distance={42}
-        decay={0.9}
-      />
+      {/* Spot chaud d'ambiance pour l'intro : donne l'impression d'un décor éclairé. Absent
+          en qualité basse (téléphones) : éteinte après l'intro, une lumière ponctuelle coûte
+          encore à chaque pixel de chaque matériau pendant toute la visite. */}
+      {quality !== 'low' && (
+        <pointLight
+          ref={pool}
+          position={[0, 10.5, 0]}
+          color="#fff0d8"
+          intensity={76}
+          distance={42}
+          decay={0.9}
+        />
+      )}
     </group>
   );
 }

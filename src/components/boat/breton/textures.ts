@@ -66,6 +66,31 @@ export function glassTexture() {
   return texture(canvas);
 }
 
+/**
+ * Lumière des vitres la nuit (carte émissive, mêmes uv que les vitres) : chaude sous le
+ * plafonnier, plus ambrée vers le bas, où l'ombre de la console assourdit la lueur.
+ */
+export function glassGlowTexture() {
+  const canvas = document.createElement('canvas');
+  canvas.width = 64;
+  canvas.height = 64;
+  const ctx = canvas.getContext('2d')!;
+  const gradient = ctx.createLinearGradient(0, 0, 0, 64);
+  gradient.addColorStop(0, '#ffe8b4');
+  gradient.addColorStop(0.5, '#ffc070');
+  gradient.addColorStop(0.78, '#f29245');
+  gradient.addColorStop(1, '#7a4220');
+  ctx.fillStyle = gradient;
+  ctx.fillRect(0, 0, 64, 64);
+  // Le plafonnier : un halo plus clair en haut, au centre.
+  const lamp = ctx.createRadialGradient(32, 6, 0, 32, 6, 30);
+  lamp.addColorStop(0, 'rgba(255, 250, 225, 0.75)');
+  lamp.addColorStop(1, 'rgba(255, 250, 225, 0)');
+  ctx.fillStyle = lamp;
+  ctx.fillRect(0, 0, 64, 40);
+  return texture(canvas);
+}
+
 /** Halo des feux : disque doux, additif. */
 export function haloTexture() {
   const canvas = document.createElement('canvas');
