@@ -27,7 +27,6 @@ export const projects: Project[] = [
     ],
     stack: ['Next.js', 'React', 'TypeScript', 'Prisma', 'PostgreSQL', 'Stripe'],
     url: 'https://feeder.fr',
-    screenshots: ['/projects/feeder/accueil.jpg'],
     building: 'tech-center',
     accent: '#ff8a3d',
   },

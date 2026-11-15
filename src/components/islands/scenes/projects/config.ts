@@ -22,8 +22,9 @@ const config: IslandSceneConfig = {
   grass: 0.55,
   grassPalette: ['#79ad4b', '#94c257', '#5d9440', '#b9cf63'],
   dressing: false,
-  // Un peu de recul : le chantier naval (en contrebas au sud) entre dans le cadre à quai.
-  camera: { zoom: 1.06 },
+  // Du recul et une visée un peu plus basse : le chantier naval (en contrebas au sud) et
+  // sa réplique du bateau entrent tout entiers dans le cadre à quai, de midi au soir.
+  camera: { zoom: 1.18, lift: -1 },
   sculpt: (x, z, height) => {
     const r = Math.hypot(x, z);
     const angle = Math.atan2(z, x);

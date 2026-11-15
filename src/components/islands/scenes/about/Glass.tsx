@@ -54,17 +54,31 @@ export function Glass({ specs }: { specs: GlassSpec[] }) {
 
 /* --------------------------------------------------------------------- fumée */
 
-const PUFFS = 6;
+const PUFFS = 7;
 const puff = new Object3D();
 
 /**
- * Fumée de toutes les cheminées du village en une seule InstancedMesh : des bouffées qui
- * montent, gonflent, dérivent sous le vent d'ouest et s'effacent.
+ * Fumée de toutes les cheminées du village en une seule InstancedMesh : un filet de
+ * petites bouffées qui montent haut, gonflent à peine, se couchent sous le vent d'ouest
+ * et s'effacent. Des bouffées trop grosses, trop serrées, se liraient comme un tas de
+ * rochers blancs posé sur le toit : on garde une colonne fine, aérée et translucide.
  */
 export function Smoke({ sources, size = 1 }: { sources: Vec3[]; size?: number }) {
   const mesh = useRef<InstancedMesh>(null);
   const count = sources.length * PUFFS;
   const seeds = useMemo(() => sources.map(([x, , z]) => hash(x * 3.1 + z * 7.7) * 10), [sources]);
+
+  // Avant la première image, les bouffées attendent repliées (pas de boule à l'origine).
+  useLayoutEffect(() => {
+    const target = mesh.current;
+    if (!target) return;
+    puff.position.set(0, 0, 0);
+    puff.rotation.set(0, 0, 0);
+    puff.scale.setScalar(0);
+    puff.updateMatrix();
+    for (let index = 0; index < count; index++) target.setMatrixAt(index, puff.matrix);
+    target.instanceMatrix.needsUpdate = true;
+  }, [count]);
 
   useFrame((state) => {
     const target = mesh.current;
@@ -72,15 +86,15 @@ export function Smoke({ sources, size = 1 }: { sources: Vec3[]; size?: number })
     const time = state.clock.elapsedTime;
     sources.forEach(([x, y, z], source) => {
       for (let index = 0; index < PUFFS; index++) {
-        const life = (time * 0.17 + index / PUFFS + seeds[source]) % 1;
-        const wobble = Math.sin(time * 1.3 + index * 2.1 + source) * 0.1 * life;
+        const life = (time * 0.16 + index / PUFFS + seeds[source]) % 1;
+        const wobble = Math.sin(time * 1.3 + index * 2.1 + source) * 0.12 * life;
         puff.position.set(
-          x + (life * life * 1.5 + wobble) * size,
-          y + life * 2.6 * size,
-          z + (life * life * 0.95 - wobble) * size,
+          x + (life * life * 1.9 + wobble) * size,
+          y + (0.05 + life * 3.3) * size,
+          z + (life * life * 1.2 - wobble) * size,
         );
-        const grow = (0.16 + life * 0.5) * size;
-        const fade = life > 0.7 ? 1 - (life - 0.7) / 0.3 : Math.min(1, life * 6);
+        const grow = (0.07 + life * 0.3) * size;
+        const fade = life > 0.62 ? 1 - (life - 0.62) / 0.38 : Math.min(1, life * 8);
         puff.scale.setScalar(grow * fade);
         puff.rotation.set(index, time * 0.3 + index, 0);
         puff.updateMatrix();
@@ -93,8 +107,8 @@ export function Smoke({ sources, size = 1 }: { sources: Vec3[]; size?: number })
   if (count === 0) return null;
   return (
     <instancedMesh ref={mesh} args={[undefined, undefined, count]} frustumCulled={false} raycast={() => null}>
-      <icosahedronGeometry args={[1, 0]} />
-      <meshStandardMaterial color="#f3f0ea" roughness={1} flatShading transparent opacity={0.7} depthWrite={false} />
+      <icosahedronGeometry args={[1, 1]} />
+      <meshStandardMaterial color="#f6f3ee" emissive="#f6f3ee" emissiveIntensity={0.25} roughness={1} transparent opacity={0.55} depthWrite={false} />
     </instancedMesh>
   );
 }

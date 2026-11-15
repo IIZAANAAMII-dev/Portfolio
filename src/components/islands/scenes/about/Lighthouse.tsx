@@ -20,6 +20,7 @@ import {
   Vector3,
 } from 'three';
 import { ambience } from '@/lib/audio/ambience';
+import { logbook } from '@/lib/logbook';
 import { skyState } from '@/lib/sky';
 import { hash } from '@/lib/utils/math';
 import { Hotspot } from '../../kit';
@@ -272,6 +273,8 @@ export function Lighthouse({ sampler }: { sampler: HeightSampler }) {
             // Le gardien fait tourner le feu : quelques secondes de balayage rapide.
             spinUntil.current = clock.elapsedTime + 4.5;
             ambience.chime([392, 523, 659, 784], 0.11);
+            // « Gardien du phare » : c'est bien un phare breton.
+            if (!logbook.has('lighthouse')) logbook.stamp('lighthouse');
           }}
         >
           {tower.masonry && <mesh geometry={tower.masonry} material={materials.granite} castShadow receiveShadow />}

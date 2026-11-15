@@ -8,7 +8,7 @@ import { sculptExperience } from './layout';
  */
 const config: IslandSceneConfig = {
   // Cadrage à quai : un peu de recul et la visée relevée, pour que le portique tienne en entier.
-  camera: { zoom: 1.14, lift: 2.5 },
+  camera: { zoom: 1.3, lift: 3.0 },
   trees: 0,
   grass: 0.85,
   grassPalette: ['#7f9a40', '#5f8237', '#a9a34a', '#cdb15c'],

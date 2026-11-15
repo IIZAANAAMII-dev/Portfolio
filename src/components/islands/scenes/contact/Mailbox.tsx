@@ -35,6 +35,9 @@ const RED = '#de4a36';
 const TRIM = '#b23a2b';
 /** Hauteur du dessous de la boîte (repère non mis à l'échelle). */
 const POST = 0.82;
+/** L'enveloppe flotte haut au-dessus de la boîte : le repère de l'île, lisible de loin. */
+const ENVELOPE_Y = POST + 0.95;
+const ENVELOPE_SCALE = 1.35;
 
 function mailboxGeometries() {
   const post = new Pieces();
@@ -113,7 +116,7 @@ const GROUND = new ShaderMaterial({
   blending: AdditiveBlending,
 });
 
-export function Mailbox({ position, yaw, scale = 1.7 }: { position: Vec3; yaw: number; scale?: number }) {
+export function Mailbox({ position, yaw, scale = 2.15 }: { position: Vec3; yaw: number; scale?: number }) {
   const geometries = useMemo(() => mailboxGeometries(), []);
   const flag = useRef<Group>(null);
   const door = useRef<Group>(null);
@@ -157,21 +160,27 @@ export function Mailbox({ position, yaw, scale = 1.7 }: { position: Vec3; yaw: n
       letter.current.visible = out > 0.05;
     }
     // L'enveloppe flotte, tourne doucement ; au clic elle plonge dans la boîte, puis revient.
+    // Toutes les 7 s, elle fait un petit saut périlleux : « écris-moi ! ».
     const pulse = 0.5 + 0.5 * Math.sin(time * 2.4);
     if (envelope.current) {
       const dive = since < 0.9 ? since / 0.9 : 0;
       const back = since >= 0.9 && since < 3.2 ? 0 : since >= 3.2 && since < 4.2 ? (since - 3.2) / 1.0 : 1;
       const shown = since < 0.9 ? 1 - dive * dive : back;
-      envelope.current.position.y = POST + 0.78 + Math.sin(time * 1.8) * 0.05 - (since < 0.9 ? dive * 0.45 : 0);
-      envelope.current.rotation.set(0.12, Math.sin(time * 0.9) * 0.6, Math.sin(time * 1.3) * 0.08);
-      envelope.current.scale.setScalar(Math.max(0.001, shown));
+      const call = time % 7;
+      const flip = call < 0.9 && since > 4.2 ? call / 0.9 : 0;
+      const ease = flip * flip * (3 - 2 * flip);
+      envelope.current.position.y = ENVELOPE_Y + Math.sin(time * 1.8) * 0.05 - (since < 0.9 ? dive * 0.6 : 0) + Math.sin(flip * Math.PI) * 0.28;
+      // Face basculée vers le ciel : la caméra à quai, en plongée, lit l'enveloppe et son cachet.
+      envelope.current.rotation.set(-0.55, Math.sin(time * 0.9) * 0.45 + ease * Math.PI * 2, Math.sin(time * 1.3) * 0.08);
+      envelope.current.scale.setScalar(Math.max(0.001, shown) * ENVELOPE_SCALE * (1 + Math.sin(flip * Math.PI) * 0.12));
     }
-    ENVELOPE.emissiveIntensity = 0.3 + night * 0.9 + pulse * 0.15;
+    // Lueur douce : assez pour briller au crépuscule, jamais au point de brûler le papier.
+    ENVELOPE.emissiveIntensity = 0.22 + night * 0.38 + pulse * 0.1;
     HALO.opacity = (0.32 + night * 0.45) * (0.8 + pulse * 0.2);
     GROUND.uniforms.uStrength.value = 0.16 + night * 0.38 + pulse * 0.04;
     if (halo.current) {
-      halo.current.position.y = POST + 0.78 + Math.sin(time * 1.8) * 0.05;
-      halo.current.scale.setScalar(0.95 + pulse * 0.12);
+      halo.current.position.y = ENVELOPE_Y + Math.sin(time * 1.8) * 0.05;
+      halo.current.scale.setScalar(1.25 + pulse * 0.16);
     }
   });
 
@@ -190,7 +199,7 @@ export function Mailbox({ position, yaw, scale = 1.7 }: { position: Vec3; yaw: n
       <mesh geometry={LIGHT_POOL_GEOMETRY} material={GROUND} position-y={0.06} scale={0.85} renderOrder={4} raycast={() => null} />
       <group scale={scale}>
         <mesh geometry={geometries.post} material={PAINTED} castShadow raycast={() => null} />
-        <sprite ref={halo} material={HALO} position={[0, POST + 0.78, 0]} raycast={() => null} />
+        <sprite ref={halo} material={HALO} position={[0, ENVELOPE_Y, 0]} raycast={() => null} />
         <Hotspot onActivate={open} hoverScale={1.08}>
           <group ref={box} position-y={POST}>
             <mesh geometry={geometries.body} material={PAINTED} castShadow />
@@ -204,12 +213,12 @@ export function Mailbox({ position, yaw, scale = 1.7 }: { position: Vec3; yaw: n
               <mesh geometry={geometries.letter} material={PAINTED} />
             </group>
           </group>
-          <group ref={envelope} position-y={POST + 0.78}>
+          <group ref={envelope} position-y={ENVELOPE_Y} scale={ENVELOPE_SCALE}>
             <mesh geometry={geometries.envelope} material={ENVELOPE} />
           </group>
           {/* Volume de clic généreux (invisible) : boîte, poteau et enveloppe. */}
-          <mesh position-y={POST * 0.75 + 0.3} visible={false}>
-            <cylinderGeometry args={[0.45, 0.45, POST * 1.5 + 0.6, 8]} />
+          <mesh position-y={(ENVELOPE_Y + 0.25) / 2} visible={false}>
+            <cylinderGeometry args={[0.45, 0.45, ENVELOPE_Y + 0.25, 8]} />
           </mesh>
         </Hotspot>
       </group>
