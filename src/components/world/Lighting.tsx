@@ -55,6 +55,7 @@ export function Lighting({ shadows }: { shadows: boolean }) {
   // AVANT tous les autres systèmes de la frame (océan, atmosphère, bateau…).
   useFrame((_, delta) => {
     const dt = Math.min(delta, 1 / 30);
+    const lightDt = preview.time === null ? dt : 10;
     const { phase, reveal, gameTransition, timeOfDay, setTimeOfDay } = useWorld.getState();
     const dayLight = smoothstep(0.08, 0.9, reveal);
     const stillIntro = phase === 'loading' || phase === 'intro'
@@ -86,7 +87,7 @@ export function Lighting({ shadows }: { shadows: boolean }) {
         sun.current.intensity,
         (0.2 + dayLight * 2.3 + stillIntro * 0.45) * (1 - dayNight * 0.75) * (1 - storm * 0.78),
         1.6,
-        dt,
+        lightDt,
       );
       const x = Math.cos(angle) * 80;
       const y = Math.max(sunElevation * 70, 10);
@@ -102,7 +103,7 @@ export function Lighting({ shadows }: { shadows: boolean }) {
         sky.current.intensity,
         (0.18 + dayLight * 1.22 + stillIntro * 1.05) * (1 - dayNight * 0.5) * (1 - storm * 0.58),
         1.6,
-        dt,
+        lightDt,
       );
     }
     if (ambient.current) {
@@ -111,7 +112,7 @@ export function Lighting({ shadows }: { shadows: boolean }) {
         ambient.current.intensity,
         (0.22 + dayLight * 0.3 + stillIntro * 1.15) * (1 - storm * 0.44),
         1.6,
-        dt,
+        lightDt,
       );
     }
     if (pool.current) {

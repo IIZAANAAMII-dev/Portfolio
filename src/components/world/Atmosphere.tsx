@@ -7,6 +7,7 @@ import { skyState } from '@/lib/sky';
 import { ecologyState } from '@/lib/ecology';
 import { useWorld } from '@/lib/store';
 import { damp, hash, smoothstep } from '@/lib/utils/math';
+import { CaptureRig } from './render/CaptureRig';
 
 const NIGHT = new Color('#04070a');
 const INTRO_FOG = new Color('#020408');
@@ -354,6 +355,7 @@ export function Atmosphere() {
 
   return (
     <>
+      {process.env.NODE_ENV !== 'production' && <CaptureRig />}
       <fog ref={fogRef} attach="fog" args={[INTRO_FOG.getHex(), 11, 24]} />
       <color ref={backgroundRef} attach="background" args={[INTRO_FOG.getHex()]} />
       <mesh scale={420}>
