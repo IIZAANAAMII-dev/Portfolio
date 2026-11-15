@@ -8,6 +8,7 @@ import {
   Color,
   CylinderGeometry,
   DoubleSide,
+  IcosahedronGeometry,
   InstancedBufferAttribute,
   InstancedMesh,
   Matrix4,
@@ -15,6 +16,7 @@ import {
   Quaternion,
   Vector3,
 } from 'three';
+import { skyState } from '@/lib/sky';
 import { clothClock } from '@/lib/substance-models';
 import { hash } from '@/lib/utils/math';
 import { MeshBuilder, type Vec3 } from './shapes';
@@ -24,7 +26,8 @@ import { tickWind, WIND_GLSL, windUniforms } from './wind';
  * Guirlande de fanions : une corde qui fait le ventre entre deux points d'attache, et des
  * fanions triangulaires qui claquent au vent. Les fanions ondulent comme les autres tissus
  * du monde (même vague, même horloge que `clothClock`) et se soulèvent au passage des
- * rafales. Deux draw calls : la corde, et tous les fanions (instanciés).
+ * rafales. Deux draw calls : la corde, et tous les fanions (instanciés) ; en option, des
+ * ampoules de guinguette entre les fanions, qui s'allument au crépuscule (un de plus).
  */
 
 /** Couleurs des fanions : rouge, ocre, sarcelle, crème (les tissus du monde) et bleu breton. */
@@ -106,6 +109,10 @@ function createPennantMaterial() {
 
 const PENNANT_MATERIAL = createPennantMaterial();
 const ROPE_MATERIAL = new MeshStandardMaterial({ color: '#d9bd86', roughness: 1, metalness: 0, vertexColors: true });
+/** Ampoules : verre laiteux le jour, braise dorée la nuit (partagé par toutes les guirlandes). */
+const BULB = new IcosahedronGeometry(0.045, 1).translate(0, -0.06, 0);
+const BULB_MATERIAL = new MeshStandardMaterial({ color: '#fff3d2', emissive: '#ffb65a', emissiveIntensity: 0.1, roughness: 0.35, metalness: 0 });
+BULB_MATERIAL.name = 'bunting-bulbs';
 
 /** Point de la corde (parabole) entre `from` et `to`, creusée de `sag` au milieu. */
 function ropeAt(from: Vec3, to: Vec3, sag: number, t: number): Vec3 {
@@ -131,6 +138,7 @@ export function Bunting({
   spacing = 0.42,
   colors = BUNTING_COLORS,
   seed = 1,
+  bulbs = false,
 }: {
   /** Points d'attache, dans le repère du parent. */
   from: Vec3;
@@ -141,8 +149,11 @@ export function Bunting({
   spacing?: number;
   colors?: string[];
   seed?: number;
+  /** Ampoules de guinguette entre les fanions (allumées du crépuscule à l'aube). */
+  bulbs?: boolean;
 }) {
   const mesh = useRef<InstancedMesh>(null);
+  const bulbMesh = useRef<InstancedMesh>(null);
   const [fx, fy, fz] = from;
   const [tx, ty, tz] = to;
   const span = Math.hypot(tx - fx, ty - fy, tz - fz);
@@ -201,14 +212,36 @@ export function Bunting({
     if (target.instanceColor) target.instanceColor.needsUpdate = true;
     target.computeBoundingSphere();
     if (target.boundingSphere) target.boundingSphere.radius += 0.5;
-  }, [colors, count, fx, fy, fz, sag, seed, tx, ty, tz]);
+    // Une ampoule entre deux fanions, accrochée sous la corde.
+    const lights = bulbMesh.current;
+    if (!lights) return;
+    for (let index = 1; index < count; index++) {
+      where.set(...ropeAt(start, end, sag, index / count));
+      matrix.makeTranslation(where.x, where.y, where.z);
+      lights.setMatrixAt(index - 1, matrix);
+      lights.setColorAt(index - 1, tint.set(index % 3 === 0 ? '#ffd9b8' : index % 3 === 1 ? '#fff1c9' : '#ffe6a6'));
+    }
+    lights.instanceMatrix.needsUpdate = true;
+    if (lights.instanceColor) lights.instanceColor.needsUpdate = true;
+    lights.computeBoundingSphere();
+  }, [bulbs, colors, count, fx, fy, fz, sag, seed, tx, ty, tz]);
 
-  useFrame((state) => tickWind(state.clock.elapsedTime));
+  useFrame((state) => {
+    tickWind(state.clock.elapsedTime);
+    if (!bulbs) return;
+    // Les ampoules s'allument avec le soir ; un léger frémissement de filament.
+    const dusk = Math.min(1, Math.max(0, (skyState.dayNight - 0.22) / 0.45));
+    const flicker = 0.95 + Math.sin(state.clock.elapsedTime * 7.3) * 0.03 + Math.sin(state.clock.elapsedTime * 2.1) * 0.02;
+    BULB_MATERIAL.emissiveIntensity = (0.08 + skyState.golden * 0.35 + dusk * 2.4) * flicker;
+  });
 
   return (
     <group>
       <mesh geometry={rope} material={ROPE_MATERIAL} castShadow={false} raycast={() => null} />
       <instancedMesh key={count} ref={mesh} args={[geometry, PENNANT_MATERIAL, count]} castShadow receiveShadow={false} raycast={() => null} />
+      {bulbs && count > 1 && (
+        <instancedMesh key={`bulbs-${count}`} ref={bulbMesh} args={[BULB, BULB_MATERIAL, count - 1]} castShadow={false} receiveShadow={false} raycast={() => null} />
+      )}
     </group>
   );
 }

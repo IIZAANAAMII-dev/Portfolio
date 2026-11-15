@@ -11,6 +11,7 @@ import { Terrain } from '@/components/islands/Terrain';
 import { BeachTreasures } from '@/components/islands/props/Beach';
 import { Butterflies } from '@/components/islands/props/Butterflies';
 import { Bunting } from '@/components/islands/props/Bunting';
+import { Dinghy } from '@/components/islands/props/Dinghy';
 import { FlagPole } from '@/components/islands/props/FlagPole';
 import { FlowerScatter } from '@/components/islands/props/Flowers';
 import { Kiosk } from '@/components/islands/props/Kiosk';
@@ -30,8 +31,9 @@ import { damp, smoothstep } from '@/lib/utils/math';
  *
  * Tout est procédural (aucun modèle sous licence) : la capitainerie au pignon « Départ »,
  * l'escalier de bois qui monte du ponton, le sentier de dalles, le mât au Gwenn-ha-Du et
- * ses guirlandes de fanions, les rochers, fleurs, étoiles de mer et coquillages. Le ponton
- * reste libre (un chat viendra s'y installer).
+ * ses guirlandes de fanions (ampoules de guinguette allumées le soir), l'annexe tirée au
+ * sec, un cocotier penché sur le lagon, les rochers, fleurs, étoiles de mer et coquillages.
+ * Le ponton reste libre (un chat viendra s'y installer).
  */
 
 const { radius: RADIUS, elevation: ELEVATION, dockAngle: DOCK_ANGLE } = homeIsland;
@@ -62,7 +64,11 @@ function harborPlan(sampler: HeightSampler) {
   const postX = stairTo[0] + 0.85;
   const postZ = stairTo[1] + 0.55;
   const postY = groundAt(sampler, postX, postZ, 0.2) - 0.05;
-  return { stairFrom, stairTo, stairTop, kioskX, kioskY, kioskZ, kioskYaw, porch, gable, mast: [mastX, mastY, mastZ] as [number, number, number], post: [postX, postY, postZ] as [number, number, number] };
+  // L'annexe tirée au sec sur la grève, à gauche du ponton (secteur laissé libre par les
+  // galets) : couchée le long de la plage, l'étrave tournée vers l'escalier.
+  const boatAngle = DOCK_ANGLE - 0.46;
+  const boat = { x: Math.cos(boatAngle) * 6.15, z: Math.sin(boatAngle) * 6.15, yaw: -(boatAngle + Math.PI / 2 + 0.28) };
+  return { stairFrom, stairTo, stairTop, kioskX, kioskY, kioskZ, kioskYaw, porch, gable, boat, mast: [mastX, mastY, mastZ] as [number, number, number], post: [postX, postY, postZ] as [number, number, number] };
 }
 
 /** Piquet de bois qui tient la guirlande en haut de l'escalier. */
@@ -103,11 +109,12 @@ function HarborDressing({ sampler, plateau }: { sampler: HeightSampler; plateau:
     [-1.6, sampler(-1.6, 2.6), 2.6],
     [-3.2, sampler(-3.2, -0.6), -0.6],
   ], [plan, sampler]);
-  const { stairFrom, stairTo, stairTop, kioskX, kioskY, kioskZ, kioskYaw, porch, gable, mast, post } = plan;
+  const { stairFrom, stairTo, stairTop, kioskX, kioskY, kioskZ, kioskYaw, porch, gable, boat, mast, post } = plan;
   const mastTop: [number, number, number] = [mast[0], mast[1] + 4.35, mast[2]];
   return (
     <>
       <Kiosk position={[kioskX, kioskY, kioskZ]} rotation={kioskYaw} ground={sampler} />
+      <Dinghy sampler={sampler} x={boat.x} z={boat.z} yaw={boat.yaw} />
       <StonePath
         sampler={sampler}
         points={[stairTo, [(stairTo[0] + porch[0]) / 2 + 0.15, (stairTo[1] + porch[1]) / 2], porch]}
@@ -118,8 +125,8 @@ function HarborDressing({ sampler, plateau }: { sampler: HeightSampler; plateau:
       <FlagPole position={mast} rotation={FLAG_YAW} height={4.6} texture={gwennHaDu} width={1.35} />
       <Post position={post} />
       {/* Guirlande continue : du mât au pignon, puis du pignon au piquet de l'escalier. */}
-      <Bunting from={[mastTop[0], mastTop[1] - 0.6, mastTop[2]]} to={gable} sag={0.35} seed={3} />
-      <Bunting from={gable} to={[post[0], post[1] + 1.68, post[2]]} sag={0.22} spacing={0.38} seed={11} />
+      <Bunting from={[mastTop[0], mastTop[1] - 0.6, mastTop[2]]} to={gable} sag={0.35} seed={3} bulbs />
+      <Bunting from={gable} to={[post[0], post[1] + 1.68, post[2]]} sag={0.22} spacing={0.38} seed={11} bulbs />
       <RockScatter sampler={sampler} groups={rocks} />
       <FlowerScatter
         sampler={sampler}

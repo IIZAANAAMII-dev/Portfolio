@@ -28,7 +28,8 @@ import type { HeightSampler } from './terrain-shape';
 
 /**
  * Arbres tropicaux : des flamboyants à large ombrelle (fleurs de feu dessus, feuillage vert
- * dessous) et quelques arbres verts plus ronds. Le houppier est fait de centaines de
+ * dessous), quelques arbres verts plus ronds et, en haut de plage, des cocotiers penchés
+ * vers le lagon (même maillages : folioles et tronçons). Le houppier est fait de centaines de
  * petites feuilles instanciées dont la normale est celle des masses qui les portent : le
  * feuillage s'éclaire en volume tout en gardant une silhouette découpée.
  *
@@ -301,12 +302,20 @@ const GREEN_LIGHT = new Color('#9cc35a');
 const UNDERLEAF = new Color('#4f8238');
 const SUNLIT = new Color('#ffc36b');
 const BARK = new Color('#7a5034');
+const PALM_GREEN = new Color('#5f9c3f');
+const PALM_LIGHT = new Color('#b4cf5a');
+const PALM_DRY = new Color('#c9a85a');
+const PALM_BARK = new Color('#a88a66');
+const PALM_RING = new Color('#7f6448');
+const COCONUT = new Color('#6b6a2c');
 
 interface Leaf {
   offset: Vector3;
   normal: Vector3;
   rotation: Quaternion;
   size: number;
+  /** Allongement de la feuille le long de son axe (folioles de palme). */
+  stretch: number;
   sway: number;
   color: Color;
 }
@@ -373,6 +382,7 @@ function cover(masses: Mass[], count: number, seed: number, crownCenter: Vector3
       normal,
       rotation,
       size: (0.24 + hash(key + 5.9) * 0.17) * size,
+      stretch: 1,
       sway: Math.min(1, Math.max(0.15, offset.y / crownTop)),
       color: paint(direction, key).multiplyScalar(0.84 + 0.22 * Math.min(1, (distance / mass.radius - 0.62) / 0.38)),
     });
@@ -470,12 +480,111 @@ function designTree(seed: number, flameHex: Color, density: number): TreeDesign 
   return { flame, crownTop, leaves, wood, petals, flies, petalColor: flameLight.clone() };
 }
 
+const basis = new Matrix4();
+const across = new Vector3();
+const facing = new Vector3();
+
+/**
+ * Cocotier de haut de plage, penché vers le lagon (+x local, tourné à la pose) : stipe
+ * annelé fait de tronçons empilés qui se redresse vers la tête, couronne de palmes
+ * arquées dont les folioles retombent en V, deux jeunes palmes dressées au cœur, quelques
+ * noix sous la couronne. Mêmes maillages instanciés que les autres arbres : aucun draw call
+ * de plus, et le même vent (la tête se balance, les folioles frémissent).
+ */
+function designPalm(seed: number, density: number): TreeDesign {
+  const height = 3.0 + hash(seed * 2.3) * 1.2;
+  const lean = 0.42 + hash(seed * 4.7) * 0.2;
+  const wobble = (hash(seed * 5.9) - 0.5) * 0.5;
+  const segments = 9;
+  const trunk = Array.from({ length: segments + 1 }, (_, index) => {
+    const t = index / segments;
+    // Pied incliné, tête qui se redresse vers la lumière (pente maximale au pied).
+    return new Vector3(height * lean * (2 * t - t * t) * 0.8, height * t, Math.sin(t * Math.PI) * wobble);
+  });
+  trunk[0].y = -0.15;
+  const wood: WoodPiece[] = [];
+  for (let index = 0; index < segments; index++) {
+    const t = index / segments;
+    // Tronçons légèrement évasés : chaque bague déborde de la précédente (cicatrices des palmes).
+    const ring = (index % 2 ? PALM_BARK : PALM_RING).clone().multiplyScalar(0.94 + hash(seed + index * 1.3) * 0.12);
+    wood.push({ from: trunk[index], to: trunk[index + 1], radius: 0.2 - t * 0.065, flare: index === 0 ? 0.32 : 0, color: ring });
+  }
+  const crown = trunk[segments].clone().add(new Vector3(0, 0.04, 0));
+  // Noix de coco serrées sous la couronne.
+  for (let index = 0; index < 3; index++) {
+    const angle = hash(seed * 3.7) * 6.28 + index * 2.2;
+    const at = crown.clone().add(new Vector3(Math.cos(angle) * 0.16, -0.06, Math.sin(angle) * 0.16));
+    wood.push({ from: at, to: at.clone().add(new Vector3(Math.cos(angle) * 0.05, -0.2, Math.sin(angle) * 0.05)), radius: 0.11, flare: 0, color: COCONUT.clone().multiplyScalar(0.9 + index * 0.08) });
+  }
+
+  const leaves: Leaf[] = [];
+  const fronds = Math.max(7, Math.round(10 * Math.min(1, density + 0.15)));
+  const stations = density < 0.7 ? 6 : 8;
+  const skyward = new Vector3(0, 1, 0);
+  const horizontal = new Vector3();
+  const tangent = new Vector3();
+  for (let frond = 0; frond < fronds; frond++) {
+    const key = seed * 3.1 + frond * 7.7;
+    const young = frond < 2;
+    const azimuth = (frond / fronds) * Math.PI * 2 + hash(key) * 0.55;
+    const length = young ? 1.0 + hash(key + 1.7) * 0.3 : 1.75 + hash(key + 1.7) * 0.65;
+    const rise = young ? 1.05 + hash(key + 2.9) * 0.2 : -0.12 + hash(key + 2.9) * 0.6;
+    const droop = young ? 0.3 : 0.8 + hash(key + 4.1) * 0.45;
+    // Les palmes basses et tombantes jaunissent (une sur deux).
+    const dry = !young && rise < 0.12 && hash(key + 6.1) < 0.5;
+    horizontal.set(Math.cos(azimuth), 0, Math.sin(azimuth));
+    for (let station = 0; station < stations; station++) {
+      const t = 0.14 + (0.86 * station) / (stations - 1);
+      // Rachis : départ selon `rise`, puis la palme s'arque et retombe (terme en t²).
+      const point = crown.clone()
+        .addScaledVector(horizontal, length * t * Math.cos(rise))
+        .addScaledVector(skyward, length * (t * Math.sin(rise) - droop * t * t));
+      tangent.copy(horizontal).multiplyScalar(Math.cos(rise)).addScaledVector(skyward, Math.sin(rise) - 2 * droop * t).normalize();
+      across.crossVectors(tangent, skyward).normalize();
+      const leaflet = (young ? 0.36 : 0.6) * (0.5 + 0.5 * Math.sin(Math.PI * (0.18 + 0.82 * t)));
+      for (const side of [-1, 1]) {
+        // Foliole en V : part du rachis vers l'extérieur, retombe, file un peu vers la pointe.
+        const along = across.clone().multiplyScalar(side * 0.8).addScaledVector(skyward, young ? -0.15 : -0.55).addScaledVector(tangent, 0.4).normalize();
+        const center = point.clone().addScaledVector(along, leaflet * 0.5);
+        facing.crossVectors(along, tangent).normalize();
+        if (facing.y < 0) facing.negate();
+        const sideways = new Vector3().crossVectors(along, facing).normalize();
+        facing.crossVectors(sideways, along).normalize();
+        basis.makeBasis(sideways, along, facing);
+        const width = young ? 0.12 : 0.15;
+        const size = width / 0.73;
+        const tone = 0.86 + hash(key + station * 1.9 + side) * 0.18;
+        const color = (young ? PALM_LIGHT.clone() : PALM_GREEN.clone().lerp(PALM_LIGHT, t * 0.5 + hash(key + station) * 0.12));
+        if (dry) color.lerp(PALM_DRY, 0.45 + t * 0.35);
+        leaves.push({
+          offset: center,
+          // Normale de dôme : la couronne s'éclaire comme une ombrelle étoilée.
+          normal: center.clone().sub(crown).normalize().multiplyScalar(0.55).add(new Vector3(0, 0.75, 0)).normalize(),
+          rotation: new Quaternion().setFromRotationMatrix(basis),
+          size,
+          stretch: leaflet / size,
+          sway: 0.5 + 0.5 * t,
+          color: color.multiplyScalar(tone),
+        });
+      }
+    }
+  }
+  const crownTop = Math.max(...leaves.map((leaf) => leaf.offset.y)) + 0.2;
+  const flies = Array.from({ length: 3 }, (_, index) => {
+    const angle = (index / 3) * Math.PI * 2 + hash(seed + index * 1.9);
+    return new Vector3(crown.x * 0.6 + Math.cos(angle) * 1.2, 0.8 + hash(seed + index * 4.4) * height * 0.6, Math.sin(angle) * 1.2);
+  });
+  return { flame: false, crownTop, leaves, wood, petals: [], flies, petalColor: PALM_DRY.clone() };
+}
+
 /* ------------------------------------------------------------- emplacements */
 
 interface Spot {
   x: number;
   y: number;
   z: number;
+  /** Rotation de l'arbre autour de son pied (les palmiers penchent vers le large). */
+  yaw: number;
 }
 
 function slope(sampler: HeightSampler, x: number, z: number) {
@@ -500,18 +609,49 @@ function candidateSpots(sampler: HeightSampler, radius: number, plateau: number,
     const z = Math.sin(angle) * spread;
     const y = sampler(x, z);
     if (y < plateau - 0.2 || slope(sampler, x, z) > 0.3) continue;
-    spots.push({ x, y: y - 0.1, z });
+    spots.push({ x, y: y - 0.1, z, yaw: 0 });
   }
   return spots;
 }
 
-/** Premiers emplacements hors clairières, espacés d'au moins 4,2 m. */
-function chooseSpots(spots: Spot[], wanted: number, clearings: Clearing[]) {
+/**
+ * Emplacements des palmiers : en haut de plage, sur le sable sec au pied de la falaise,
+ * loin du ponton (le bateau y accoste). Le palmier penche vers le large.
+ */
+function shoreSpots(sampler: HeightSampler, radius: number, avoidAngle: number | undefined, seed: number) {
+  const spots: Spot[] = [];
+  for (let attempt = 1; spots.length < 10 && attempt < 120; attempt++) {
+    const angle = hash(seed * 1.31 + attempt * 2.71) * Math.PI * 2;
+    if (avoidAngle !== undefined && angleGap(angle, avoidAngle) < 1.0) continue;
+    const cos = Math.cos(angle);
+    const sin = Math.sin(angle);
+    // De la mer vers l'intérieur : premier point de sable assez haut (hors d'atteinte du ressac).
+    let reach = -1;
+    for (let r = radius * 1.06; r > radius * 0.6; r -= 0.12) {
+      if (sampler(cos * r, sin * r) > 0.5) {
+        reach = r;
+        break;
+      }
+    }
+    if (reach < 0) continue;
+    const x = cos * reach;
+    const z = sin * reach;
+    const y = sampler(x, z);
+    // Une falaise qui plonge droit dans l'eau n'a pas de plage : pas de palmier.
+    if (y > 0.9 || slope(sampler, x, z) > 0.4) continue;
+    spots.push({ x, y: y - 0.12, z, yaw: -angle + (hash(seed + attempt * 5.3) - 0.5) * 0.7 });
+  }
+  return spots;
+}
+
+/** Premiers emplacements hors clairières, espacés d'au moins `spacing` mètres (et des arbres déjà posés). */
+function chooseSpots(spots: Spot[], wanted: number, clearings: Clearing[], spacing = 4.2, taken: Spot[] = [], margin = 1.4) {
   const chosen: Spot[] = [];
   for (const spot of spots) {
     if (chosen.length >= wanted) break;
-    if (clearings.some((c) => Math.hypot(spot.x - c.x, spot.z - c.z) < c.radius + 1.4)) continue;
-    if (chosen.some((other) => Math.hypot(spot.x - other.x, spot.z - other.z) < 4.2)) continue;
+    if (clearings.some((c) => Math.hypot(spot.x - c.x, spot.z - c.z) < c.radius + margin)) continue;
+    if (chosen.some((other) => Math.hypot(spot.x - other.x, spot.z - other.z) < spacing)) continue;
+    if (taken.some((other) => Math.hypot(spot.x - other.x, spot.z - other.z) < 2.4)) continue;
     chosen.push(spot);
   }
   return chosen;
@@ -519,9 +659,12 @@ function chooseSpots(spots: Spot[], wanted: number, clearings: Clearing[]) {
 
 const matrix = new Matrix4();
 const quaternion = new Quaternion();
+const turn = new Quaternion();
 const position = new Vector3();
 const scale = new Vector3();
 const direction = new Vector3();
+const start = new Vector3();
+const end = new Vector3();
 const up = new Vector3(0, 1, 0);
 
 /* ------------------------------------------------------------------ montage */
@@ -534,6 +677,7 @@ export function Trees({
   seed,
   flame,
   count,
+  palms,
 }: {
   sampler: HeightSampler;
   radius: number;
@@ -544,6 +688,8 @@ export function Trees({
   /** Couleur des flamboyants de cette île. */
   flame: string;
   count: number;
+  /** Palmiers de haut de plage (défaut : un pour 7 m de rayon, trois au plus). */
+  palms?: number;
 }) {
   const leaves = useRef<InstancedMesh>(null);
   const woods = useRef<InstancedMesh>(null);
@@ -554,15 +700,21 @@ export function Trees({
   const seenVersion = useRef(-1);
   const quality = useWorld((state) => state.quality);
   const wanted = quality === 'low' ? Math.max(1, count - 1) : count;
+  const palmCount = palms ?? Math.min(3, Math.max(1, Math.round(radius / 7)));
+  const wantedPalms = quality === 'low' ? Math.min(1, palmCount) : palmCount;
   const density = quality === 'low' ? 0.62 : quality === 'medium' ? 0.85 : 1;
   const petalsPerTree = quality === 'high' ? 6 : quality === 'medium' ? 4 : 0;
   const fliesPerTree = quality === 'low' ? 0 : quality === 'medium' ? 4 : 6;
 
   const designs = useMemo(() => {
     const color = new Color(flame);
-    return Array.from({ length: wanted }, (_, index) => designTree(seed * 7.3 + index * 19.1, color, density));
-  }, [density, flame, seed, wanted]);
+    return [
+      ...Array.from({ length: wanted }, (_, index) => designTree(seed * 7.3 + index * 19.1, color, density)),
+      ...Array.from({ length: wantedPalms }, (_, index) => designPalm(seed * 5.1 + index * 23.7, density)),
+    ];
+  }, [density, flame, seed, wanted, wantedPalms]);
   const spots = useMemo(() => candidateSpots(sampler, radius, plateau, avoidAngle, seed), [avoidAngle, plateau, radius, sampler, seed]);
+  const shore = useMemo(() => shoreSpots(sampler, radius, avoidAngle, seed), [avoidAngle, radius, sampler, seed]);
   const leafCount = designs.reduce((sum, design) => sum + design.leaves.length, 0);
   const woodCount = designs.reduce((sum, design) => sum + design.wood.length, 0);
   const petalCount = designs.reduce((sum, design) => sum + Math.min(petalsPerTree, design.petals.length), 0);
@@ -630,8 +782,10 @@ export function Trees({
     const petalMesh = petals.current;
     const flyPoints = flies.current;
     if (!leafMesh || !woodMesh) return;
-    const chosen = chooseSpots(spots, designs.length, clearingList);
+    const trees = chooseSpots(spots, wanted, clearingList);
+    const beach = chooseSpots(shore, wantedPalms, clearingList, 4.5, trees, 0.9);
     const leafTree = leafMesh.geometry.getAttribute('aTree') as InstancedBufferAttribute;
+    const leafNormal = leafMesh.geometry.getAttribute('aSphereNormal') as InstancedBufferAttribute;
     const woodTree = woodMesh.geometry.getAttribute('aTree') as InstancedBufferAttribute;
     const petalTree = petalMesh?.geometry.getAttribute('aTree') as InstancedBufferAttribute | undefined;
     const flyPosition = flyPoints?.geometry.getAttribute('position') as BufferAttribute | undefined;
@@ -640,17 +794,21 @@ export function Trees({
     let petalCursor = 0;
     let flyCursor = 0;
     designs.forEach((design, index) => {
-      const spot = chosen[index];
+      // Les arbres prennent les emplacements du plateau, les palmiers ceux de la plage.
+      const spot: Spot | undefined = index < wanted ? trees[index] : beach[index - wanted];
       // Pas de place : l'arbre est replié à l'échelle zéro (ni rendu, ni ombre).
       const visible = spot ? 1 : 0;
-      const root = spot ?? { x: 0, y: -50, z: 0 };
+      const root = spot ?? { x: 0, y: -50, z: 0, yaw: 0 };
       const tree = [root.x, root.y, root.z, design.crownTop] as const;
+      turn.setFromAxisAngle(up, root.yaw);
       for (const piece of design.wood) {
-        direction.subVectors(piece.to, piece.from);
+        start.copy(piece.from).applyQuaternion(turn);
+        end.copy(piece.to).applyQuaternion(turn);
+        direction.subVectors(end, start);
         const length = direction.length();
         quaternion.setFromUnitVectors(up, direction.normalize());
         matrix.compose(
-          position.set(root.x + piece.from.x, root.y + piece.from.y, root.z + piece.from.z),
+          position.set(root.x + start.x, root.y + start.y, root.z + start.z),
           quaternion,
           scale.set(piece.radius * visible, length * visible, piece.radius * visible),
         );
@@ -659,9 +817,17 @@ export function Trees({
         woodCursor += 1;
       }
       for (const leaf of design.leaves) {
-        matrix.compose(position.set(root.x + leaf.offset.x, root.y + leaf.offset.y, root.z + leaf.offset.z), leaf.rotation, scale.setScalar(leaf.size * visible));
+        start.copy(leaf.offset).applyQuaternion(turn);
+        quaternion.copy(turn).multiply(leaf.rotation);
+        matrix.compose(
+          position.set(root.x + start.x, root.y + start.y, root.z + start.z),
+          quaternion,
+          scale.set(leaf.size * visible, leaf.size * leaf.stretch * visible, leaf.size * visible),
+        );
         leafMesh.setMatrixAt(leafCursor, matrix);
         leafTree.setXYZW(leafCursor, ...tree);
+        end.copy(leaf.normal).applyQuaternion(turn);
+        leafNormal.setXYZ(leafCursor, end.x, end.y, end.z);
         leafCursor += 1;
       }
       for (let item = 0; item < Math.min(petalsPerTree, design.petals.length); item++) {
@@ -673,14 +839,15 @@ export function Trees({
         petalCursor += 1;
       }
       for (let item = 0; item < fliesPerTree; item++) {
-        const anchor = design.flies[item % design.flies.length];
-        flyPosition?.setXYZ(flyCursor, root.x + anchor.x, root.y + anchor.y - (visible ? 0 : 100), root.z + anchor.z);
+        start.copy(design.flies[item % design.flies.length]).applyQuaternion(turn);
+        flyPosition?.setXYZ(flyCursor, root.x + start.x, root.y + start.y - (visible ? 0 : 100), root.z + start.z);
         flyCursor += 1;
       }
     });
     woodMesh.instanceMatrix.needsUpdate = true;
     leafMesh.instanceMatrix.needsUpdate = true;
     leafTree.needsUpdate = true;
+    leafNormal.needsUpdate = true;
     woodTree.needsUpdate = true;
     woodMesh.computeBoundingSphere();
     leafMesh.computeBoundingSphere();
