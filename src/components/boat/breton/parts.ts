@@ -306,15 +306,15 @@ export function buildBoatGeometries() {
     shop.add(new BoxGeometry(0.02, 0.13, 0.16), C.black, { at: [at[0] - 0.02, at[1], at[2] - Math.sign(at[2]) * 0.07], rot: [0, (face === 2 ? 45 : -45) * deg, 0], flat: true });
   }
 
-  /* --- Plage avant : guindeau, bittes, glène, ancre au davier. */
-  const winchX = 2.12;
+  /* --- Plage avant : guindeau, bittes, glène, ancre saisie sur le pont, davier. */
+  const winchX = 2.02;
   const winchY = deckAt(winchX);
   shop.add(new BoxGeometry(0.26, 0.12, 0.3), C.navy, { at: [winchX, winchY + 0.06, 0], flat: true });
   shop.add(new CylinderGeometry(0.09, 0.09, 0.34, 12), C.hull, { at: [winchX, winchY + 0.2, 0], rot: [Math.PI / 2, 0, 0] });
   for (const side of [1, -1]) {
     shop.add(new CylinderGeometry(0.12, 0.12, 0.03, 12), C.navy, { at: [winchX, winchY + 0.2, side * 0.19], rot: [Math.PI / 2, 0, 0] });
   }
-  for (const [bx, bz] of [[2.6, 0.3], [2.6, -0.3], [-2.9, 0.55], [-2.9, -0.55]] as const) {
+  for (const [bx, bz] of [[2.42, 0.32], [2.42, -0.32], [-2.9, 0.55], [-2.9, -0.55]] as const) {
     for (const offset of [-0.07, 0.07]) {
       shop.add(new CylinderGeometry(0.035, 0.04, 0.16, 8), C.navyDark, { at: [bx + offset, deckAt(bx + offset, bz) + 0.08, bz] });
     }
@@ -324,15 +324,16 @@ export function buildBoatGeometries() {
   shop.add(new BoxGeometry(0.34, 0.06, 0.12), C.navyDark, { at: [stemX - 0.02, stemY + 0.03, 0], flat: true });
   shop.add(new CylinderGeometry(0.04, 0.04, 0.1, 8), C.steel, { at: [stemX + 0.13, stemY + 0.05, 0], rot: [Math.PI / 2, 0, 0] });
   {
-    // Ancre à jas, suspendue devant l'étrave, vue de profil.
-    const ax = stemX + 0.17;
-    const top = stemY;
-    shop.add(new CylinderGeometry(0.022, 0.022, 0.5, 6), C.black, { at: [ax, top - 0.25, 0] });
-    shop.add(new TorusGeometry(0.15, 0.024, 5, 12, Math.PI), C.black, { at: [ax, top - 0.36, 0], rot: [0, 0, Math.PI] });
-    for (const side of [1, -1]) {
-      shop.add(new ConeGeometry(0.05, 0.13, 4), C.black, { at: [ax + side * 0.15, top - 0.33, 0], rot: [0, 0, side * 20 * deg], flat: true });
-    }
-    shop.add(new CylinderGeometry(0.015, 0.015, 0.34, 5), C.black, { at: [ax, top - 0.06, 0], rot: [Math.PI / 2, 0, 0] });
+    // Ancre à jas saisie à plat sur la plage avant : sa silhouette se lit depuis la caméra haute.
+    const anchor = new PaintShop()
+      .add(new CylinderGeometry(0.022, 0.022, 0.5, 6), C.black, { at: [0, 0.25, 0] })
+      .add(new TorusGeometry(0.15, 0.024, 5, 12, Math.PI), C.black, { at: [0, 0.14, 0], rot: [0, 0, Math.PI] })
+      .add(new ConeGeometry(0.05, 0.13, 4), C.black, { at: [0.15, 0.17, 0], rot: [0, 0, 20 * deg], flat: true })
+      .add(new ConeGeometry(0.05, 0.13, 4), C.black, { at: [-0.15, 0.17, 0], rot: [0, 0, -20 * deg], flat: true })
+      .add(new TorusGeometry(0.035, 0.01, 4, 8), C.steel, { at: [0, 0.52, 0] })
+      .build();
+    // Couchée (le plan de l'ancre devient horizontal), diamant vers l'arrière, organeau vers l'étrave.
+    shop.add(anchor, null, { at: [2.3, deckAt(2.3) + 0.03, 0], rot: [-Math.PI / 2, 0, -Math.PI / 2] });
   }
 
   /* --- Glènes de cordage. */
@@ -345,7 +346,7 @@ export function buildBoatGeometries() {
       });
     });
   };
-  coil(2.42, -0.22, 0.9);
+  coil(2.18, 0.38, 0.8);
   coil(-2.72, 0.4);
   coil(-0.98, -0.12, 0.75);
 
