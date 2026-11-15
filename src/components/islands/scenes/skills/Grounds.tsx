@@ -13,13 +13,15 @@ import {
   Object3D,
   Vector3,
 } from 'three';
+import { useWorld } from '@/lib/store';
 import { hash } from '@/lib/utils/math';
 import type { SkillZoneId } from '@/types';
 import { ClearingAt } from '../../kit';
 import type { HeightSampler } from '../../terrain-shape';
+import { bump, easeInOut, easeOutBack, span } from './anim';
 import { Merger, pose, type Vec3 } from './geometry';
 import { DOCK_ANGLE, HUB, pathSpecs, PLAZA_TOP, STAIR_TOP, ZONE_SPOTS, type PathSpec } from './layout';
-import { flowMaterial, glowMaterial, labState, paintMaterial } from './materials';
+import { flowMaterial, glowMaterial, labState, paintMaterial, uiMaterial, vivid } from './materials';
 import { noRaycast } from './Zone';
 
 /**
@@ -379,6 +381,136 @@ function Orbs({ routes }: { routes: Route[] }) {
   return <instancedMesh ref={mesh} args={[geometry, glowMaterial, count]} frustumCulled={false} raycast={noRaycast} />;
 }
 
+/* ------------------------------------------------------------------ coursiers */
+
+/**
+ * Les coursiers du labo : de petits robots à roulettes qui livrent au noyau un cube de
+ * données à la couleur de leur zone. Ils attendent au bout de leur allée, filent vers la
+ * place, lèvent leur cube qui s'envole dans la coupole, font un tour sur eux-mêmes, et
+ * rentrent à vide (en tenant leur droite, les boules de lumière passent au milieu).
+ */
+const COURIERS: { route: number; period: number; phase: number; lane: number }[] = [
+  { route: 0, period: 17, phase: 0.05, lane: 0.34 },
+  { route: 2, period: 13, phase: 0.45, lane: 0.24 },
+  { route: 6, period: 14.5, phase: 0.75, lane: 0.24 },
+];
+const COURIER_SCALE = 1.6;
+/** Hauteur du plateau porte-cube (repère du robot, avant l'échelle). */
+const TRAY_Y = 0.66;
+
+/** Corps (peint) : socle et roues sombres, buste blanc, tête en dôme, visière. Avant = +Z. */
+function courierBody() {
+  const merger = new Merger();
+  merger.cylinder(0.13, 0.15, 0.09, 12, '#3b4154', [0, 0.085, 0]);
+  for (const side of [-0.15, 0.15]) merger.cylinder(0.075, 0.075, 0.05, 10, '#262a35', [side, 0.075, 0], [0, 0, Math.PI / 2], 0);
+  merger.cylinder(0.12, 0.14, 0.24, 12, '#f4efe6', [0, 0.25, 0], undefined, 0.08);
+  merger.cylinder(0.035, 0.035, 0.06, 8, '#8a93a6', [0, 0.4, 0]);
+  merger.sphere(0.13, '#f4efe6', [0, 0.47, 0], [1.15, 0.8, 1], [12, 8], 0.08);
+  merger.box([0.2, 0.07, 0.05], '#1f2433', [0, 0.48, 0.1], undefined, 0);
+  // Plateau porte-cube sur le dessus de la tête.
+  merger.cylinder(0.1, 0.08, 0.025, 10, '#8a93a6', [0, 0.575, 0], undefined, 0);
+  return merger.build();
+}
+
+/** Pièces teintées à la couleur de la zone : ceinture, oreilles, yeux, boule d'antenne. */
+function courierAccents() {
+  const merger = new Merger();
+  merger.cylinder(0.142, 0.142, 0.05, 12, '#ffffff', [0, 0.2, 0], undefined, 0);
+  for (const side of [-0.15, 0.15]) merger.cylinder(0.035, 0.035, 0.03, 8, '#ffffff', [side, 0.47, 0], [0, 0, Math.PI / 2], 0);
+  for (const side of [-0.045, 0.045]) merger.sphere(0.02, '#ffffff', [side, 0.48, 0.127], [1, 1.3, 0.6], [6, 4], 0);
+  merger.rod([0.06, 0.52, -0.04], [0.09, 0.66, -0.07], 0.008, '#ffffff', 4);
+  merger.sphere(0.025, '#ffffff', [0.09, 0.67, -0.07], 1, [6, 4], 0);
+  return merger.build();
+}
+
+const courierAt = new Vector3();
+const courierAhead = new Vector3();
+const courierBehind = new Vector3();
+const courierTint = new Color();
+/** Cap d'abord, puis inclinaison vers l'avant dans le repère du robot. */
+const courier = new Object3D();
+courier.rotation.order = 'YXZ';
+const parcel = new Object3D();
+
+function Couriers({ routes, lite }: { routes: Route[]; lite: boolean }) {
+  const bodies = useRef<InstancedMesh>(null);
+  const accents = useRef<InstancedMesh>(null);
+  const cubes = useRef<InstancedMesh>(null);
+  const shapes = useMemo(
+    () => ({ body: courierBody(), accent: courierAccents(), cube: new Merger().box([0.16, 0.16, 0.16], '#ffffff', [0, 0, 0], undefined, 0).build() }),
+    [],
+  );
+  useEffect(() => () => Object.values(shapes).forEach((shape) => shape.dispose()), [shapes]);
+  /** Où chaque coursier s'arrête sur la place : au bord, devant la coupole. */
+  const stops = useMemo(() => COURIERS.map(({ route }) => {
+    const { cumulative } = routes[route];
+    return Math.max(0.5, cumulative[cumulative.length - 2] - 0.15);
+  }), [routes]);
+
+  // Couleurs d'instance posées avant la première compilation des matériaux.
+  useLayoutEffect(() => {
+    COURIERS.forEach(({ route }, index) => {
+      courierTint.set(vivid(`#${routes[route].color.getHexString()}`, 0.92, 0.55));
+      accents.current?.setColorAt(index, courierTint);
+      cubes.current?.setColorAt(index, courierTint.multiplyScalar(1.25));
+    });
+    for (const mesh of [accents.current, cubes.current]) if (mesh?.instanceColor) mesh.instanceColor.needsUpdate = true;
+  }, [routes]);
+
+  useFrame((state) => {
+    if (!labState.awake) return;
+    const t = state.clock.elapsedTime;
+    COURIERS.forEach((spec, index) => {
+      const route = routes[spec.route];
+      const stop = stops[index];
+      const u = (((t / spec.period + spec.phase) % 1) + 1) % 1;
+      // Attente et cube qui apparaît (0 → 0.16), aller (→ 0.46), livraison et tour de
+      // joie (→ 0.56), demi-tour (→ 0.66), retour à vide (→ 0.94), demi-tour (→ 1).
+      const along = 0.1 + (stop - 0.1) * (easeInOut(span(u, 0.16, 0.3)) - easeInOut(span(u, 0.66, 0.28)));
+      routePoint(route, along, courierAt);
+      routePoint(route, along + 0.12, courierAhead);
+      routePoint(route, along - 0.12, courierBehind);
+      const dx = courierAhead.x - courierBehind.x;
+      const dz = courierAhead.z - courierBehind.z;
+      const length = Math.hypot(dx, dz) || 1;
+      const turn = easeInOut(span(u, 0.47, 0.09)) * 2 + easeInOut(span(u, 0.56, 0.1)) - easeInOut(span(u, 0.94, 0.06));
+      // Il tient sa droite : il traverse l'allée pendant ses demi-tours.
+      const side = 1 - 2 * easeInOut(span(u, 0.56, 0.1)) + 2 * easeInOut(span(u, 0.94, 0.06));
+      const lane = spec.lane * side;
+      const speed = bump(u, 0.16, 0.3) + bump(u, 0.66, 0.28);
+      const bob = speed > 0.05 ? Math.abs(Math.sin(t * 15 + index)) * 0.018 : Math.max(0, Math.sin(t * 2.4 + index)) * 0.01;
+      courier.position.set(courierAt.x - (dz / length) * lane, courierAt.y - ORB_HEIGHT + bob, courierAt.z + (dx / length) * lane);
+      courier.rotation.set(speed * 0.09, Math.atan2(dx, dz) + turn * Math.PI, 0);
+      courier.scale.setScalar(COURIER_SCALE);
+      courier.updateMatrix();
+      bodies.current?.setMatrixAt(index, courier.matrix);
+      accents.current?.setMatrixAt(index, courier.matrix);
+      // Le cube : il surgit sur le plateau au départ, s'envole dans la coupole à la
+      // livraison (le cristal du noyau s'illumine déjà avec les boules de lumière).
+      const lift = easeInOut(span(u, 0.47, 0.1));
+      const carried = u < 0.47 ? easeOutBack(span(u, 0.02, 0.08)) : 1 - lift;
+      parcel.position.set(
+        courier.position.x + (HUB.x - courier.position.x) * lift * 0.85,
+        courier.position.y + TRAY_Y * COURIER_SCALE + 0.13 + lift * 1.6 + Math.sin(t * 3 + index) * 0.02,
+        courier.position.z + (HUB.z - courier.position.z) * lift * 0.85,
+      );
+      parcel.rotation.set(lift * 3, t * 1.1 + index, lift * 2);
+      parcel.scale.setScalar(Math.max(0.001, carried) * COURIER_SCALE);
+      parcel.updateMatrix();
+      cubes.current?.setMatrixAt(index, parcel.matrix);
+    });
+    for (const mesh of [bodies.current, accents.current, cubes.current]) if (mesh) mesh.instanceMatrix.needsUpdate = true;
+  });
+
+  return (
+    <>
+      <instancedMesh ref={bodies} args={[shapes.body, paintMaterial, COURIERS.length]} castShadow={!lite} frustumCulled={false} raycast={noRaycast} />
+      <instancedMesh ref={accents} args={[shapes.accent, uiMaterial, COURIERS.length]} frustumCulled={false} raycast={noRaycast} />
+      <instancedMesh ref={cubes} args={[shapes.cube, glowMaterial, COURIERS.length]} frustumCulled={false} raycast={noRaycast} />
+    </>
+  );
+}
+
 /* ---------------------------------------------------------------- composant */
 
 export function Grounds({ sampler, accents, islandAccent }: { sampler: HeightSampler; accents: Record<SkillZoneId, string>; islandAccent: string }) {
@@ -386,6 +518,7 @@ export function Grounds({ sampler, accents, islandAccent }: { sampler: HeightSam
   const built = useMemo(() => buildGrounds(sampler, specs), [sampler, specs]);
   const rocks = useMemo(() => rockSpots(sampler), [sampler]);
   const flowers = useMemo(() => flowerSpots(sampler), [sampler]);
+  const lite = useWorld((state) => state.quality === 'low');
   const rock = useMemo(() => new IcosahedronGeometry(1, 0), []);
   const flower = useMemo(() => new Merger().add(new IcosahedronGeometry(1, 0), '#ffffff', undefined, 0).build(), []);
   // Herbe tondue sur les allées : des clairières le long de l'allée du ponton et au milieu
@@ -423,6 +556,7 @@ export function Grounds({ sampler, accents, islandAccent }: { sampler: HeightSam
       <mesh geometry={built.glow} material={glowMaterial} raycast={noRaycast} />
       <mesh geometry={built.flow} material={flowMaterial} raycast={noRaycast} />
       <Orbs routes={built.routes} />
+      <Couriers routes={built.routes} lite={lite} />
       <Scattered spots={rocks} geometry={rock} material={rockMaterial} castShadow />
       <Scattered spots={flowers} geometry={flower} material={paintMaterial} />
     </>

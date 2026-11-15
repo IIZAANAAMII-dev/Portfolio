@@ -150,6 +150,13 @@ export function Workshop({ sampler }: { sampler: HeightSampler }) {
   const screenMain = useRef<MeshBasicMaterial>(null);
   const embers = useRef<MeshBasicMaterial>(null);
   const interiorPaint = useRef<MeshStandardMaterial>(null);
+  // TEMP capture : ?open=workshop ouvre l'atelier (à retirer).
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get('open') === 'workshop') {
+      open.current = true;
+      progress.current = 1;
+    }
+  }, []);
 
   useFrame((state, delta) => {
     const dt = Math.min(delta, 1 / 30);

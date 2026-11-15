@@ -4,6 +4,7 @@ import { create } from 'zustand';
 import { ambience } from '@/lib/audio/ambience';
 import { boatState } from '@/lib/boat-state';
 import { logbook } from '@/lib/logbook';
+import { useWorld } from '@/lib/store';
 import {
   BITE_MAX,
   BITE_MIN,
@@ -45,8 +46,10 @@ interface GameplayState {
   /** La scène 3D du gameplay est montée (coins de pêche visibles, capture possible). */
   ready3D: boolean;
   hydrated: boolean;
-  /** Coin de pêche à portée du bateau arrêté, -1 sinon (mis à jour par la boucle du DOM). */
+  /** Coin de pêche à portée du bateau arrêté, -1 sinon (mis à jour par la boucle de la scène). */
   near: number;
+  /** Coin de pêche en vue (le bateau passe à proximité), -1 sinon : l'interface invite à s'arrêter. */
+  approach: number;
 
   phase: FishingPhase;
   spot: number;
@@ -77,10 +80,17 @@ interface GameplayState {
 
   photo: PhotoPhase;
   postcard: Postcard | null;
+  /** Cadrage choisi dans le viseur (0 trois-quarts, 1 ras de l'eau, 2 vue de la mouette). */
+  framing: number;
+  /** Bourriche dépliée (liste des prises). */
+  basketOpen: boolean;
 
   hydrate: () => void;
   set3D: (ready: boolean) => void;
   setNear: (index: number) => void;
+  setApproach: (index: number) => void;
+  setFraming: (index: number) => void;
+  setBasketOpen: (open: boolean) => void;
   cast: () => void;
   strike: () => void;
   tick: (now: number) => void;
@@ -96,6 +106,8 @@ interface GameplayState {
 }
 
 const STORAGE_KEY = 'kyliann-bourriche-v1';
+/** Nombre de cadrages proposés par le viseur. */
+export const FRAMINGS = 3;
 
 function loadBasket(): Basket {
   try {
@@ -148,6 +160,7 @@ export const useGameplay = create<GameplayState>((set, get) => ({
   ready3D: false,
   hydrated: false,
   near: -1,
+  approach: -1,
 
   phase: 'idle',
   spot: -1,
@@ -172,6 +185,8 @@ export const useGameplay = create<GameplayState>((set, get) => ({
 
   photo: 'off',
   postcard: null,
+  framing: 0,
+  basketOpen: false,
 
   hydrate: () => {
     if (get().hydrated) return;
@@ -180,6 +195,13 @@ export const useGameplay = create<GameplayState>((set, get) => ({
   set3D: (ready) => set({ ready3D: ready }),
   setNear: (index) => {
     if (get().near !== index) set({ near: index });
+  },
+  setApproach: (index) => {
+    if (get().approach !== index) set({ approach: index });
+  },
+  setFraming: (index) => set({ framing: ((index % FRAMINGS) + FRAMINGS) % FRAMINGS }),
+  setBasketOpen: (open) => {
+    if (get().basketOpen !== open) set({ basketOpen: open });
   },
 
   cast: () => {
@@ -300,7 +322,11 @@ export const useGameplay = create<GameplayState>((set, get) => ({
 
   aim: () => {
     if (!get().ready3D) return;
-    set({ photo: 'aim' });
+    // À quai, la page du carnet se referme : le viseur prend tout l'écran.
+    const world = useWorld.getState();
+    if (world.phase === 'docked') world.close();
+    // La canne est rangée : la caméra ne peut pas suivre deux sujets à la fois.
+    set({ photo: 'aim', phase: 'idle', spot: -1, basketOpen: false });
   },
   shoot: () => {
     if (get().photo === 'aim') set({ photo: 'shoot' });

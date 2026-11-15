@@ -184,7 +184,8 @@ void main() {
   float along = pow(vUv.y, 1.8);
   float facing = abs(dot(normalize(vNormalView), normalize(vView)));
   float soft = smoothstep(0.05, 0.6, facing);
-  float alpha = along * soft * 0.32 * uStrength;
+  // Assez dense pour se lire de loin sur la mer de nuit, sans voiler l'île.
+  float alpha = along * soft * 0.46 * uStrength;
   gl_FragColor = vec4(vec3(1.0, 0.9, 0.68) * alpha, alpha);
   #include <colorspace_fragment>
 }
@@ -287,7 +288,7 @@ export function Lighthouse({ sampler }: { sampler: HeightSampler }) {
         <group ref={beam} position-y={LIGHTHOUSE_LAMP_Y}>
           {[0, Math.PI].map((angle) => (
             <mesh key={angle} rotation={[0, angle, Math.PI / 2]} position={[Math.cos(angle) * BEAM_LENGTH * 0.5, 0, -Math.sin(angle) * BEAM_LENGTH * 0.5]} raycast={() => null}>
-              <coneGeometry args={[2.3, BEAM_LENGTH, 20, 1, true]} />
+              <coneGeometry args={[2.6, BEAM_LENGTH, 20, 1, true]} />
               <shaderMaterial
                 ref={angle === 0 ? beamMaterial : undefined}
                 uniforms={beamUniforms}

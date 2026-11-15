@@ -30,6 +30,8 @@ export const SPOTS: FishingSpot[] = [
 export const SPOT_RADIUS = 3.2;
 /** Distance bateau ↔ centre du coin sous laquelle on peut pêcher (m). */
 export const FISHING_RANGE = 10.5;
+/** En deçà, le coin est « en vue » : l'interface invite à s'y arrêter (m). */
+export const APPROACH_RANGE = 30;
 /** Vitesse sous laquelle le bateau est considéré « presque arrêté » (m/s). */
 export const STOP_SPEED = 0.9;
 /** Poissons par coin avant qu'il ne se repose. */

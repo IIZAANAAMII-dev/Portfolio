@@ -108,7 +108,7 @@ export function Smoke({ sources, size = 1 }: { sources: Vec3[]; size?: number })
   return (
     <instancedMesh ref={mesh} args={[undefined, undefined, count]} frustumCulled={false} raycast={() => null}>
       <icosahedronGeometry args={[1, 1]} />
-      <meshStandardMaterial color="#f6f3ee" emissive="#f6f3ee" emissiveIntensity={0.25} roughness={1} transparent opacity={0.55} depthWrite={false} />
+      <meshStandardMaterial color="#f3f0ea" roughness={1} transparent opacity={0.55} depthWrite={false} />
     </instancedMesh>
   );
 }
