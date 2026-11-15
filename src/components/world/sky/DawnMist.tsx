@@ -30,7 +30,7 @@ import { cameraFocus, seeded } from './sky-layer';
  * Les bancs sont fixes dans le monde mais répartis en tuile autour du point visé : en
  * naviguant, on les traverse, et ceux qui sortent du cadre reviennent de l'autre côté.
  */
-const SPAN = 220;
+const SPAN = 160;
 const MIST_LIT = new Color('#ffe3d4');
 const MIST_SHADE = new Color('#c9c4e6');
 
@@ -94,13 +94,13 @@ void main() {
   vec2 flow = vec2(uTime * 0.025, 0.0);
   float n = valueNoise(vUv * vec2(2.4, 1.6) + vSeed * 13.0 + flow) * 0.62
     + valueNoise(vUv * vec2(5.5, 3.5) + vSeed * 7.0 - flow * 1.6) * 0.38;
-  float body = 1.0 - smoothstep(0.38, 1.0, length(vUv) + (n - 0.5) * 0.6);
-  // Deux tons peints : un cœur plus dense et plus clair, une frange lavande.
-  float core = smoothstep(0.5, 0.72, body);
-  vec3 color = mix(uShade, uLit, 0.35 + core * 0.65);
+  // Bord peint net (et rongé par le bruit), cœur dense plus clair, frange lavande.
+  float body = 1.0 - smoothstep(0.5, 0.95, length(vUv) + (n - 0.5) * 0.62);
+  float core = smoothstep(0.45, 0.8, body);
+  vec3 color = mix(uShade, uLit, 0.3 + core * 0.7);
   float avoid = smoothstep(uAvoid.z, uAvoid.z + uAvoid.w, distance(vWorld.xz, uAvoid.xy));
-  float boat = smoothstep(4.0, 12.0, distance(vWorld.xz, uBoat.xz));
-  float alpha = body * (0.36 + core * 0.2) * uMist * vEdge * avoid * boat;
+  float boat = smoothstep(4.0, 11.0, distance(vWorld.xz, uBoat.xz));
+  float alpha = body * (0.46 + core * 0.3) * uMist * vEdge * avoid * boat;
   if (alpha < 0.004) discard;
   gl_FragColor = vec4(color, alpha);
   #include <colorspace_fragment>
@@ -156,7 +156,7 @@ function dawnMist() {
 export function DawnMist() {
   const quality = useWorld((state) => state.quality);
   const mesh = useRef<Mesh>(null);
-  const count = quality === 'high' ? 34 : quality === 'medium' ? 24 : 14;
+  const count = quality === 'high' ? 30 : quality === 'medium' ? 22 : 12;
   const geometry = useMemo(() => buildBanks(count), [count]);
   const material = useMemo(
     () =>
@@ -183,7 +183,8 @@ export function DawnMist() {
     cameraFocus(state.camera, uniforms.uFocus.value);
     uniforms.uBoat.value.copy(boatState.position);
     const island = phase === 'docked' && activeIsland ? islandById[activeIsland] : null;
-    if (island) uniforms.uAvoid.value.set(island.position[0], island.position[1], island.radius * 1.05, 14);
+    // Les nappes enlacent le rivage de l'île de l'escale, sans jamais voiler l'île elle-même.
+    if (island) uniforms.uAvoid.value.set(island.position[0], island.position[1], island.radius * 0.85, 9);
     else uniforms.uAvoid.value.set(0, 0, -100, 1);
   });
 

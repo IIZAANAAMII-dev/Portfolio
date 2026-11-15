@@ -414,7 +414,7 @@ ${SHORE_GLSL}
   }
   // Écume du rivage : liseré presque blanc, anneaux un peu plus légers ; la nuit, sur l'eau
   // noire, les anneaux se font plus discrets (une lueur, pas des courbes de niveau).
-  float shoreAmt = max(shore.x * mix(0.94, 0.72, uDayNight), shore.y * mix(0.8, 0.4, uDayNight)) * (1.0 - forbidden);
+  float shoreAmt = max(shore.x * mix(0.94, 0.62, uDayNight), shore.y * mix(0.8, 0.34, uDayNight)) * (1.0 - forbidden);
   float foamAmt = clamp(crest * 1.6 + stormFoam + monsterFoam * 0.48 + shoreAmt, 0.0, 0.94);
   // Écume plus lumineuse la nuit, phosphorescente au bord des îles.
   vec3 foamColor = uFoam * mix(1.0, 1.16, uDayNight);

@@ -41,7 +41,7 @@ export function SkyMoments() {
     u.uViewport.value.set(Math.max(state.size.width, 1), Math.max(state.size.height, 1));
     u.uMotion.value = useWorld.getState().reducedMotion ? 0 : 1;
     u.uWish.value = Math.max(0, u.uWish.value - dt / 2.6);
-    updateWeather(state.camera, dt);
+    updateWeather(state.camera, dt, state.clock.elapsedTime);
   });
 
   return (

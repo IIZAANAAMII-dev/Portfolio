@@ -53,7 +53,8 @@ export const rainbow = {
 const schedule = {
   wait: 100 + Math.random() * 70,
   forced: skyParams.weather,
-  settle: 0,
+  /** Heure (horloge réelle) de l'arrivée dans le monde, pour les déclenchements forcés. */
+  since: -1,
 };
 
 const DEG = Math.PI / 180;
@@ -130,16 +131,17 @@ function clearance(camera: Camera) {
   return k;
 }
 
-export function updateWeather(camera: Camera, dt: number) {
+export function updateWeather(camera: Camera, dt: number, time: number) {
   const { phase, reveal } = useWorld.getState();
   const live = reveal > 0.98 && (phase === 'playing' || phase === 'docked');
   const day = skyState.dayNight < 0.25 && skyState.sunElevation > 0.1;
   const calm = ecologyState.stormCover < 0.05;
 
-  // Captures : `?weather=squall|rainbow|both` fige le moment voulu, une seconde après l'arrivée.
+  // Captures : `?weather=squall|rainbow|both` fige le moment voulu, peu après l'arrivée
+  // (horloge réelle : le rendu logiciel des captures tourne à quelques images par seconde).
   if (schedule.forced && live) {
-    schedule.settle += dt;
-    if (schedule.settle > 1) {
+    if (schedule.since < 0) schedule.since = time;
+    if (time - schedule.since > 0.8) {
       if (schedule.forced === 'squall' || schedule.forced === 'both') spawnSquall(camera, true);
       if (schedule.forced === 'rainbow' || schedule.forced === 'both') spawnRainbow(camera, true);
       schedule.forced = null;
