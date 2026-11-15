@@ -451,19 +451,20 @@ export function veilMaterial() {
         float reach = uVeil * 2.6;
         float edge = d + (n - 0.5) * 0.5 * (0.35 + d);
         float grow = 1.0 - smoothstep(reach - 0.05, reach, edge);
-        float growRim = smoothstep(reach - 0.24, reach - 0.02, edge) * grow;
+        // Liseré fin (quelques % de l'écran) : le corps de la tache reste noir d'encre.
+        float growRim = smoothstep(reach - 0.07, reach - 0.015, edge) * grow;
         // … puis se dissout en lambeaux sur le port retrouvé.
         vec2 c = (vUv - 0.5) * vec2(uAspect, 1.0);
         float field = krFbm(c * 2.4 + 3.1 + uTime * 0.06) * 0.78 + length(c) * 0.3;
         float threshold = uVeil * 1.3 - 0.05;
         float dissolve = 1.0 - smoothstep(threshold - 0.1, threshold, field);
-        float dissolveRim = smoothstep(threshold - 0.16, threshold - 0.02, field) * dissolve;
+        float dissolveRim = smoothstep(threshold - 0.05, threshold - 0.01, field) * dissolve;
         float cover = mix(grow, dissolve, uMode);
         float rim = mix(growRim, dissolveRim, uMode);
         if (cover < 0.003) discard;
         float swirl = krFbm(p * 2.8 + vec2(uTime * 0.08, 0.0));
-        vec3 ink = mix(vec3(0.012, 0.004, 0.026), vec3(0.09, 0.025, 0.14), swirl);
-        ink += uTint * rim * 0.42;
+        vec3 ink = mix(vec3(0.006, 0.002, 0.014), vec3(0.04, 0.012, 0.07), swirl * swirl);
+        ink += uTint * rim * 0.24;
         gl_FragColor = vec4(ink, cover);
       }
     `,

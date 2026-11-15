@@ -364,22 +364,6 @@ export function KrakenRig() {
       }
     }
 
-    if (process.env.NODE_ENV !== 'production' && krakenDemo.enabled) {
-      const debug = window as unknown as { __krakenDebug?: () => unknown };
-      debug.__krakenDebug = () => ({
-        rings: rings.current?.visible,
-        ringData: rings.current ? Array.from((rings.current.geometry.getAttribute('aRing') as InstancedBufferAttribute).array).slice(0, 8) : null,
-        ringFx: rings.current ? Array.from((rings.current.geometry.getAttribute('aRingFx') as InstancedBufferAttribute).array).slice(0, 8) : null,
-        camera: camera.position.toArray().map((v) => Math.round(v)),
-        programs: state.gl.info.programs?.length,
-        errors: (state.gl.info.programs ?? [])
-          .map((program) => program as unknown as { name: string; diagnostics?: { runnable: boolean } })
-          .filter((program) => program.diagnostics && !program.diagnostics.runnable)
-          .map((program) => program.name),
-        checks: state.gl.debug.checkShaderErrors,
-      });
-    }
-
     /* --- Démo figée : la caméra prend directement la pose que CameraRig atteindrait --- */
     if (process.env.NODE_ENV !== 'production' && krakenDemo.pose && krakenDemo.pose !== 'eye' && !photoCamera) {
       demoCamera(camera, state.size.width / Math.max(1, state.size.height) < 0.82);

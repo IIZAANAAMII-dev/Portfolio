@@ -1,6 +1,7 @@
 'use client';
 
-import { lazy, Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { lazy, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { AssetBoundary } from '@/components/world/AssetBoundary';
 import { useFrame, useLoader } from '@react-three/fiber';
 import {
   BufferAttribute,
@@ -581,10 +582,11 @@ function DeferredWorldBoundary() {
   useFrame(() => {
     if (!enabled && ecologyState.boundaryWarning > 0.035) setEnabled(true);
   });
+  // Isolé : une erreur du kraken ne doit jamais faire tomber toute la scène.
   return enabled ? (
-    <Suspense fallback={null}>
+    <AssetBoundary>
       <LazyWorldBoundary />
-    </Suspense>
+    </AssetBoundary>
   ) : null;
 }
 

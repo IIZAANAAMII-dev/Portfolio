@@ -77,7 +77,7 @@ export function suckerGeometry() {
     new Vector2(0.98, 0.12),
     new Vector2(1.08, -0.02),
   ];
-  const lathe = new LatheGeometry(profile, 10);
+  const lathe = new LatheGeometry(profile, 8);
   const geometry = new InstancedBufferGeometry();
   geometry.setAttribute('position', lathe.getAttribute('position'));
   geometry.setAttribute('normal', lathe.getAttribute('normal'));
