@@ -29,7 +29,6 @@ import {
   sampler,
   siteToIsland,
 } from './layout';
-import { Mist } from './Mist';
 import { Rift } from './Rift';
 import { flicker, proximityNow, staticSignal, tube } from './signal';
 import { StaticAmbience } from './static-audio';

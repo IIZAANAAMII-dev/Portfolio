@@ -17,11 +17,11 @@ import { loadSubstanceMap } from '@/lib/materials/substance-material';
 const OCEAN_SIZE = 1200;
 const SHOAL_COUNT = 11;
 
-const DAY_DEEP = new Color('#07547a');
+const DAY_DEEP = new Color('#085a91');
 const NIGHT_DEEP = new Color('#01060c');
-const DAY_SHALLOW = new Color('#20b8c4');
+const DAY_SHALLOW = new Color('#1babc1');
 const NIGHT_SHALLOW = new Color('#041822');
-const DAY_LAGOON = new Color('#72e1d0');
+const DAY_LAGOON = new Color('#60d5c4');
 const NIGHT_LAGOON = new Color('#072830');
 const DAY_FOAM = new Color('#edf6ec');
 const NIGHT_FOAM = new Color('#a9d8d5');
@@ -214,7 +214,7 @@ void main() {
   float fresnel = 1.0 - max(dot(normal, viewDir), 0.0);
   fresnel = 0.035 + 0.965 * pow(fresnel, 3.2);
   vec3 sky = mix(uSkyHorizon, uSkyTop, smoothstep(0.0, 0.8, normal.y));
-  water = mix(water, sky, fresnel * 0.58);
+  water = mix(water, sky, fresnel * 0.34);
 
   // Reflets de masses nuageuses très diffus : jamais de formes blanches nettes ou
   // de textures qui glissent sur la surface comme un autocollant.
@@ -227,12 +227,12 @@ void main() {
   water = mix(water, vec3(0.72, 0.82, 0.84), cloudReflection);
 
   float lambert = max(dot(normal, normalize(uSun)), 0.0);
-  float lit = mix(lambert, floor(lambert * 5.0) / 5.0, 0.38);
+  float lit = mix(lambert, floor(lambert * 3.0) / 3.0, 0.78);
   vec3 halfDir = normalize(normalize(uSun) + viewDir);
   float roughness = mix(0.34, 0.62, microA);
   float spec = pow(max(dot(normal, halfDir), 0.0), mix(54.0, 18.0, roughness));
   spec *= 1.0 - uStormColor * 0.78;
-  water += vec3(1.0, 0.95, 0.84) * spec * mix(0.95, 0.45, roughness);
+  water += vec3(1.0, 0.95, 0.84) * smoothstep(0.52, 0.58, spec) * 0.22;
   water *= 0.78 + lit * 0.52;
 
   float sparkleMask = hash21(floor(vWorld.xz * 2.8) + floor(uTime * 2.0));
@@ -251,11 +251,11 @@ void main() {
   float foamBreakup = uQuality > 0.25
     ? smoothstep(0.30, 0.72, valueNoise(vWorld.xz * 0.62 + uTime * 0.025))
     : 0.62;
-  water = mix(water, uFoam * mix(1.0, 0.92, uDayNight), strokes * 0.62);
+  water = mix(water, uFoam * mix(1.0, 0.92, uDayNight), strokes * 0.34);
   // Remous au large, plus visibles près de la caméra, absents des lagons.
   float swirl = swirlFoam(vWorld.xz + vec2(uTime * 0.25, uTime * 0.1), uTime)
     * (1.0 - shallow) * (1.0 - smoothstep(60.0, 115.0, cameraDistance)) * step(0.25, uQuality);
-  water = mix(water, uFoam, swirl * 0.8);
+  water = mix(water, uFoam, swirl * 0.55);
   // Ombres de nuages qui glissent sur la mer (de jour).
   water *= 1.0 - cloudShadow(vWorld.xz, uCloudTime) * 0.2 * (1.0 - uDayNight);
   // Assombrissement nocturne : l'eau devient très sombre, l'écume reste claire.
@@ -336,9 +336,9 @@ export function Ocean() {
     () => ({
       uTime: { value: 0 },
       uCloudTime: cloudClock,
-      uDeep: { value: new Color('#07547a') },
-      uShallow: { value: new Color('#20b8c4') },
-      uLagoon: { value: new Color('#72e1d0') },
+      uDeep: { value: new Color('#085a91') },
+      uShallow: { value: new Color('#1babc1') },
+      uLagoon: { value: new Color('#60d5c4') },
       uFoam: { value: new Color('#edf6ec') },
       uSun: { value: new Vector3(60, 70, 40).normalize() },
       uSkyTop: { value: new Color('#4a8ab0') },

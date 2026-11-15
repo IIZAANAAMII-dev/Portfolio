@@ -21,14 +21,14 @@ const TOON_DIRECT_LIGHT = `float dotNL = saturate( dot( geometryNormal, directLi
 
 	// Rampe à paliers : demi-teinte étroite puis pleine lumière. Son énergie moyenne reste
 	// proche de celle de Lambert, pour ne pas surexposer la scène.
-	float toonNL = smoothstep( 0.0, 0.06, dotNL ) * 0.48
-		+ smoothstep( 0.4, 0.46, dotNL ) * 0.37;
+	float toonNL = smoothstep( 0.0, 0.035, dotNL ) * 0.30
+		+ smoothstep( 0.48, 0.51, dotNL ) * 0.55;
 	vec3 irradiance = toonNL * directLight.color;
 
 	// Liseré lumineux franc sur les silhouettes éclairées.
 	float toonRim = 1.0 - saturate( dot( geometryNormal, geometryViewDir ) );
 	toonRim = smoothstep( 0.7, 0.76, toonRim ) * smoothstep( 0.1, 0.3, dotNL );
-	reflectedLight.directDiffuse += directLight.color * BRDF_Lambert( material.diffuseContribution ) * toonRim * 0.22;`;
+	reflectedLight.directDiffuse += directLight.color * BRDF_Lambert( material.diffuseContribution ) * toonRim * 0.12;`;
 
 /**
  * Ombres colorées. Multiplier un vert par une lumière bleue ne donne qu'un vert-bleu : pour
@@ -49,7 +49,7 @@ const SHADOW_TINT = /* glsl */ `
   float toonShade = 1.0 - smoothstep( 0.2, 0.9, toonDirectLum / max( toonIndirectLum, 1e-5 ) );
   reflectedLight.indirectDiffuse = mix(
     reflectedLight.indirectDiffuse,
-    toonIndirectLum * toonShadowTint * 1.18,
+    toonIndirectLum * toonShadowTint * 1.02,
     toonShade * 0.42
   );
 }

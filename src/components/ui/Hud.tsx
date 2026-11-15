@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { NavigationChart } from './NavigationChart';
 import { islands } from '@/data/islands';
 import { site } from '@/data/site';
 import { LogbookButton } from '@/components/ui/Logbook';
@@ -102,6 +103,8 @@ function DayDial({ timeOfDay }: { timeOfDay: number }) {
  * garde le centre de l'écran.
  */
 export function Hud() {
+  const [chartOpen, setChartOpen] = useState(false);
+  const scenicMode = useWorld((s) => s.scenicMode);
   const phase = useWorld((s) => s.phase);
   const activeIsland = useWorld((s) => s.activeIsland);
   const destination = useWorld((s) => s.destination);
@@ -111,20 +114,24 @@ export function Hud() {
   const toggleSound = useWorld((s) => s.toggleSound);
   const toggleDayNight = useWorld((s) => s.toggleDayNight);
   const setQuickView = useWorld((s) => s.setQuickView);
-  const sailTo = useWorld((s) => s.sailTo);
   const hover = useWorld((s) => s.hover);
 
   const visible = phase === 'playing' || phase === 'docked';
 
   return (
+    <>
+    <NavigationChart open={chartOpen} onClose={() => setChartOpen(false)} />
     <div
+      data-docked={Boolean(activeIsland)}
+      inert={!visible}
       className="hud-shade pointer-events-none fixed inset-0 z-20 flex flex-col justify-between p-5 transition-opacity duration-1000 md:p-7"
       style={{ opacity: visible ? 1 : 0 }}
       aria-hidden={!visible}
     >
       <header className="flex items-start justify-between">
-        <p className="text-xs tracking-[0.4em] text-paper/90">{site.shortName}</p>
+        <p className="hud-wordmark">{site.shortName}<span>LE GARREC / EXPLORATIONS</span></p>
         <div className="hud-actions pointer-events-auto flex gap-2">
+          <button type="button" className="ghost-button" onClick={() => setChartOpen(true)} aria-haspopup="dialog">Carte des îles ↗</button>
           <button
             type="button"
             className="ghost-button"
@@ -161,7 +168,8 @@ export function Hud() {
             <button
               key={island.id}
               type="button"
-              onClick={() => sailTo(island.id)}
+              aria-current={current ? 'location' : undefined}
+              onClick={() => useWorld.getState().jumpTo(island.id)}
               onMouseEnter={() => hover(island.id)}
               onMouseLeave={() => hover(null)}
               className="group relative py-2 text-[0.7rem] tracking-[0.2em] uppercase transition-colors duration-200"
@@ -177,7 +185,10 @@ export function Hud() {
         })}
       </nav>
 
-      {visible && <Compass />}
+      {visible && !activeIsland && <Compass />}
+      {visible && activeIsland && <button type="button" className="scenic-toggle ghost-button" onClick={() => useWorld.getState().setScenicMode(!scenicMode)}>{scenicMode ? 'Lire cette escale' : 'Contempler l’île'} <span aria-hidden="true">↗</span></button>}
+      {visible && destination && <button type="button" className="voyage-skip ghost-button" onClick={() => useWorld.getState().jumpTo(destination)}>Arriver directement ↗</button>}
     </div>
+    </>
   );
 }

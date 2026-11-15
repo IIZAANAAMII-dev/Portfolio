@@ -21,6 +21,8 @@ interface WorldState {
   phase: WorldPhase;
   /** Première frame WebGL rendue. Découplé de `phase` à cause du deep linking. */
   sceneReady: boolean;
+  scenicMode: boolean;
+  setScenicMode: (value: boolean) => void;
   /** Île dont le panneau est ouvert. */
   activeIsland: IslandId | null;
   /** Île vers laquelle le bateau navigue. */
@@ -75,6 +77,8 @@ interface WorldState {
 export const useWorld = create<WorldState>((set, get) => ({
   phase: 'loading',
   sceneReady: false,
+  scenicMode: false,
+  setScenicMode: (value) => set({ scenicMode: value }),
   activeIsland: null,
   destination: null,
   freeTarget: null,
@@ -93,7 +97,7 @@ export const useWorld = create<WorldState>((set, get) => ({
 
   ready: () =>
     set((s) => (s.phase === 'loading' ? { phase: 'intro', sceneReady: true } : { sceneReady: true })),
-  start: () => set((s) => (s.phase === 'intro' ? { phase: 'transitioning', gameTransition: 0, soundOn: true } : {})),
+  start: () => set((s) => (s.phase === 'intro' ? { phase: 'transitioning', gameTransition: 0 } : {})),
   setReveal: (value) => set({ reveal: value }),
   setGameTransition: (value) => set({ gameTransition: value }),
   setCinematicProgress: (gameTransition, reveal) => set({
@@ -124,7 +128,7 @@ export const useWorld = create<WorldState>((set, get) => ({
   arrive: () => {
     const { destination } = get();
     if (!destination) return set({ freeTarget: null });
-    set({ phase: 'docked', activeIsland: destination, destination: null });
+    set({ phase: 'docked', activeIsland: destination, destination: null, scenicMode: false });
     logbook.stamp(`island:${destination}`);
   },
   close: () => set({ phase: 'playing', activeIsland: null }),
@@ -141,6 +145,7 @@ export const useWorld = create<WorldState>((set, get) => ({
   // Le monde doit être entièrement révélé : sans cela le cercle d'intro garde les îles
   // à l'échelle zéro (elles n'apparaissent qu'à son passage).
   jumpTo: (id) => {
+    logbook.stamp(`island:${id}`);
     // Le bateau est amarré le long du ponton, comme au port de départ.
     const [x, z] = dockPosition(id);
     boatState.position.set(x, 0, z);
@@ -153,6 +158,7 @@ export const useWorld = create<WorldState>((set, get) => ({
       introRadius: 240,
       introGlow: 0,
       activeIsland: id,
+      scenicMode: false,
       destination: null,
       freeTarget: null,
     });
