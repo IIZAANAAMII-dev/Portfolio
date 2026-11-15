@@ -1,8 +1,10 @@
 'use client';
 
-import { lazy, Suspense, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useFrame, useLoader } from '@react-three/fiber';
 import {
+  BufferAttribute,
+  Color,
   DynamicDrawUsage,
   Group,
   InstancedBufferAttribute,
@@ -18,6 +20,7 @@ import { Prop } from '@/components/islands/decor';
 import { Fauna } from '@/components/world/Fauna';
 import { Plankton } from '@/components/world/Plankton';
 import { UnderwaterWorld } from '@/components/world/UnderwaterWorld';
+import { schoolMarkers, type SchoolMarker } from '@/components/world/fauna/shared';
 import { FISH_SCHOOLS, type SpeciesActivity } from '@/data/zones';
 import { boatState } from '@/lib/boat-state';
 import { animalRevealScale } from '@/lib/cinematic';
@@ -49,31 +52,31 @@ type FishPart = {
 
 /**
  * Le corps et la queue sont déformés dans le vertex shader. Le poids augmente vers
- * l'extrémité -Z (la queue des modèles Quaternius), les nageoires reçoivent un peu plus
- * d'amplitude, et phase/vitesse viennent d'attributs propres à chaque instance.
+ * l'extrémité -Z (la queue des modèles Quaternius), les nageoires (attribut `fishFin`)
+ * reçoivent un peu plus d'amplitude, et phase/vitesse viennent d'attributs propres à chaque
+ * instance. Les trois matériaux du modèle sont fondus en couleurs par sommet : un seul draw
+ * call par banc. `fishTime` est l'horloge de nage du banc (elle s'emballe quand il panique).
  */
 function makeSwimMaterial(
-  source: Material,
-  color: string,
   species: Species,
-  materialIndex: number,
   tailMin: number,
   tailMax: number,
   timeRef: { current: number },
 ) {
+  const glow = species === 'glow';
   const material = new MeshStandardMaterial({
-    name: source.name,
-    color,
+    name: `fish-${species}`,
+    color: '#ffffff',
+    vertexColors: true,
     roughness: 0.78,
     metalness: 0,
     flatShading: true,
-    emissive: species === 'glow' ? color : '#000000',
-    emissiveIntensity: species === 'glow' ? 1.25 : 0,
+    emissive: glow ? '#ffffff' : '#000000',
+    emissiveIntensity: glow ? 1.25 : 0,
   });
   const span = Math.max(tailMax - tailMin, 0.001);
   const tailStart = tailMin + span * 0.05;
   const tailEnd = tailMin + span * 0.72;
-  const finFactor = source.name.toLowerCase().includes('fin') ? 1.16 : 1;
 
   material.onBeforeCompile = (shader) => {
     const timeUniform = {} as { value: number };
@@ -85,6 +88,7 @@ function makeSwimMaterial(
         `#include <common>
 attribute float fishPhase;
 attribute float fishSpeed;
+attribute float fishFin;
 uniform float fishTime;`,
       )
       .replace(
@@ -93,11 +97,19 @@ uniform float fishTime;`,
 float fishTail = 1.0 - smoothstep(${tailStart.toFixed(5)}, ${tailEnd.toFixed(5)}, position.z);
 float fishWave = sin(fishTime * fishSpeed - position.z * 0.82 + fishPhase);
 float fishBodyAmplitude = 0.022 + pow(fishTail, 1.45) * 0.285;
-transformed.x += fishWave * fishBodyAmplitude * ${finFactor.toFixed(2)};
-transformed.y += sin(fishTime * fishSpeed * 0.54 - position.z * 0.38 + fishPhase) * fishTail * 0.012 * ${finFactor.toFixed(2)};`,
+transformed.x += fishWave * fishBodyAmplitude * fishFin;
+transformed.y += sin(fishTime * fishSpeed * 0.54 - position.z * 0.38 + fishPhase) * fishTail * 0.012 * fishFin;`,
       );
+    if (glow) {
+      // Poissons-lanternes : l'émission reprend la couleur de chaque partie du modèle.
+      shader.fragmentShader = shader.fragmentShader.replace(
+        '#include <emissivemap_fragment>',
+        `#include <emissivemap_fragment>
+totalEmissiveRadiance *= vColor.rgb;`,
+      );
+    }
   };
-  material.customProgramCacheKey = () => `fish-swim-${species}-${materialIndex}`;
+  material.customProgramCacheKey = () => `fish-swim-${species}-v2`;
   return material;
 }
 
@@ -114,29 +126,31 @@ function useCreatureParts(
     const parts: FishPart[] = [];
     source.traverse((child) => {
       if (!(child instanceof Mesh)) return;
-      const geometry = child.geometry.clone();
+      const geometry = (child.geometry as BufferGeometry).clone();
       geometry.computeBoundingBox();
       const tailMin = geometry.boundingBox?.min.z ?? -1;
       const tailMax = geometry.boundingBox?.max.z ?? 1;
+      const originals: Material[] = Array.isArray(child.material) ? child.material : [child.material];
+      const count = geometry.getAttribute('position').count;
+      const colors = new Float32Array(count * 3);
+      const fins = new Float32Array(count).fill(1);
+      const groups = geometry.groups.length ? geometry.groups : [{ start: 0, count, materialIndex: 0 }];
+      const tint = new Color();
+      for (const group of groups) {
+        const index = group.materialIndex ?? 0;
+        tint.set(definition.colors[index % definition.colors.length]);
+        const fin = originals[index]?.name.toLowerCase().includes('fin') ? 1.16 : 1;
+        for (let vertex = group.start; vertex < Math.min(group.start + group.count, count); vertex++) {
+          tint.toArray(colors, vertex * 3);
+          fins[vertex] = fin;
+        }
+      }
+      geometry.clearGroups();
+      geometry.setAttribute('color', new BufferAttribute(colors, 3));
+      geometry.setAttribute('fishFin', new BufferAttribute(fins, 1));
       geometry.setAttribute('fishPhase', new InstancedBufferAttribute(phases, 1));
       geometry.setAttribute('fishSpeed', new InstancedBufferAttribute(speeds, 1));
-
-      const originals = Array.isArray(child.material) ? child.material : [child.material];
-      const materials = originals.map((original, index) =>
-        makeSwimMaterial(
-          original,
-          definition.colors[index % definition.colors.length],
-          species,
-          index,
-          tailMin,
-          tailMax,
-          timeRef,
-        ),
-      );
-      parts.push({
-        geometry,
-        material: Array.isArray(child.material) ? materials : materials[0],
-      });
+      parts.push({ geometry, material: makeSwimMaterial(species, tailMin, tailMax, timeRef) });
     });
     return parts;
   }, [definition.colors, phases, source, species, speeds, timeRef]);
@@ -156,6 +170,8 @@ type Agents = {
   az: Float32Array;
   yaw: Float32Array;
   bank: Float32Array;
+  /** Frayeur (0..1) : fuite éclair quand le bateau fond sur le banc. */
+  panic: Float32Array;
 };
 
 function createAgents(
@@ -173,6 +189,7 @@ function createAgents(
     vx: new Float32Array(count), vz: new Float32Array(count),
     ax: new Float32Array(count), az: new Float32Array(count),
     yaw: new Float32Array(count), bank: new Float32Array(count),
+    panic: new Float32Array(count),
   };
   for (let index = 0; index < count; index++) {
     const angle = hash(seed + index * 4.17) * Math.PI * 2;

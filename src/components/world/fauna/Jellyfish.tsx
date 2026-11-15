@@ -4,6 +4,7 @@ import { useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import {
   AdditiveBlending,
+  Color,
   DoubleSide,
   InstancedBufferAttribute,
   InstancedMesh,
@@ -32,7 +33,7 @@ function jellyGeometry() {
   const builder = new MeshBuilder(['aPart', 'aAlong', 'aAngle']);
   const segments = 12;
   const rings = [0, 0.3, 0.58, 0.82, 1.0];
-  const shade = (value: number) => ({ r: value, g: value, b: value }) as never;
+  const shade = (value: number) => new Color(value, value, value);
   const bell = (rho: number, angle: number): Vec3 => [
     Math.cos(angle) * rho * 0.5,
     0.42 * (1 - rho ** 2.4),
