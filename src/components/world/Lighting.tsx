@@ -11,31 +11,22 @@ import { QUALITY_LEVELS } from '@/lib/quality';
 import { useWorld } from '@/lib/store';
 import { preview } from '@/lib/preview';
 import { damp, smoothstep } from '@/lib/utils/math';
-import { atmosphere } from './render/sky-palette';
-import { fitSunShadow, sunDirection } from './render/shadow-fit';
 
 /*
  * Étalonnage « jouet peint » : lumière directe chaude, lumière du ciel lavande (les ombres
- * virent au violet au lieu de griser), rebond turquoise de la mer sous les objets.
- *
- * Quatre moments : le jour (inchangé), l'heure dorée (soleil or-orangé, ciel mauve : ombres
- * longues et violettes), l'heure bleue (le soleil vient de se coucher : plus de lumière
- * directe, un grand ciel pervenche qui baigne tout, les fenêtres s'allument) et la nuit
- * (clair de lune froid et lisible).
+ * virent au violet au lieu de griser), rebond turquoise de la mer sous les objets. À
+ * l'heure dorée, le soleil passe au corail et le ciel au mauve.
  */
 const DAY_SUN_COLOR = new Color('#ffe8c6');
-const GOLDEN_SUN_COLOR = new Color('#ff9f5a');
-const NIGHT_SUN_COLOR = new Color('#a3c2e4');
+const GOLDEN_SUN_COLOR = new Color('#ff9466');
+const NIGHT_SUN_COLOR = new Color('#a8c8dd');
 const DAY_SKY_COLOR = new Color('#c9cfff');
-const GOLDEN_SKY_COLOR = new Color('#cba4ee');
-const TWILIGHT_SKY_COLOR = new Color('#7088c4');
-const NIGHT_SKY_COLOR = new Color('#2b3258');
+const GOLDEN_SKY_COLOR = new Color('#d3b1ec');
+const NIGHT_SKY_COLOR = new Color('#2a2f52');
 const DAY_GROUND_COLOR = new Color('#3f7276');
-const TWILIGHT_GROUND_COLOR = new Color('#28405a');
 const NIGHT_GROUND_COLOR = new Color('#1a2a3a');
 const DAY_AMBIENT = new Color('#a3a6e4');
-const GOLDEN_AMBIENT = new Color('#b394dc');
-const TWILIGHT_AMBIENT = new Color('#46598c');
+const GOLDEN_AMBIENT = new Color('#b59ad8');
 const NIGHT_AMBIENT = new Color('#2c3155');
 
 /**
@@ -60,17 +51,10 @@ export function Lighting({ shadows }: { shadows: boolean }) {
     light.shadow.map = null;
   }, [shadowSize]);
 
-  // Captures (développement) : l'heure figée `?time=` reste réglable depuis la page.
-  useEffect(() => {
-    if (process.env.NODE_ENV === 'production') return;
-    (window as unknown as Record<string, unknown>).__preview = preview;
-  }, []);
-
   // Priorité -10 : ce callback avance l'horloge du monde et met à jour skyState
   // AVANT tous les autres systèmes de la frame (océan, atmosphère, bateau…).
   useFrame((_, delta) => {
     const dt = Math.min(delta, 1 / 30);
-    // Heure figée (aperçus, captures) : les lumières rejoignent leur cible sans délai.
     const lightDt = preview.time === null ? dt : 10;
     const { phase, reveal, gameTransition, timeOfDay, setTimeOfDay } = useWorld.getState();
     const dayLight = smoothstep(0.08, 0.9, reveal);
@@ -91,50 +75,39 @@ export function Lighting({ shadows }: { shadows: boolean }) {
     }
     updateSky(next, preview.time === null ? dt : 10);
     updateEcology(dt);
-    const { dayNight, golden } = skyState;
+    const { dayNight, golden, sunAngle: angle, sunElevation } = skyState;
     const storm = ecologyState.stormCover;
-    // Heure bleue : calculée par la palette du ciel (image précédente, variation lente).
-    const dusk = atmosphere.twilight * dayNight;
 
     if (sun.current) {
       sun.current.color
         .copy(DAY_SUN_COLOR)
-        .lerp(GOLDEN_SUN_COLOR, golden * 0.9)
+        .lerp(GOLDEN_SUN_COLOR, golden * 0.85)
         .lerp(NIGHT_SUN_COLOR, dayNight);
       sun.current.intensity = damp(
         sun.current.intensity,
-        (0.2 + dayLight * 2.3 + stillIntro * 0.45 + golden * 0.15)
-          * (1 - dayNight * 0.75)
-          * (1 - dusk * 0.2)
-          * (1 - storm * 0.78),
+        (0.2 + dayLight * 2.3 + stillIntro * 0.45) * (1 - dayNight * 0.75) * (1 - storm * 0.78),
         1.6,
         lightDt,
       );
+      const x = Math.cos(angle) * 80;
+      const y = Math.max(sunElevation * 70, 10);
+      const z = 40;
+      sun.current.position.set(boatState.position.x + x, y, boatState.position.z + z);
+      sun.current.target.position.set(boatState.position.x, 0, boatState.position.z);
+      sun.current.target.updateMatrixWorld();
     }
     if (sky.current) {
-      sky.current.color
-        .copy(DAY_SKY_COLOR)
-        .lerp(GOLDEN_SKY_COLOR, golden * 0.8)
-        .lerp(NIGHT_SKY_COLOR, dayNight)
-        .lerp(TWILIGHT_SKY_COLOR, dusk * 0.7);
-      sky.current.groundColor.copy(DAY_GROUND_COLOR).lerp(NIGHT_GROUND_COLOR, dayNight).lerp(TWILIGHT_GROUND_COLOR, dusk);
+      sky.current.color.copy(DAY_SKY_COLOR).lerp(GOLDEN_SKY_COLOR, golden * 0.7).lerp(NIGHT_SKY_COLOR, dayNight);
+      sky.current.groundColor.copy(DAY_GROUND_COLOR).lerp(NIGHT_GROUND_COLOR, dayNight);
       sky.current.intensity = damp(
         sky.current.intensity,
-        (0.18 + dayLight * 1.22 + stillIntro * 1.05)
-          * (1 - dayNight * 0.5)
-          * (1 - golden * 0.1)
-          * (1 + dusk * 0.25)
-          * (1 - storm * 0.58),
+        (0.18 + dayLight * 1.22 + stillIntro * 1.05) * (1 - dayNight * 0.5) * (1 - storm * 0.58),
         1.6,
         lightDt,
       );
     }
     if (ambient.current) {
-      ambient.current.color
-        .copy(DAY_AMBIENT)
-        .lerp(GOLDEN_AMBIENT, golden * 0.6)
-        .lerp(NIGHT_AMBIENT, dayNight)
-        .lerp(TWILIGHT_AMBIENT, dusk * 0.7);
+      ambient.current.color.copy(DAY_AMBIENT).lerp(GOLDEN_AMBIENT, golden * 0.6).lerp(NIGHT_AMBIENT, dayNight);
       ambient.current.intensity = damp(
         ambient.current.intensity,
         (0.22 + dayLight * 0.3 + stillIntro * 1.15) * (1 - storm * 0.44),
@@ -155,14 +128,6 @@ export function Lighting({ shadows }: { shadows: boolean }) {
       pool.current.distance = 42;
     }
   }, -10);
-
-  // Après la caméra (priorité 0, montée avant) : la boîte d'ombre épouse ce que la caméra
-  // voit réellement, alignée sur les texels (pas de scintillement quand on navigue).
-  useFrame((state) => {
-    if (!sun.current) return;
-    sunDirection(skyState.sunAngle, skyState.sunElevation);
-    fitSunShadow(sun.current, state.camera, shadowSize);
-  });
 
   return (
     <group>
