@@ -26,9 +26,9 @@ interface Station {
 
 const STATIONS: Station[] = [
   { id: 'calme', name: 'Mer calme', hint: 'ressac et musique du bord', playing: 'Ressac et musique du bord', dial: 13 },
-  { id: 'port', name: 'Port breton', hint: 'air de fest-noz', playing: 'En direct du port : un air de fest-noz', dial: 38 },
+  { id: 'port', name: 'Port breton', hint: 'air de fest-noz', playing: 'En direct du port\u00a0: un air de fest-noz', dial: 38 },
   { id: 'lofi', name: 'Lo-fi du large', hint: 'accords doux, vinyle', playing: 'Accords doux et craquements de vinyle', dial: 63 },
-  { id: 'silence', name: 'Silence radio', hint: 'rien que la mer', playing: 'Radio coupée : rien que la mer', dial: 88 },
+  { id: 'silence', name: 'Silence radio', hint: 'rien que la mer', playing: 'Radio coupée\u00a0: rien que la mer', dial: 88 },
 ];
 
 const subscribe = (listener: () => void) => radio.subscribe(listener);
@@ -167,7 +167,7 @@ export default function MarineRadio() {
   };
 
   const status = !soundOn
-    ? 'Son coupé : choisir une station l’allume.'
+    ? 'Son coupé\u00a0: choisir une station l’allume.'
     : current.playing;
 
   return (

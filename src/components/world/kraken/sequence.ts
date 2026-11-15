@@ -186,9 +186,9 @@ function poseTease(arm: ArmPose, clock: number, big: boolean, x: number, z: numb
   arm.rootZ = z;
   arm.dirX = dirX;
   arm.dirZ = dirZ;
-  arm.length = big ? 26 : 20;
-  arm.thickness = big ? 1.45 : 1.1;
-  arm.rise = 0.2 + up * 0.34;
+  arm.length = big ? 30 : 23;
+  arm.thickness = big ? 2.0 : 1.5;
+  arm.rise = 0.22 + up * 0.42;
   arm.tilt = 0.18;
   arm.lean = 0.45;
   arm.curl = 2.9 - up * 0.9 + Math.sin(clock * 1.3 + seed) * 0.25;
@@ -209,7 +209,7 @@ function updateTeases(dt: number, allowed: boolean) {
       const fx = Math.cos(heading);
       const fz = Math.sin(heading);
       const side = Math.random() > 0.5 ? 1 : -1;
-      const distance = 34 + Math.random() * 12;
+      const distance = 30 + Math.random() * 10;
       const offset = (6 + Math.random() * 10) * side;
       seq.teaseX = boatState.position.x + fx * distance - fz * offset;
       seq.teaseZ = boatState.position.z + fz * distance + fx * offset;
@@ -336,8 +336,8 @@ function startDemo() {
       seq.teaseClock = 1.75;
       const fx = Math.cos(boatState.heading);
       const fz = Math.sin(boatState.heading);
-      seq.teaseX = boatState.position.x + fx * 36 - fz * 7;
-      seq.teaseZ = boatState.position.z + fz * 36 + fx * 7;
+      seq.teaseX = boatState.position.x + fx * 33 - fz * 7;
+      seq.teaseZ = boatState.position.z + fz * 33 + fx * 7;
       const length = Math.hypot(boatState.position.x - seq.teaseX, boatState.position.z - seq.teaseZ) || 1;
       seq.teaseDirX = (boatState.position.x - seq.teaseX) / length;
       seq.teaseDirZ = (boatState.position.z - seq.teaseZ) / length;
@@ -493,7 +493,8 @@ export function stepKraken(delta: number, time: number) {
     ecologyState.monsterToX = seq.headX - seq.outX * 4;
     ecologyState.monsterToZ = seq.headZ - seq.outZ * 4;
     const rise = krakenState.head.rise;
-    ecologyState.monsterWake = stage === 'impact' ? 0.85 : 0.3 + rise * 0.22;
+    // L'écume de l'océan reste une frange : les collerettes du rig dessinent le reste.
+    ecologyState.monsterWake = stage === 'impact' ? 0.5 : 0.12 + rise * 0.1;
     ecologyState.monsterSurface = stage === 'impact' ? 1 : 0.1 + rise * 0.4;
     ecologyState.leviathanAttack = stage === 'attack' || stage === 'impact' ? smoothstep(T_ATTACK, T_ATTACK + 0.22, T) : 0;
     ecologyState.impact = Math.max(pulse(T - T_SLAP, 4.5) * 0.45, pulse(T - T_RELEASE, 3.6) * 0.95);
@@ -710,10 +711,10 @@ function poseSequence(T: number, time: number, calm: number) {
   }
 
   /* --- Saisie de la coque --- */
-  for (const index of [GRAB_FRONT, GRAB_BACK]) {
-    const arm = arms[index];
+  for (let grab = 0; grab < 2; grab++) {
+    const front = grab === 0;
+    const arm = arms[front ? GRAB_FRONT : GRAB_BACK];
     if (arm.visible <= 0) continue;
-    const front = index === GRAB_FRONT;
     let wrap = smoothstep(T_COIL + 0.1, T_COIL + 0.95, T);
     let coil = smoothstep(T_COIL + 0.55, T_COIL + 1.85, T);
     if (front) {

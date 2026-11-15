@@ -186,7 +186,9 @@ export function KrakenRig() {
     const visible = krakenState.visible;
     if (root.current) root.current.visible = visible;
     const stage = ecologyState.boundaryStage;
-    if (!proxy && (stage === 'approach' || stage === 'stalk' || stage === 'coil' || stage === 'attack')) setProxy(true);
+    if (!proxy && (krakenState.carry.visible || stage === 'approach' || stage === 'stalk' || stage === 'coil' || stage === 'attack')) {
+      setProxy(true);
+    }
     if (!visible) return;
 
     const { quality, reducedMotion } = useWorld.getState();
@@ -203,7 +205,7 @@ export function KrakenRig() {
     krakenUniforms.uPupil.value = krakenState.eye.pupil;
     krakenUniforms.uEyeGlow.value = krakenState.eye.glow;
     // Photophores : chapelets qui palpitent dans le noir de l'orage et de la nuit.
-    const glow = (0.03 + night * 0.95) * (0.62 + 0.38 * Math.sin(time * 1.6));
+    const glow = (0.03 + night * 0.6) * (0.55 + 0.45 * Math.sin(time * 1.6));
     kraken.materials.arm.emissiveIntensity = glow;
     kraken.materials.head.emissiveIntensity = glow * 0.8;
     kraken.materials.lid.emissiveIntensity = glow * 0.5;
@@ -316,6 +318,7 @@ export function KrakenRig() {
       inkUniforms.uFade.value = inkState.fade;
       inkUniforms.uTime.value = time;
       inkUniforms.uSeed.value = inkState.seed;
+      inkUniforms.uNight.value = night;
     }
     const shadowState = krakenState.shadow;
     if (shadow.current) {

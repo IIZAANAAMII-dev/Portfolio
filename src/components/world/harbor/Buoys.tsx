@@ -44,7 +44,7 @@ interface BuoySpec {
 
 /** Positions : à quelques mètres des routes habituelles, loin des côtes (voir navigation). */
 const BUOYS: BuoySpec[] = [
-  { at: [13, -20], hue: '#d9483b', band: '#f5efe3', lamp: '#ff5a4a', mark: 'can', hint: 'Ouvre ton carnet de bord : chaque île a son tampon.' },
+  { at: [13, -20], hue: '#d9483b', band: '#f5efe3', lamp: '#ff5a4a', mark: 'can', hint: 'Ouvre ton carnet de bord\u00a0: chaque île a son tampon.' },
   { at: [-20, -3], hue: '#2f9a6e', band: '#f5efe3', lamp: '#5dff9a', mark: 'cone', hint: 'La maison bretonne cache un atelier.' },
   { at: [36, 20], hue: '#f2c14e', band: '#2f343c', lamp: '#ffd36a', mark: 'cross', hint: 'Psst… quelque chose grésille dans la brume, au sud-est.' },
   { at: [-2, 28], hue: '#d9483b', band: '#f5efe3', lamp: '#ffffff', mark: 'sphere', hint: 'Un vieux chalutier dort sur les rochers, au-delà de l’île Parcours…' },

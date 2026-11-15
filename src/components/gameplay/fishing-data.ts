@@ -55,14 +55,14 @@ export type MissKind = 'early' | 'late';
 /** Le ton du site : un peu d'humour, sans se moquer du visiteur. */
 export const JOKES: Record<MissKind, string[]> = {
   early: [
-    'Trop tôt ! Il lisait encore la documentation.',
+    'Trop tôt\u202f! Il lisait encore la documentation.',
     'Ferré dans le vide… même les mouettes rigolent.',
-    'Trop pressé : il a vu l’hameçon arriver de loin.',
+    'Trop pressé\u00a0: il a vu l’hameçon arriver de loin.',
   ],
   late: [
-    'Trop tard ! Il est reparti avec l’appât.',
+    'Trop tard\u202f! Il est reparti avec l’appât.',
     'Il a filé plus vite qu’un hotfix du vendredi soir.',
-    'Envolé ! Il a dû partir en pause café.',
+    'Envolé\u202f! Il a dû partir en pause café.',
   ],
 };
 

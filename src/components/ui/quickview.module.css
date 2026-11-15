@@ -236,7 +236,8 @@
   font-weight: 500;
   letter-spacing: 0.2em;
   text-transform: uppercase;
-  color: var(--stamp-red);
+  /* Rouge du tampon, assombri pour rester lisible en petit corps (contraste AA). */
+  color: color-mix(in srgb, var(--stamp-red) 80%, var(--page-ink));
 }
 
 .facts {
@@ -259,6 +260,9 @@
 }
 .factWide {
   grid-column: 1 / -1;
+}
+.nowrap {
+  white-space: nowrap;
 }
 
 .domains {
@@ -358,6 +362,9 @@
 
 .main {
   min-width: 0;
+}
+.main:focus {
+  outline: none;
 }
 
 .section {
@@ -587,7 +594,7 @@
   padding: 0.9rem 1rem 1rem;
   border: 1px solid color-mix(in srgb, var(--accent) 34%, transparent);
   border-radius: 12px;
-  background: color-mix(in srgb, var(--accent) 8%, var(--page));
+  background: color-mix(in srgb, var(--accent) 5%, var(--page));
 }
 .feature .textLink {
   margin-top: 0.75rem;
@@ -702,8 +709,8 @@
   gap: 1rem;
 }
 .zone {
-  padding: 1.1rem 1.2rem 1.2rem;
-  border-left: 4px solid var(--accent);
+  padding: 1.1rem 1.1rem 1.2rem;
+  border-top: 3px solid var(--accent);
 }
 .zoneTitle {
   display: flex;
@@ -826,6 +833,15 @@
   grid-template-columns: minmax(0, 1.45fr) minmax(0, 1fr);
   gap: 1.5rem 2.25rem;
   padding: clamp(1.25rem, 3.5vw, 2rem);
+}
+.bottle {
+  container-type: inline-size;
+}
+/* Colonne étroite : nom et e-mail l'un sous l'autre, pour que les indications restent lisibles. */
+@container (max-width: 34rem) {
+  .bottle :global(.bottle-form__row) {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 .contactLead {
   margin-bottom: 0.9rem;

@@ -110,22 +110,23 @@ function paintGlow(size: number) {
   ctx.fillRect(0, 0, size, size);
   // Photophores en chapelets : cyan et violet, halo doux, cœur net.
   const tints: RGB[] = [[110, 236, 255], [190, 120, 255], [90, 255, 214]];
-  for (let chain = 0; chain < 16; chain++) {
+  // Chapelets dans le sens du bras (axe v), peu nombreux : des lignes de feux, pas des anneaux.
+  for (let chain = 0; chain < 9; chain++) {
     let x = next() * size;
     let y = next() * size;
     const color = tints[chain % tints.length];
-    const beads = 3 + Math.floor(next() * 4);
+    const beads = 3 + Math.floor(next() * 3);
     for (let bead = 0; bead < beads; bead++) {
-      const radius = size * (0.008 + next() * 0.01);
+      const radius = size * (0.006 + next() * 0.006);
       tiled(size, x, y, radius * 3, (px, py) => {
-        softDisc(ctx, px, py, radius * 3, color, 0.35);
+        softDisc(ctx, px, py, radius * 3, color, 0.3);
         ctx.fillStyle = rgba(color, 1);
         ctx.beginPath();
         ctx.arc(px, py, radius, 0, Math.PI * 2);
         ctx.fill();
       });
-      x = (x + size * (0.03 + next() * 0.03)) % size;
-      y = (y + size * (next() - 0.5) * 0.05 + size) % size;
+      y = (y + size * (0.045 + next() * 0.03)) % size;
+      x = (x + size * (next() - 0.5) * 0.02 + size) % size;
     }
   }
   return canvas;

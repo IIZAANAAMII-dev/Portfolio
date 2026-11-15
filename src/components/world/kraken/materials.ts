@@ -1,4 +1,5 @@
 import { Color, DoubleSide, MeshStandardMaterial, type WebGLProgramParametersWithUniforms } from 'three';
+import { eyeFrame } from './geometry';
 import { spineTexture } from './rig';
 import { krakenSkin } from './skin';
 import { SPINE, SPINE_ROWS } from './state';
@@ -21,6 +22,9 @@ export const krakenUniforms = {
   uPupil: { value: 0.3 },
   uEyeGlow: { value: 0 },
 };
+
+/** Direction du centre de l'œil vu du centre de la tête (repère tête, côté +Z). */
+const EYE_AXIS = eyeFrame(1).center.normalize();
 
 /* ------------------------------------------------------------------ GLSL partagé */
 
@@ -121,6 +125,7 @@ uniform float uNight;
 uniform vec3 uRim;
 uniform float uWet;
 uniform float uLid;
+const vec3 KR_EYE = vec3(${EYE_AXIS.x.toFixed(4)}, ${EYE_AXIS.y.toFixed(4)}, ${EYE_AXIS.z.toFixed(4)});
 #if defined(KR_ARM) || defined(KR_SUCKER)
   varying float vVentral;
   varying float vS;
@@ -166,7 +171,14 @@ float krAlong = 0.5;
   float krDrop = smoothstep(0.0, 0.08, krFlow) * (1.0 - smoothstep(0.18, 0.42, krFlow));
   float krSheet = krLine * krDrop * step(0.45, krRand) * uWet;
   diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.7, 0.78, 0.82), krSheet * 0.22);
-  krWetness = max(krWetness * 0.7, krSheet);
+  krWetness = max(krWetness * 0.5, krSheet);
+  #ifndef KR_LID
+    // Orbites fardées de prune sombre : l'œil doré ressort.
+    vec3 krN = normalize(vKrLocal);
+    float krOrbit = max(dot(krN, KR_EYE * vec3(1.0, 1.0, -1.0)), dot(krN, KR_EYE));
+    float krShade = smoothstep(0.72, 0.9, krOrbit);
+    diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * vec3(0.45, 0.28, 0.5), krShade * 0.75);
+  #endif
 }
 #endif
 #ifdef KR_LID

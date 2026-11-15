@@ -24,8 +24,8 @@ export const experiences: ExperienceEntry[] = [
     location: 'Marseille, France',
     missions: [
       'Conception et développement de PsyMe, la plateforme de rendez-vous dédiée aux psychologues.',
-      'Création d’un design system et d’une identité visuelle appliquée sur desktop et mobile.',
-      'Animation Lottie, micro-interactions et UX writing pour guider les patients.',
+      'Création d’un design system et d’une identité visuelle, déclinés sur desktop et mobile.',
+      'Animations Lottie, micro-interactions et UX writing pour guider les patients.',
     ],
     stack: ['React', 'Figma', 'Lottie', 'UX Design', 'Branding'],
   },

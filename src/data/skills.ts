@@ -31,11 +31,11 @@ export const skillZones: SkillZone[] = [
     id: 'back',
     label: 'Centre Back-end',
     place: 'des serveurs, des câbles lumineux et une base de données',
-    context: 'APIs, données et logique métier qui tiennent la route.',
+    context: 'API, données et logique métier qui tiennent la route.',
     accent: '#ff9f43',
     items: [
       { name: 'Node.js', level: 'pro' },
-      { name: 'APIs & intégrations', level: 'pro' },
+      { name: 'API & intégrations', level: 'pro' },
       { name: 'Prisma', level: 'pro' },
       { name: 'PostgreSQL', level: 'pro' },
       { name: 'Architecture full stack', level: 'pro' },

@@ -836,7 +836,7 @@ export function Wreck() {
           onClose={close}
         >
           <p className={cardStyles.quote}>
-            Un vieux chalutier breton échoué : un clin d’œil aux pêcheurs de la famille.
+            Un vieux chalutier breton échoué&nbsp;: un clin d’œil aux pêcheurs de la famille.
           </p>
         </SecretCard>
       )}

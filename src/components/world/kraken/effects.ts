@@ -87,12 +87,13 @@ export function ringMaterial() {
       attribute vec4 aRing;
       attribute vec4 aRingFx;
       varying vec2 vLocal;
-      varying vec2 vFx;
+      varying vec3 vFx;
       #include <fog_pars_vertex>
       void main() {
         float radius = max(aRing.w, 0.05);
         float stretch = max(aRingFx.z, 1.0);
-        float extent = 4.4;
+        // Le quad déborde de 7 m autour du bras, quelle que soit sa taille.
+        float extent = (radius + 7.0) / radius;
         // (x, −y) : le quad regarde vers le haut une fois couché sur l'eau (sinon il est éliminé).
         vec2 local = vec2(position.x, -position.y) * extent;
         // Ellipse orientée (tête) : étirée selon son cap.
@@ -101,7 +102,7 @@ export function ringMaterial() {
         vec2 stretched = vec2(local.x * stretch, local.y);
         vec2 world = vec2(stretched.x * c - stretched.y * s, stretched.x * s + stretched.y * c) * radius;
         vLocal = local;
-        vFx = aRingFx.xy;
+        vFx = vec3(aRingFx.xy, radius);
         vec4 mvPosition = modelViewMatrix * vec4(aRing.x + world.x, aRing.y, aRing.z + world.y, 1.0);
         gl_Position = projectionMatrix * mvPosition;
         #include <fog_vertex>
@@ -111,28 +112,29 @@ export function ringMaterial() {
       uniform float uTime;
       uniform float uNight;
       varying vec2 vLocal;
-      varying vec2 vFx;
+      varying vec3 vFx;
       #include <fog_pars_fragment>
       ${NOISE}
       void main() {
-        float d = length(vLocal);
+        // Distance à la peau du bras, en mètres (négative dedans).
+        float d = (length(vLocal) - 1.0) * vFx.z;
         float a = atan(vLocal.y, vLocal.x);
-        float n = krNoise(vec2(a * 2.6 + vFx.y * 10.0, uTime * 0.7 + vFx.y * 3.0));
+        float n = krNoise(vec2(a * (2.0 + vFx.z * 0.8) + vFx.y * 10.0, uTime * 0.7 + vFx.y * 3.0));
         // Collerette serrée contre le bras, déchiquetée.
-        float collar = smoothstep(0.86, 1.0, d) * (1.0 - smoothstep(1.25, 2.0 + n * 0.9, d));
+        float collar = smoothstep(-0.35, 0.05, d) * (1.0 - smoothstep(0.5, 1.5 + n * 1.3, d));
         // Rides qui s'éloignent.
         float ripples = 0.0;
         for (int i = 0; i < 3; i++) {
           float life = fract(uTime * 0.42 + vFx.y + float(i) / 3.0);
-          float r = 1.25 + life * 2.9;
-          ripples += (1.0 - smoothstep(0.0, 0.16 + life * 0.1, abs(d - r))) * (1.0 - life) * (1.0 - life);
+          float r = 0.8 + life * 5.2;
+          ripples += (1.0 - smoothstep(0.0, 0.22 + life * 0.25, abs(d - r))) * (1.0 - life) * (1.0 - life);
         }
-        float breakup = smoothstep(0.28, 0.62, krNoise(vLocal * 2.4 + vFx.y * 7.0 + uTime * 0.3));
-        float foam = max(collar * (0.75 + n * 0.5), ripples * 0.7 * breakup) * vFx.x;
-        foam *= 1.0 - smoothstep(3.6, 4.4, d);
+        float breakup = smoothstep(0.28, 0.62, krNoise(vLocal * vFx.z * 0.9 + vFx.y * 7.0 + uTime * 0.3));
+        float foam = max(collar * (0.7 + n * 0.5), ripples * 0.6 * breakup) * vFx.x;
+        foam *= 1.0 - smoothstep(5.5, 6.8, d);
         if (foam < 0.01) discard;
         vec3 color = mix(vec3(0.88, 0.97, 0.95), vec3(0.42, 0.95, 0.86), uNight * 0.55);
-        gl_FragColor = vec4(color, clamp(foam, 0.0, 0.92));
+        gl_FragColor = vec4(color * (1.0 - uNight * 0.25), clamp(foam, 0.0, 0.9));
         #include <fog_fragment>
       }
     `,
@@ -280,7 +282,7 @@ export function sprayMaterial() {
         alive *= step(-0.4, p.y);
         vAlpha = alive * (1.0 - life) * (1.0 - life * 0.3) * min(1.0, fx.x * 1.3);
         vec4 mv = modelViewMatrix * vec4(p, 1.0);
-        float size = (0.28 + aSpray.z * 0.5) * (0.7 + fx.y * 0.12) * (1.0 + life * 0.8);
+        float size = (0.16 + aSpray.z * 0.34) * (0.7 + fx.y * 0.1) * (1.0 + life * 0.7);
         gl_PointSize = alive > 0.0 ? clamp(uPointScale * size / max(1.0, -mv.z), 1.0, 22.0) : 0.0;
         gl_Position = projectionMatrix * mv;
       }
@@ -307,6 +309,7 @@ export function sprayMaterial() {
 
 export const inkUniforms = {
   ...fogUniforms(),
+  uNight: { value: 0 },
   uAmount: { value: 0 },
   uFade: { value: 0 },
   uTime: { value: 0 },
@@ -331,6 +334,7 @@ export function inkMaterial() {
       uniform float uFade;
       uniform float uTime;
       uniform float uSeed;
+      uniform float uNight;
       varying vec2 vLocal;
       #include <fog_pars_fragment>
       ${NOISE}
@@ -342,10 +346,10 @@ export function inkMaterial() {
         float body = 1.0 - smoothstep(0.72, 1.0, edge);
         if (body < 0.01) discard;
         float swirl = krFbm(p * 0.16 + vec2(n * 4.0, uTime * 0.04));
-        vec3 color = mix(vec3(0.02, 0.004, 0.04), vec3(0.15, 0.035, 0.22), swirl);
-        // Lisière bioluminescente violette : l'encre se lit même sur l'eau noire.
-        float rim = smoothstep(0.55, 0.92, edge) * body;
-        color += vec3(0.42, 0.13, 0.72) * rim * 0.7;
+        vec3 color = mix(vec3(0.016, 0.004, 0.03), vec3(0.11, 0.03, 0.16), swirl * swirl);
+        // Lisière bioluminescente : l'encre se lit même sur l'eau noire (plus vive la nuit).
+        float rim = smoothstep(0.62, 0.95, edge) * body;
+        color += vec3(0.36, 0.12, 0.6) * rim * (0.22 + uNight * 0.4);
         gl_FragColor = vec4(color, body * 0.9 * uFade);
         #include <fog_fragment>
       }
