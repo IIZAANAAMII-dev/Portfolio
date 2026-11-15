@@ -322,7 +322,10 @@ ${SHORE_GLSL}
   // Le modelé lit une houle un peu accentuée : de grandes ondulations de lumière, douces.
   vec3 shadeNormal = normalize(vec3(-slope.x * 2.6, 1.0, -slope.y * 2.6));
   float lambert = max(dot(shadeNormal, sunDir), 0.0);
-  float lit = mix(lambert, floor(lambert * 5.0) / 5.0, 0.38);
+  // Les mêmes paliers « toon » qu'avant, aux marches adoucies : sur une houle lisse, une
+  // marche franche dessinerait de longues lignes droites parasites.
+  float steps = lambert * 5.0;
+  float lit = mix(lambert, (floor(steps) + smoothstep(0.7, 1.0, fract(steps))) / 5.0, 0.38);
   vec3 halfDir = normalize(sunDir + viewDir);
   float specBase = max(dot(normal, halfDir), 0.0);
   // Reflet du soleil large et calme (l'ancienne rugosité moyenne, sans son bruit).
@@ -366,11 +369,18 @@ ${SHORE_GLSL}
   // s'effacent au loin (où ils deviendraient plus fins qu'un pixel) et dans les lagons.
   float strokeFade = (1.0 - smoothstep(45.0, 135.0, cameraDistance)) * uStrokes;
   float crestMask = smoothstep(-0.1, 0.2, height);
+  // Un trait vu par le bout se raccourcit et ne montre plus que son ondulation (un
+  // « ver ») : les traits alignés avec le regard s'effacent, les traits de travers restent.
+  vec2 lookH = normalize(p - uCameraPos.xz + vec2(1e-3, 0.0));
+  float sideOnA = 1.0 - smoothstep(0.72, 0.95, abs(dot(lookH, vec2(-SWELL_A.y, SWELL_A.x))));
+  float sideOnB = 1.0 - smoothstep(0.72, 0.95, abs(dot(lookH, vec2(-SWELL_B.y, SWELL_B.x))));
   float lines = 0.0;
   if (strokeFade * crestMask > 0.002) {
-    lines = crestStroke(p, SWELL_A, vec2(9.0, 6.0), 0.45, uTime, 3.1, 0.5, 0.16, pxA);
-    if (uQuality > 0.25) {
-      lines = max(lines, crestStroke(p, SWELL_B, vec2(12.0, 7.5), 0.3, uTime, 17.3, 0.3, 0.12, pxB) * 0.8);
+    if (sideOnA > 0.001) {
+      lines = crestStroke(p, SWELL_A, vec2(9.0, 6.0), 0.45, uTime, 3.1, 0.5, 0.16, pxA) * sideOnA;
+    }
+    if (uQuality > 0.25 && sideOnB > 0.001) {
+      lines = max(lines, crestStroke(p, SWELL_B, vec2(12.0, 7.5), 0.3, uTime, 17.3, 0.3, 0.12, pxB) * 0.8 * sideOnB);
     }
   }
   lines *= strokeFade * crestMask * (1.0 - lagoon * 0.65) * (1.0 - shoreBand);
