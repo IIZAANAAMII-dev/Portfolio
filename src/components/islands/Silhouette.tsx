@@ -1,56 +1,57 @@
 'use client';
 
+import { useMemo } from 'react';
 import { AssetBoundary } from '@/components/world/AssetBoundary';
-import { SubstanceScatter } from './bell-island';
 import type { SceneProps } from './kit';
+import { hash } from '@/lib/utils/math';
+import { BeachTreasures } from './props/Beach';
+import { Butterflies } from './props/Butterflies';
+import { FlowerScatter } from './props/Flowers';
+import { RockScatter, type RockGroup } from './props/Rocks';
 import { sceneComponents, sceneConfigs } from './scenes/registry';
 
-/** Habillage commun : rochers au bord de l'eau et au pied des falaises, fleurs, étoiles de mer. */
+/**
+ * Habillage commun, entièrement procédural (identique en local et en production) :
+ * galets et rochers de la grève, blocs moussus au pied des falaises, pierres dans l'herbe,
+ * touffes de fleurs aux couleurs de l'île, étoiles de mer, coquillages et papillons. Six
+ * draw calls en tout ; rochers et fleurs s'effacent sous les clairières des bâtiments.
+ */
 export function IslandDressing({ island, sampler, features, seed }: SceneProps & { seed: number }) {
-  const avoid = { avoidAngle: island.dockAngle, avoidWidth: 0.42 };
+  const { radius, dockAngle } = island;
+  const plateau = features.plateau;
+  const rocks = useMemo<RockGroup[]>(() => {
+    const avoid = { avoidAngle: dockAngle, avoidWidth: 0.42 };
+    return [
+      { kind: 'pebble', zone: { inner: radius * 0.84, outer: radius * 1.1, minHeight: -0.5, maxHeight: 0.6, ...avoid }, groups: Math.round(radius * 0.5), seed: seed + 11, size: [0.6, 1.25], satellites: [1, 3] },
+      { kind: 'boulder', zone: { inner: radius * 0.7, outer: radius * 0.86, minHeight: 0.4, maxHeight: plateau - 0.25, ...avoid }, groups: Math.round(radius * 0.28), seed: seed + 23, size: [1.1, 2.0], satellites: [1, 2], moss: 0.6 },
+      { kind: 'stone', zone: { inner: radius * 0.3, outer: radius * 0.66, minHeight: plateau - 0.3, maxSlope: 0.25, ...avoid }, groups: Math.round(radius * 0.14), seed: seed + 29, size: [0.55, 0.95], satellites: [0, 1], moss: 0.9 },
+    ];
+  }, [dockAngle, plateau, radius, seed]);
+  // Trois papillons au-dessus du plateau.
+  const butterflies = useMemo(() => Array.from({ length: 3 }, (_, index): [number, number, number] => {
+    const angle = hash(seed * 1.7 + index * 3.1) * Math.PI * 2;
+    const spread = radius * (0.25 + hash(seed * 2.3 + index * 5.7) * 0.35);
+    const x = Math.cos(angle) * spread;
+    const z = Math.sin(angle) * spread;
+    return [x, sampler(x, z), z];
+  }), [radius, sampler, seed]);
+  const avoid = { avoidAngle: dockAngle, avoidWidth: 0.42 };
   return (
     <>
-      <SubstanceScatter
-        name="rocks-small"
+      <RockScatter sampler={sampler} groups={rocks} />
+      <Butterflies spots={butterflies} seed={seed} />
+      <FlowerScatter
         sampler={sampler}
-        zone={{ inner: island.radius * 0.86, outer: island.radius * 1.12, minHeight: -0.6, maxHeight: 0.55, ...avoid }}
-        count={Math.round(island.radius * 1.1)}
-        seed={seed + 11}
-        scale={[0.7, 1.35]}
-        variety={5}
-        sink={0.25}
-      />
-      <SubstanceScatter
-        name="rocks-edged"
-        sampler={sampler}
-        zone={{ inner: island.radius * 0.6, outer: island.radius * 0.84, minHeight: 0.5, ...avoid }}
-        count={Math.round(island.radius * 0.6)}
-        seed={seed + 23}
-        scale={[0.55, 1.05]}
-        variety={4}
-        sink={0.3}
-      />
-      <SubstanceScatter
-        name="flower-clump"
-        sampler={sampler}
-        mode="together"
-        zone={{ inner: 0, outer: island.radius * 0.76, minHeight: features.plateau - 0.4, maxSlope: 0.22, ...avoid }}
-        count={Math.round(island.radius * 1.6)}
+        zone={{ inner: 0, outer: radius * 0.76, minHeight: plateau - 0.4, maxSlope: 0.22, ...avoid }}
+        count={Math.round(radius * 1.5)}
         seed={seed + 37}
-        scale={[1.5, 2.6]}
-        sink={0.02}
-        shadows={false}
       />
-      <SubstanceScatter
-        name="starfish"
+      <BeachTreasures
         sampler={sampler}
-        mode="together"
-        zone={{ inner: island.radius * 0.8, outer: island.radius * 1.02, minHeight: 0.1, maxHeight: 0.85, ...avoid }}
-        count={5}
+        zone={{ inner: radius * 0.8, outer: radius * 1.02, minHeight: 0.12, maxHeight: 0.85, ...avoid }}
+        starfish={5}
+        shells={7}
         seed={seed + 41}
-        scale={[1.6, 2.4]}
-        sink={0}
-        shadows={false}
       />
     </>
   );
