@@ -57,6 +57,8 @@ void main() {
 
 /** Pluie locale poolée + éclairs lointains. La couverture vit dans le shader du ciel. */
 export function BoundaryStorm() {
+  // Pas de lumière ponctuelle sur mobile (coût par pixel de tous les matériaux éclairés).
+  const quality = useWorld((state) => state.quality);
   const [kraken, setKraken] = useState(false);
   const strikeSeen = useRef(krakenState.strike);
   const root = useRef<Group>(null);
@@ -209,7 +211,9 @@ export function BoundaryStorm() {
             fog={false}
           />
         </lineSegments>
-        <pointLight ref={lightningLight} color="#c8eaff" intensity={0} distance={180} decay={1.45} />
+        {quality !== 'low' && (
+          <pointLight ref={lightningLight} color="#c8eaff" intensity={0} distance={180} decay={1.45} />
+        )}
       </group>
       {/* En coordonnées monde (hors du groupe qui suit le bateau). */}
       {kraken && (
