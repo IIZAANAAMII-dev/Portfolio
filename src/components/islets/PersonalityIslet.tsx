@@ -15,7 +15,10 @@ import { ambience } from '@/lib/audio/ambience';
 import { boatState } from '@/lib/boat-state';
 import { logbook } from '@/lib/logbook';
 import { useWorld } from '@/lib/store';
+import { INTRO_DURATION } from '@/lib/cinematic';
 import { damp, smoothstep } from '@/lib/utils/math';
+import { RISE_SETTLE, risePose, riseSchedule, type RisePose } from '@/components/intro/rise';
+import { WaterSkin } from '@/components/intro/WaterSkin';
 import { BreizhDecor } from './BreizhDecor';
 import { DesignDecor } from './DesignDecor';
 import { TechDecor } from './TechDecor';
@@ -68,6 +71,7 @@ function Islet({ islet }: { islet: IsletConfig }) {
   const lod = useRef<DecorLod>(createDecorLod());
   const label = useRef<HTMLDivElement>(null);
   const aura = useRef<Mesh>(null);
+  const pose = useRef<RisePose>({ visible: false, y: 0, sy: 1, sxz: 1, tiltX: 0, tiltZ: 0 });
   const sailToPoint = useWorld((state) => state.sailToPoint);
   const shape = useMemo<TerrainShape>(
     () => ({ radius: islet.radius, elevation: islet.elevation, seed: islet.seed }),
@@ -90,14 +94,34 @@ function Islet({ islet }: { islet: IsletConfig }) {
     const target = group.current;
     if (!target) return;
     const dt = Math.min(delta, 1 / 30);
-    const { introCenter, introRadius, activeIsland, quality, reducedMotion } = useWorld.getState();
+    const { phase, gameTransition, introCenter, activeIsland, quality, reducedMotion } = useWorld.getState();
 
-    // Révélation : même onde que les îles.
-    const d = Math.hypot(islet.position[0] - introCenter[0], islet.position[1] - introCenter[1]);
-    const raw = smoothstep(d - 4.5, d, introRadius);
-    const scale = damp(target.scale.x, raw * (1 + 0.09 * Math.sin(raw * Math.PI) * (1 - raw)), 7.5, dt);
-    target.scale.setScalar(scale);
-    target.visible = scale > 0.006;
+    // Révélation : l'îlot surgit de la mer comme les îles (intro/rise.ts), à son tour.
+    // `scale` dit ensuite à quel point il est « là » (réveil, étiquette, anneau).
+    let scale = 1;
+    if (phase === 'transitioning' && !reducedMotion) {
+      const slot = riseSchedule(introCenter[0], introCenter[1], boatState.heading).byId.get(`islet:${islet.id}`);
+      const tau = gameTransition * INTRO_DURATION - (slot?.start ?? 0);
+      const current = risePose(tau, islet.elevation + 3, islet.seed, pose.current);
+      target.visible = current.visible;
+      target.position.y = current.y;
+      target.scale.set(current.sxz, current.sy, current.sxz);
+      target.rotation.set(current.tiltX, 0, current.tiltZ);
+      scale = current.visible ? Math.min(1, tau / RISE_SETTLE) : 0;
+    } else if (phase === 'loading' || phase === 'intro') {
+      target.visible = false;
+      target.position.y = 0;
+      target.scale.setScalar(1);
+      target.rotation.set(0, 0, 0);
+      scale = 0;
+    } else {
+      // Ouverture passée en cours de route : l'îlot finit de monter, vite et sans à-coup.
+      target.visible = true;
+      const rate = reducedMotion ? 1000 : 9;
+      target.position.y = damp(target.position.y, 0, rate, dt);
+      target.scale.setScalar(damp(target.scale.x, 1, rate, dt));
+      target.rotation.set(damp(target.rotation.x, 0, rate, dt), 0, damp(target.rotation.z, 0, rate, dt));
+    }
     if (decor.current) {
       updateDecorLod(
         decor.current,
@@ -151,7 +175,6 @@ function Islet({ islet }: { islet: IsletConfig }) {
     <group
       ref={group}
       position={[islet.position[0], 0, islet.position[1]]}
-      scale={0}
       visible={false}
       userData={CLEARING_ROOT}
       onClick={onClick}
@@ -173,6 +196,8 @@ function Islet({ islet }: { islet: IsletConfig }) {
           <Grass sampler={sampler} radius={islet.radius} plateau={features.plateau} seed={islet.seed} palette={islet.grass} />
           <Decor islet={islet} sampler={sampler} features={features} awake={isletAwake[islet.id]} />
         </group>
+        {/* Nappes d'eau qui ruissellent quand l'îlot crève la surface (ouverture seulement). */}
+        <WaterSkin id={`islet:${islet.id}`} shape={shape} sampler={sampler} />
       </ClearingContext.Provider>
 
       {/* Anneau de réveil, posé sur l'eau autour de l'îlot. */}

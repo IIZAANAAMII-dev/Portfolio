@@ -97,13 +97,12 @@ export function spawnSquall(camera: Camera, frozen = false) {
 
 export function spawnRainbow(camera: Camera, frozen = false) {
   const { fx, fz, pitch, vfov } = cameraFrame(camera);
-  const docked = useWorld.getState().phase === 'docked';
   // Centre de l'arc un peu sous le centre de l'image, juste sous la mer : l'arc s'en élève,
-  // encadre ce que l'on regarde et culmine sous le haut de l'image.
+  // encadre ce que l'on regarde (bateau, île de l'escale) et culmine sous le haut de l'image.
   const depression = clamp(pitch + vfov * 0.25, 0.12, 1.3);
   rainbow.dir.set(Math.cos(depression) * fx, -Math.sin(depression), Math.cos(depression) * fz);
   rainbow.distance = (Math.max(camera.position.y, 1) + 2) / Math.sin(depression);
-  rainbow.radius = rainbow.distance * Math.tan(vfov * (docked ? 0.66 : 0.8));
+  rainbow.radius = rainbow.distance * Math.tan(vfov * 0.68);
   rainbow.age = 0;
   rainbow.hold = frozen;
   rainbow.alpha = frozen ? 1 : 0;

@@ -89,6 +89,8 @@ const fragmentShader = /* glsl */ `
 uniform float uMeteor;
 uniform float uBurst;
 uniform float uTime;
+uniform float uPass;
+uniform float uMotion;
 varying vec2 vCorner;
 varying float vKind;
 varying float vFade;
@@ -119,6 +121,11 @@ void main() {
     alpha = (star + ring + halo) * vFade;
     color = mix(vec3(0.95, 0.97, 1.0), vec3(1.0, 0.86, 0.55), clamp(ring * 1.5 + halo * 2.0, 0.0, 1.0));
   }
+  // Reflet : l'image se brise en bandes horizontales, comme sur une eau ridée.
+  if (uPass > 0.5) {
+    float ripple = 0.6 + 0.4 * sin(gl_FragCoord.y * 0.45 + uTime * 2.2 + sin(gl_FragCoord.x * 0.05 + uTime * 0.7) * 2.0);
+    alpha *= mix(0.8, ripple, uMotion);
+  }
   gl_FragColor = vec4(color, alpha);
   #include <colorspace_fragment>
 }
@@ -133,19 +140,21 @@ const meteorUniforms = {
 const skyPass = { value: 0 };
 const seaPass = { value: 1 };
 
+/** `?sky=meteor` : une étoile filante tenue à mi-course (captures). */
+const hold = skyParams.sky?.includes('meteor') === true;
+
 /** Étoile filante courante (une seule à la fois) ; état hors React. */
 const meteor = {
   active: false,
   progress: 0,
   duration: 2.4,
-  wait: 9 + Math.random() * 10,
+  wait: hold ? 0 : 9 + Math.random() * 10,
   wished: false,
   caught: false,
   hovered: false,
   start: new Vector3(),
   end: new Vector3(),
 };
-const hold = skyParams.sky?.includes('meteor') === true;
 const forward = new Vector3();
 const DEG = Math.PI / 180;
 

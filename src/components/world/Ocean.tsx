@@ -553,8 +553,8 @@ export function Ocean() {
       u.uCoast.value = map.texture;
       u.uCoastRect.value.set(map.rect[0], map.rect[1], map.rect[2], 0);
     }
-    // Fondu d'apparition en temps réel (borné) : quelques secondes, même sur un appareil lent.
-    if (map) u.uCoastRect.value.w = damp(u.uCoastRect.value.w, 1, 1.6, Math.min(dt, 0.2));
+    // Fondu d'apparition en temps réel : quelques secondes, même sur un appareil lent.
+    if (map) u.uCoastRect.value.w = damp(u.uCoastRect.value.w, 1, 1.6, Math.min(dt, 1));
     u.uDeep.value.copy(DAY_DEEP).lerp(NIGHT_DEEP, dayNight);
     u.uShallow.value.copy(DAY_SHALLOW).lerp(NIGHT_SHALLOW, dayNight);
     u.uLagoon.value.copy(DAY_LAGOON).lerp(NIGHT_LAGOON, dayNight);

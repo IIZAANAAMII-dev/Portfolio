@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import {
+  AdditiveBlending,
   BufferGeometry,
   Color,
   DoubleSide,
@@ -11,9 +12,11 @@ import {
   InstancedBufferAttribute,
   InstancedMesh,
   Matrix4,
+  Mesh,
   Object3D,
   RingGeometry,
   ShaderMaterial,
+  Vector2,
   Vector3,
 } from 'three';
 import { BOAT_FRAME } from '@/components/boat/BoatModel';
@@ -24,10 +27,10 @@ import { INTRO_DURATION, SPLASH_SECONDS } from '@/lib/cinematic';
 import { ecologyState } from '@/lib/ecology';
 import { skyState } from '@/lib/sky';
 import { useWorld } from '@/lib/store';
-import { hash } from '@/lib/utils/math';
+import { hash, smoothstep } from '@/lib/utils/math';
 import { WAVE_GLSL, waveHeight } from '@/lib/waves';
 import { INTRO_POP_SLOTS, setIntroPopClock, setIntroPopSlot } from './pop';
-import { riseSchedule, type RiseSlot } from './rise';
+import { riseSchedule, sweepBearing, SWEEP_FROM, SWEEP_SPAN, type RiseSlot } from './rise';
 import { introSfx } from './sfx';
 
 /**
@@ -580,11 +583,93 @@ function Gulls() {
   return <instancedMesh ref={mesh} args={[geometry, material, GULLS]} frustumCulled={false} visible={false} raycast={() => null} />;
 }
 
+/* --- Faisceau de la lanterne ---------------------------------------------- */
+
+const beamVertex = /* glsl */ `
+varying vec2 vPlane;
+void main() {
+  vec4 world = modelMatrix * vec4(position, 1.0);
+  vPlane = world.xz;
+  gl_Position = projectionMatrix * viewMatrix * world;
+}
+`;
+
+const beamFragment = /* glsl */ `
+uniform vec2 uCenter;
+uniform float uAngle;
+uniform float uStrength;
+uniform float uTime;
+varying vec2 vPlane;
+void main() {
+  vec2 d = vPlane - uCenter;
+  float r = length(d);
+  float delta = atan(sin(atan(d.y, d.x) - uAngle), cos(atan(d.y, d.x) - uAngle));
+  float width = 0.07 + r * 0.0003;
+  float core = exp(-pow(delta / width, 2.0));
+  float glow = exp(-pow(delta / (width * 4.0), 2.0)) * 0.28;
+  // Sillage : la mer déjà balayée garde un instant un reflet chaud.
+  float wake = delta < 0.0 ? exp(delta / 0.55) * 0.16 : 0.0;
+  float radial = smoothstep(8.0, 22.0, r) * (1.0 - smoothstep(105.0, 175.0, r));
+  float shimmer = 0.72 + 0.28 * sin(r * 0.85 - uTime * 7.0);
+  float light = (core + glow + wake) * radial * shimmer * uStrength;
+  if (light < 0.004) discard;
+  gl_FragColor = vec4(1.0, 0.84, 0.58, light);
+}
+`;
+
+/**
+ * La lanterne du bateau balaie la mer d'un tour complet : là où son faisceau passe, les îles
+ * surgissent (même balayage que intro/rise.ts). Une traînée chaude sur l'eau, additive.
+ */
+function SweepBeam() {
+  const mesh = useRef<Mesh>(null);
+  const material = useMemo(
+    () =>
+      new ShaderMaterial({
+        uniforms: { uCenter: { value: new Vector2() }, uAngle: { value: 0 }, uStrength: { value: 0 }, uTime: { value: 0 } },
+        vertexShader: beamVertex,
+        fragmentShader: beamFragment,
+        transparent: true,
+        depthWrite: false,
+        blending: AdditiveBlending,
+      }),
+    [],
+  );
+  useEffect(() => () => material.dispose(), [material]);
+
+  useFrame((state) => {
+    const target = mesh.current;
+    if (!target) return;
+    const clock = introClock();
+    const strength = isRunning()
+      ? smoothstep(SWEEP_FROM - 0.2, SWEEP_FROM + 0.25, clock) * (1 - smoothstep(SWEEP_FROM + SWEEP_SPAN - 0.25, SWEEP_FROM + SWEEP_SPAN + 0.15, clock))
+      : 0;
+    target.visible = strength > 0.002;
+    if (!target.visible) return;
+    const { introCenter } = useWorld.getState();
+    target.position.set(introCenter[0], 0.32, introCenter[1]);
+    const shader = target.material as ShaderMaterial;
+    (shader.uniforms.uCenter.value as Vector2).set(introCenter[0], introCenter[1]);
+    shader.uniforms.uAngle.value = sweepBearing(clock, boatState.heading);
+    // Plus discret à mesure que le jour se lève : la lanterne s'efface devant le soleil.
+    shader.uniforms.uStrength.value = strength * (1.05 - useWorld.getState().reveal * 0.45);
+    shader.uniforms.uTime.value = state.clock.elapsedTime;
+  });
+
+  return (
+    <mesh ref={mesh} rotation-x={-Math.PI / 2} renderOrder={8} visible={false} frustumCulled={false} raycast={() => null}>
+      <planeGeometry args={[360, 360, 1, 1]} />
+      <primitive object={material} attach="material" />
+    </mesh>
+  );
+}
+
 /** Tous les effets de l'ouverture (montés par IntroStage, hors du Suspense de la scène). */
 export function IntroFX() {
   return (
     <>
       <Director />
+      <SweepBeam />
       <RiseRings />
       <Spray />
       <Gulls />

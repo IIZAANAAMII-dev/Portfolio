@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { site } from '@/data/site';
 import { useWorld } from '@/lib/store';
 import { isCoarsePointer } from '@/lib/utils/device';
@@ -49,11 +49,12 @@ function FlyingTitle({ leaving }: { leaving: boolean }) {
   const first = useRef<HTMLSpanElement>(null);
   const family = useRef<HTMLSpanElement>(null);
 
-  useEffect(() => {
+  // Avant la première peinture : la copie ne doit jamais apparaître ailleurs qu'à sa place.
+  useLayoutEffect(() => {
     const node = root.current;
     const name = first.current;
     const second = family.current;
-    const source = document.querySelector<HTMLElement>('.intro-title');
+    const source = document.querySelector<HTMLElement>('.intro-brand .intro-title');
     if (!node || !name || !second || !source) return;
     // La copie se pose exactement sur le titre du cartouche…
     const origin = source.getBoundingClientRect();

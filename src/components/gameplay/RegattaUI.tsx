@@ -5,7 +5,7 @@ import { boatState } from '@/lib/boat-state';
 import { useWorld } from '@/lib/store';
 import { probe } from './bridge';
 import { clockNow } from './fishing-data';
-import { ArrowIcon, CloseIcon, FlagIcon } from './icons';
+import { ArrowIcon, CloseIcon, FlagIcon, RestartIcon } from './icons';
 import { COURSE, MARKS, raceClock, useRegatta } from './regatta';
 import styles from './gameplay.module.css';
 
@@ -68,20 +68,21 @@ export function RegattaDock() {
     useWorld.getState().sailToPoint([x, z]);
   };
 
+  // Un instrument compact (étiquette, puis chrono et boutons sur une ligne) : sur téléphone, il
+  // tient entre la boussole et la radio, sous les sous-titres de la visite guidée.
   if (phase === 'finished') {
+    const verdict = record ? 'Arrivée · nouveau record\u202f!' : best !== null ? `Arrivée · record ${raceClock(best)}` : 'Arrivée\u202f!';
     return (
       <div className={styles.race} data-enter="">
-        <span className={styles.label}>Arrivée&nbsp;!</span>
-        <span className={styles.timer}>{raceClock(time)}</span>
-        <span className={styles.record}>
-          {record ? 'Nouveau record !' : best !== null ? `Record : ${raceClock(best)}` : ''}
-        </span>
-        <div className={styles.row}>
-          <button type="button" className={styles.primary} onClick={start}>
-            Recommencer
+        <span className={styles.label}>{verdict}</span>
+        <div className={styles.raceRow}>
+          <span className={styles.timer}>{raceClock(time)}</span>
+          <button type="button" className={`${styles.primary} ${styles.squeeze}`} onClick={start} aria-label="Recommencer la régate">
+            <RestartIcon className={styles.icon} />
+            <span className={styles.wide}>Recommencer</span>
           </button>
-          <button type="button" className={styles.ghost} onClick={abort}>
-            Fermer
+          <button type="button" className={styles.round} onClick={abort} aria-label="Fermer le résultat" title="Fermer">
+            <CloseIcon className={styles.icon} />
           </button>
         </div>
       </div>
@@ -89,20 +90,20 @@ export function RegattaDock() {
   }
 
   const finale = leg === COURSE.length - 1;
-  const label = phase === 'armed' ? 'Bouée de départ' : finale ? 'Ligne d’arrivée' : `Bouée ${leg}/${COURSE.length - 2}`;
+  const label = phase === 'armed' ? 'Passe la bouée de départ' : finale ? 'Ligne d’arrivée' : `Bouée ${leg}/${COURSE.length - 2}`;
+  const heading = phase === 'armed' ? 'Cap sur le départ' : finale ? 'Cap sur l’arrivée' : 'Cap sur la bouée';
   return (
     <div className={styles.race} data-enter="">
-      <span className={styles.label}>La régate des bouées · {label}</span>
-      <span ref={clock} className={styles.timer} role="timer" aria-live="off">
-        {raceClock(0)}
-      </span>
-      {phase === 'armed' && <span className={styles.record}>Passe la bouée de départ pour lancer le chrono.</span>}
-      <div className={styles.row}>
-        <button type="button" className={styles.primary} onClick={sailToMark}>
+      <span className={styles.label}>Régate · {label}</span>
+      <div className={styles.raceRow}>
+        <span ref={clock} className={styles.timer} role="timer" aria-live="off">
+          {raceClock(0)}
+        </span>
+        <button type="button" className={`${styles.primary} ${styles.squeeze}`} onClick={sailToMark} aria-label={heading}>
           <span ref={arrow} className={styles.raceArrow}>
             <ArrowIcon className={styles.icon} />
           </span>
-          {phase === 'armed' ? 'Cap sur le départ' : finale ? 'Cap sur l’arrivée' : 'Cap sur la bouée'}
+          <span className={styles.wide}>{heading}</span>
         </button>
         <button type="button" className={styles.round} onClick={abort} aria-label="Abandonner la régate" title="Abandonner">
           <CloseIcon className={styles.icon} />

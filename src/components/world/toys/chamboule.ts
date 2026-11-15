@@ -232,7 +232,10 @@ function restack(time: number) {
   }
   const away = Math.hypot(boat.x - raft.p.x, boat.z - raft.p.z);
   if (!pyramid.restacking) {
-    if (loose === 0) return;
+    if (loose === 0) {
+      pyramid.force = false;
+      return;
+    }
     if (!pyramid.force && (time - pyramid.lastDisturb < RESTACK_DELAY || away < 10)) return;
     pyramid.restacking = true;
     pyramid.nextLaunch = time;

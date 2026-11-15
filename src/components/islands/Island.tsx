@@ -5,7 +5,11 @@ import { Html } from '@react-three/drei';
 import { useFrame, type ThreeEvent } from '@react-three/fiber';
 import { Group } from 'three';
 import { useWorld } from '@/lib/store';
-import { damp, smoothstep } from '@/lib/utils/math';
+import { boatState } from '@/lib/boat-state';
+import { INTRO_DURATION } from '@/lib/cinematic';
+import { damp } from '@/lib/utils/math';
+import { risePose, riseSchedule, type RisePose } from '@/components/intro/rise';
+import { WaterSkin } from '@/components/intro/WaterSkin';
 import { Dock } from './docks';
 import { Silhouette } from './Silhouette';
 import { Terrain } from './Terrain';
@@ -59,7 +63,9 @@ export function Island({ island, index }: { island: IslandConfig; index: number 
   const isHovered = useWorld((s) => s.hovered === island.id);
   const isActive = useWorld((s) => s.activeIsland === island.id);
   // Booléen dérivé : l'île ne se re-rend pas à chaque image de la cinématique d'intro.
-  const labelVisible = useWorld((s) => s.reveal > 0.72);
+  // Les étiquettes arrivent avec le HUD, quand la caméra se pose.
+  const labelVisible = useWorld((s) => s.reveal > 0.97);
+  const pose = useRef<RisePose>({ visible: false, y: 0, sy: 1, sxz: 1, tiltX: 0, tiltZ: 0 });
   const shape = useMemo<TerrainShape>(
     () => ({ radius: island.radius, elevation: island.elevation, seed: index * 17 + 3 }),
     [index, island.elevation, island.radius],
@@ -75,23 +81,34 @@ export function Island({ island, index }: { island: IslandConfig; index: number 
   }, [config, shape]);
   const clearings = useMemo(() => new ClearingStore(), []);
 
-  // Les îles n'apparaissent pas toutes en même temps pendant la révélation :
-  // elles émergent une à une (voir useWorldReveal).
+  // Pendant l'ouverture, les îles surgissent de la mer l'une après l'autre (intro/rise.ts) :
+  // ressort, étirement, roulis de bouchon. Avant le clic, elles attendent invisibles mais à
+  // leur place exacte (les repères calculés une fois sur les matrices restent justes).
   useFrame((state, delta) => {
     if (!group.current) return;
     const dt = Math.min(delta, 1 / 30);
-    const { introCenter, introRadius, quality, reducedMotion, activeIsland, destination } = useWorld.getState();
-    const dx = island.position[0] - introCenter[0];
-    const dz = island.position[1] - introCenter[1];
-    const d = Math.hypot(dx, dz);
-    const edge = 4.5;
-    const raw = smoothstep(d - edge, d, introRadius);
-    // Petit bounce à l'arrivée du cercle lumineux (un seul overshoot).
-    const bounce = 1.0 + 0.09 * Math.sin(raw * Math.PI) * (1.0 - raw);
-    const target = raw * bounce;
-    const scale = damp(group.current.scale.x, target, 7.5, dt);
-    group.current.scale.setScalar(scale);
-    group.current.visible = scale > 0.006;
+    const { phase, gameTransition, introCenter, quality, reducedMotion, activeIsland, destination } = useWorld.getState();
+    const node = group.current;
+    if (phase === 'transitioning' && !reducedMotion) {
+      const slot = riseSchedule(introCenter[0], introCenter[1], boatState.heading).byId.get(island.id);
+      const current = risePose(gameTransition * INTRO_DURATION - (slot?.start ?? 0), island.elevation + 3.5, index * 1.7, pose.current);
+      node.visible = current.visible;
+      node.position.y = current.y;
+      node.scale.set(current.sxz, current.sy, current.sxz);
+      node.rotation.set(current.tiltX, 0, current.tiltZ);
+    } else if (phase === 'loading' || phase === 'intro') {
+      node.visible = false;
+      node.position.y = 0;
+      node.scale.setScalar(1);
+      node.rotation.set(0, 0, 0);
+    } else {
+      // Ouverture passée en cours de route : l'île finit de monter, vite et sans à-coup.
+      node.visible = true;
+      const rate = reducedMotion ? 1000 : 9;
+      node.position.y = damp(node.position.y, 0, rate, dt);
+      node.scale.setScalar(damp(node.scale.x, 1, rate, dt));
+      node.rotation.set(damp(node.rotation.x, 0, rate, dt), 0, damp(node.rotation.z, 0, rate, dt));
+    }
 
     // LOD (qualité basse / moyenne) : loin de la caméra, le décor détaillé disparaît.
     if (decor.current) {
@@ -129,7 +146,7 @@ export function Island({ island, index }: { island: IslandConfig; index: number 
     <group
       ref={group}
       position={[island.position[0], 0, island.position[1]]}
-      scale={0}
+      visible={false}
       userData={CLEARING_ROOT}
       onClick={onClick}
       onPointerOver={onOver}
@@ -166,6 +183,8 @@ export function Island({ island, index }: { island: IslandConfig; index: number 
           />
         )}
         <Dock angle={island.dockAngle} reach={island.radius} />
+        {/* Nappes d'eau qui ruissellent quand l'île crève la surface (ouverture seulement). */}
+        <WaterSkin id={island.id} shape={shape} sampler={sampler} />
       </ClearingContext.Provider>
 
       {/* Volume de sélection : garantit une cible cliquable généreuse et stable. */}

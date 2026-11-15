@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useProgress } from '@react-three/drei';
+import { handedOffClass, IntroTitle } from '@/components/intro/IntroTitle';
 import { site } from '@/data/site';
 import { ambience } from '@/lib/audio/ambience';
 import { useWorld } from '@/lib/store';
@@ -31,8 +32,19 @@ const CARDINALS = ['n', 'e', 's', 'o'] as const;
  * La version rapide reste accessible pendant le chargement : un visiteur pressé n'attend pas.
  */
 export function Intro() {
+  return (
+    <>
+      <Threshold />
+      {/* Pendant l'ouverture, le nom s'envole vers le HUD ; un clic passe à la fin. */}
+      <IntroTitle />
+    </>
+  );
+}
+
+function Threshold() {
   const phase = useWorld((state) => state.phase);
   const start = useWorld((state) => state.start);
+  const reducedMotion = useWorld((state) => state.reducedMotion);
   const progress = useProgress((state) => state.progress);
   // Monté côté client uniquement (ExperienceLoader) : l'appareil est connu dès le rendu.
   const [touch] = useState(isCoarsePointer);
@@ -69,7 +81,7 @@ export function Intro() {
 
       <header className="intro-brand">
         <p className="intro-kicker">Carnet de navigation</p>
-        <p className="intro-title">
+        <p className={phase === 'transitioning' && !reducedMotion ? `intro-title ${handedOffClass}` : 'intro-title'}>
           <span className="intro-title__line">
             <span>{FIRST_NAME}</span>
           </span>{' '}

@@ -57,6 +57,26 @@ export function FishIcon({ className }: IconProps) {
   );
 }
 
+/** Fanion de régate sur sa marque. */
+export function FlagIcon({ className }: IconProps) {
+  return (
+    <svg className={className} {...stroke}>
+      <path d="M5.5 17.5V2.8" />
+      <path d="M5.5 3.2 15.5 6.4 5.5 9.6" fill="currentColor" fillOpacity="0.25" />
+      <path d="M3 17.5h5" />
+    </svg>
+  );
+}
+
+export function RestartIcon({ className }: IconProps) {
+  return (
+    <svg className={className} {...stroke}>
+      <path d="M15.6 7.2A6.2 6.2 0 1 0 16 12" />
+      <path d="M16.2 3.2v4.4h-4.4" />
+    </svg>
+  );
+}
+
 export function ArrowIcon({ className }: IconProps) {
   return (
     <svg className={className} {...stroke}>
