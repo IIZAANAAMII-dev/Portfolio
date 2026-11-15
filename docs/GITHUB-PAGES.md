@@ -1,18 +1,27 @@
 # Publication GitHub Pages
 
-Source : `codex/github-pages`, adaptée depuis `claude/happy-lovelace-foxref` au commit `161db90`.
-Site prévu : https://iizaanaamii-dev.github.io/Portfolio/
+Branche principale : `main`. Elle regroupe tout le travail des anciennes branches
+(`claude/happy-lovelace-foxref`, `codex/archipel-navigation-20261114`,
+`codex/archipel-art-direction`, `codex/github-pages`, `dev`).
 
-La branche `gh-pages` contient uniquement l'export compilé. Dans Settings → Pages, sélectionner **Deploy from a branch**, branche **gh-pages**, dossier **/(root)**, puis Save.
+Site : https://iizaanaamii-dev.github.io/Portfolio/
 
-## Construire
+## Publication automatique
+
+À chaque push sur `main`, le workflow `.github/workflows/deploy-pages.yml`
+installe les dépendances, lance `npm run build` et publie le dossier `out/`
+sur la branche `gh-pages`. Rien à faire à la main.
+
+Réglage unique dans **Settings → Pages** : *Deploy from a branch*, branche
+**gh-pages**, dossier **/(root)**, puis Save.
+
+## Construire en local
 
 ```sh
 npm ci
 npm run build
 ```
 
-Le dossier `out/` contient le site à publier à la racine de `gh-pages`, y compris `.nojekyll` et `_next/`.
-Les mises à jour de Claude ne sont pas publiées automatiquement : reporter ses changements sur cette branche, reconstruire puis mettre à jour `gh-pages`.
-
-Le site utilise le préfixe `/Portfolio/` pour les images, modèles, textures et sons. GitHub Pages n'exécute pas de serveur : le contact ouvre la messagerie du visiteur. La route serveur est conservée sur la branche de Claude.
+Le site utilise le préfixe `/Portfolio/` pour les images, modèles, textures et
+sons. GitHub Pages n'exécute pas de serveur : le contact ouvre la messagerie du
+visiteur.

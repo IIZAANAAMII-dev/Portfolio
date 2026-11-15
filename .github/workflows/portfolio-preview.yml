@@ -1,7 +1,7 @@
 name: Portfolio visual review
 on:
   pull_request:
-    branches: ['claude/happy-lovelace-foxref']
+    branches: ['main']
 permissions:
   contents: read
 concurrency:
