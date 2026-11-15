@@ -52,18 +52,30 @@ uniform vec2 uBoat;
 uniform float uDensity;
 uniform float uInner;
 uniform float uLayer;
+uniform float uHeight;
 varying vec3 vWorld;
 #include <common>
 #include <fog_pars_fragment>
+
+// Relief approché de l'île (même côte découpée que le maillage) : la nappe s'amincit en
+// approchant du sol au lieu de s'y couper net.
+float islandGround(vec2 d) {
+  float angle = atan(d.y, d.x);
+  float edge = 9.0 * (1.0 + sin(angle * 3.0 + 97.0 * 1.7) * 0.07 + sin(angle * 7.0 - 97.0 * 0.9) * 0.04 + sin(angle * 13.0 + 97.0 * 0.31) * 0.015);
+  float r = length(d);
+  return mix(2.25, 0.95, smoothstep(edge * 0.74, edge * 0.82, r)) - smoothstep(edge * 0.82, edge * 1.05, r) * 1.2;
+}
+
 void main() {
   vec2 p = vWorld.xz;
   float r = distance(p, uCenter);
-  // Couronne : vide sur l'île, dense le long de la côte, s'efface vers 46 m.
-  float ring = smoothstep(uInner, uInner + 3.5, r) * (1.0 - smoothstep(13.0, 46.0, r));
+  // Couronne : légère sur l'île, dense le long de la côte, s'efface vers 46 m.
+  float ring = mix(0.25, 1.0, smoothstep(uInner, uInner + 3.0, r)) * (1.0 - smoothstep(14.0, 46.0, r));
+  ring *= smoothstep(0.05, 0.75, uHeight - islandGround(p - uCenter));
   vec2 drift = vec2(uTime * 0.011, uTime * 0.006);
   vec2 q = p * 0.034 + drift + uLayer * 0.37;
   float n = texture2D(uNoise, q).r * 0.62 + texture2D(uNoise, q * 2.3 - drift * 1.7 + 0.5).r * 0.38;
-  float density = smoothstep(0.32, 0.78, n) * ring * uDensity;
+  float density = smoothstep(0.3, 0.74, n) * ring * uDensity;
   // Le bateau écarte la brume.
   density *= smoothstep(2.2, 7.5, distance(p, uBoat));
   vec3 color = uColor + uGlow * exp(-distance(p, uRift) * 0.16);
@@ -115,7 +127,7 @@ void main() {
   float blob = 1.0 - smoothstep(0.25, 1.0, length(c));
   float n = texture2D(uNoise, vUv * 0.7 + vec2(uTime * 0.01, 0.0)).r;
   float bottom = smoothstep(0.0, 0.35, vUv.y);
-  float density = blob * smoothstep(0.25, 0.7, n * 0.6 + blob * 0.5) * bottom * vFade * uDensity * 0.55;
+  float density = blob * smoothstep(0.25, 0.7, n * 0.6 + blob * 0.5) * bottom * vFade * uDensity * 0.8;
   density *= smoothstep(2.0, 7.0, distance(vWorldXZ, uBoat));
   vec3 color = uColor + uGlow * exp(-distance(vWorldXZ, uRift) * 0.14);
   gl_FragColor = vec4(color, density);
@@ -136,9 +148,9 @@ const mistUniforms = {
 
 /** Les trois nappes : hauteur (au-dessus de la mer), rayon intérieur vide, densité. */
 const SHEETS = [
-  { y: 0.62, inner: 8.6, density: 0.62 },
-  { y: 1.55, inner: 7.3, density: 0.5 },
-  { y: 2.75, inner: 6.5, density: 0.38 },
+  { y: 0.7, inner: 7.6, density: 0.78 },
+  { y: 1.65, inner: 6.6, density: 0.62 },
+  { y: 2.85, inner: 5.4, density: 0.42 },
 ];
 
 let kit: { sheets: ShaderMaterial[]; puffs: ShaderMaterial } | null = null;
@@ -147,7 +159,7 @@ function mistKit() {
   if (kit) return kit;
   mistUniforms.uNoise.value = noiseTexture();
   const sheets = SHEETS.map((sheet, index) => new ShaderMaterial({
-    uniforms: UniformsUtils.merge([UniformsLib.fog, { uInner: { value: sheet.inner }, uLayer: { value: index } }]),
+    uniforms: UniformsUtils.merge([UniformsLib.fog, { uInner: { value: sheet.inner }, uLayer: { value: index }, uHeight: { value: sheet.y } }]),
     vertexShader: SHEET_VERTEX,
     fragmentShader: SHEET_FRAGMENT,
     transparent: true,
@@ -181,8 +193,8 @@ function puffGeometry(count: number) {
   const puffs = new Float32Array(count * 4);
   const drift = new Float32Array(count * 2);
   for (let index = 0; index < count; index++) {
-    const radius = 9.5 + hash(index * 3.7) * 13;
-    puffs.set([hash(index * 1.3) * Math.PI * 2, radius, 0.3 + hash(index * 5.1) * 1.2, 7 + hash(index * 2.2) * 7], index * 4);
+    const radius = 9.8 + hash(index * 3.7) * 11;
+    puffs.set([hash(index * 1.3) * Math.PI * 2, radius, 0.2 + hash(index * 5.1) * 0.9, 8 + hash(index * 2.2) * 7], index * 4);
     drift.set([(0.012 + hash(index * 4.4) * 0.02) * (hash(index * 6.6) > 0.5 ? 1 : -1), hash(index * 8.8) * 6.28], index * 2);
   }
   geometry.setAttribute('aPuff', new InstancedBufferAttribute(puffs, 4));

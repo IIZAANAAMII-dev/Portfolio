@@ -558,12 +558,30 @@ export function mailboxFrame(sampler: HeightSampler) {
   return { position: [MAILBOX.x, ground, MAILBOX.z] as Vec3, yaw: Math.atan2(DOCK_DIR.x, DOCK_DIR.z) };
 }
 
-function addMailboxPost(wood: Pieces, sampler: HeightSampler) {
-  const { position, yaw } = mailboxFrame(sampler);
-  const frame = pose(position, [0, yaw, 0]);
-  wood.add(bevelBox(0.13, 1.12, 0.13, 0.02), '#7a5236', frame.clone().multiply(pose([0, 0.5, -0.05])), 0.15);
-  wood.add(new BoxGeometry(0.12, 0.08, 0.5), '#7a5236', frame.clone().multiply(pose([0, 1.02, 0])), 0.15);
-  wood.add(new BoxGeometry(0.34, 0.1, 0.34), GRANITE, frame.clone().multiply(pose([0, 0.0, -0.05])), 0.15);
+/* ------------------------------------------------------------ corde à linge */
+
+const LAUNDRY_ENDS = [polar(2.62, 6.7), polar(3.12, 6.5)];
+
+/** Extrémités de la corde à linge (repère de l'île), au sommet des deux poteaux. */
+export function laundryLine(sampler: HeightSampler): [Vec3, Vec3] {
+  const [a, b] = LAUNDRY_ENDS.map(({ x, z }) => [x, groundAt(sampler, x, z, 0.2) + 1.58, z] as Vec3);
+  return [a, b];
+}
+
+function addLaundryPosts(wood: Pieces, sampler: HeightSampler) {
+  const [a, b] = LAUNDRY_ENDS;
+  const yaw = Math.atan2(b.x - a.x, b.z - a.z);
+  for (const { x, z } of LAUNDRY_ENDS) {
+    const ground = groundAt(sampler, x, z, 0.2);
+    wood.add(bevelBox(0.1, 1.75, 0.1, 0.015), '#8a5d3b', pose([x, ground + 0.8, z], [0, yaw, 0]), 0.15);
+    wood.add(new BoxGeometry(0.42, 0.07, 0.07), '#8a5d3b', pose([x, ground + 1.6, z], [0, yaw + Math.PI / 2, 0]), 0.15);
+  }
+  // Panier à linge en osier au pied de la corde.
+  const basket = polar(2.86, 6.15);
+  const ground = groundAt(sampler, basket.x, basket.z, 0.3);
+  wood.add(new CylinderGeometry(0.26, 0.2, 0.22, 10), '#c79a5b', pose([basket.x, ground + 0.11, basket.z]), 0.15);
+  wood.add(new TorusGeometry(0.26, 0.03, 4, 14), '#a97f45', pose([basket.x, ground + 0.22, basket.z], [Math.PI / 2, 0, 0]));
+  wood.add(new SphereGeometry(0.2, 8, 5, 0, Math.PI * 2, 0, Math.PI / 2), '#f7f4ee', pose([basket.x, ground + 0.16, basket.z], [0, 0, 0], [1, 0.45, 1]));
 }
 
 /* ------------------------------------------------------------------- assemblage */
@@ -604,7 +622,7 @@ export function buildIsland(sampler: HeightSampler, features: TerrainFeatures) {
   addRowboat(wood, sampler);
   addHarborClutter(wood, sampler);
   addBellPost(wood, sampler);
-  addMailboxPost(wood, sampler);
+  addLaundryPosts(wood, sampler);
   const bottles = beachBottles(sampler);
   addBottleInsides(wood, bottles);
 

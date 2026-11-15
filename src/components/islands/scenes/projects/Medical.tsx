@@ -2,13 +2,14 @@
 
 import { useEffect, useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
-import { AdditiveBlending, CylinderGeometry, DoubleSide, type Group, type MeshBasicMaterial } from 'three';
+import { AdditiveBlending, CylinderGeometry, DoubleSide, PlaneGeometry, type Group, type MeshBasicMaterial } from 'three';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { focusItem } from '@/lib/focus';
 import { skyState } from '@/lib/sky';
 import { windowMaterial } from '@/lib/windows';
 import type { Project } from '@/types';
 import { Hotspot } from '../../kit';
-import { Maquette } from './builder';
+import { Maquette, pose } from './builder';
 import { TOWN, sitePosition, siteRotation } from './layout';
 import { glass, glow, paint } from './materials';
 import { Screen } from './Screens';
@@ -89,6 +90,19 @@ function buildMedical() {
   return { body: m.build(), lights: lights.build(), panes: panes.build() };
 }
 
+/** Trois panneaux d'interface en arc autour de l'objet holographique (un seul maillage). */
+function panelsGeometry() {
+  const planes = [0, 1, 2].map((index) => {
+    const a = (index * Math.PI * 2) / 3;
+    const plane = new PlaneGeometry(0.32, 0.22);
+    plane.applyMatrix4(pose([Math.cos(a) * 0.48, 0.05, Math.sin(a) * 0.48], [0, -a + Math.PI / 2, 0]));
+    return plane;
+  });
+  const merged = mergeGeometries(planes, false);
+  planes.forEach((plane) => plane.dispose());
+  return merged ?? new PlaneGeometry(0.01, 0.01);
+}
+
 /** Bandeaux vitrés courbes (ils s'allument au crépuscule, comme les fenêtres). */
 function ribbonGeometry(radius: number, height: number) {
   return new CylinderGeometry(radius, radius, height, 40, 1, true, -0.6, Math.PI * 2 - 1.2);
@@ -103,6 +117,7 @@ export function Medical({ project }: { project: Project }) {
   const parts = useMemo(() => buildMedical(), []);
   const ribbons = useMemo(() => ({ low: ribbonGeometry(R + 0.012, 0.7), high: ribbonGeometry(R - 0.168, 0.75) }), []);
   const ribbonMaterial = useMemo(() => windowMaterial(31, '#e6fff9', '#5fa8c2'), []);
+  const panels = useMemo(() => panelsGeometry(), []);
   const sign = useMemo(() => {
     const m = new Maquette();
     const text = signFrame(m, [1.0, CURB, 3.35], 0.2, 1.9, 1.05);
@@ -115,9 +130,10 @@ export function Medical({ project }: { project: Project }) {
       parts.panes.dispose();
       ribbons.low.dispose();
       ribbons.high.dispose();
+      panels.dispose();
       sign.geometry.dispose();
     },
-    [parts, ribbons, sign],
+    [panels, parts, ribbons, sign],
   );
 
   const cross = useRef<Group>(null);
@@ -180,19 +196,16 @@ export function Medical({ project }: { project: Project }) {
             <icosahedronGeometry args={[0.24, 1]} />
             <meshBasicMaterial ref={holoMaterial} color={TEAL} wireframe transparent opacity={0.6} blending={AdditiveBlending} depthWrite={false} toneMapped={false} />
           </mesh>
-          {[0, 1, 2].map((index) => (
-            <mesh key={index} position={[Math.cos((index * Math.PI * 2) / 3) * 0.48, 0.05, Math.sin((index * Math.PI * 2) / 3) * 0.48]} rotation-y={-((index * Math.PI * 2) / 3) + Math.PI / 2} raycast={() => null}>
-              <planeGeometry args={[0.32, 0.22]} />
-              <shaderMaterial
-                vertexShader={HOLO_VERTEX}
-                fragmentShader={HOLO_PANEL}
-                transparent
-                depthWrite={false}
-                blending={AdditiveBlending}
-                side={DoubleSide}
-              />
-            </mesh>
-          ))}
+          <mesh geometry={panels} raycast={() => null}>
+            <shaderMaterial
+              vertexShader={HOLO_VERTEX}
+              fragmentShader={HOLO_PANEL}
+              transparent
+              depthWrite={false}
+              blending={AdditiveBlending}
+              side={DoubleSide}
+            />
+          </mesh>
         </group>
         <mesh position={[HOLO.x, 1.0, HOLO.z]} raycast={() => null}>
           <cylinderGeometry args={[0.32, 0.2, 0.42, 20, 1, true]} />
@@ -202,7 +215,7 @@ export function Medical({ project }: { project: Project }) {
         <group ref={cross} position={[1.25, 5.35, -0.6]}>
           <CrossMesh />
         </group>
-        <Plaque index={project.index} accent={project.accent} size={0.72} position={[-1.2, ROOM.h + 0.55, ROOM.z1 + 0.02]} />
+        <Plaque index={project.index} accent={project.accent} size={0.92} position={[-1.2, ROOM.h + 0.62, ROOM.z1 + 0.02]} />
         <mesh position={[-1.2, ROOM.h + 0.36, ROOM.z1 - 0.02]} raycast={() => null}>
           <boxGeometry args={[0.1, 0.4, 0.06]} />
           <meshStandardMaterial color={FRAME} roughness={0.6} />

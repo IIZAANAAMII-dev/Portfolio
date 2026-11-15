@@ -33,9 +33,11 @@ const CYCLE = 12;
 const WOOD = '#a8774a';
 const WOOD_DARK = '#7d5534';
 
-const BOARD_AT: Vec3 = [0, 0.36, -0.55];
-const BOARD_TILT = -0.32;
-const BOARD = pose(BOARD_AT, [BOARD_TILT, 0, 0]);
+const BOARD_AT: Vec3 = [0, 0.4, -0.6];
+const BOARD_TILT = -0.24;
+/** Le chevalet est le repère de la zone : une grande page lisible depuis le ponton. */
+const BOARD_SCALE = 1.16;
+const BOARD = pose(BOARD_AT, [BOARD_TILT, 0, 0], BOARD_SCALE);
 const BOARD_QUAT = new Quaternion().setFromEuler(new Euler(BOARD_TILT, 0, 0));
 /** Face avant de la page, dans le repère du chevalet. */
 const PAGE_Z = 0.012;
@@ -142,14 +144,15 @@ function brick(merger: Merger, color: string, at: Vec3, turn: number, columns: n
   });
 }
 
-function buildStatic(accent: string) {
+function buildStatic(accent: string, pad: number) {
   const paint = new Merger();
   const glow = new Merger();
   const screen = new Merger();
-  addPad(paint, glow, 2.1, accent);
+  addPad(paint, glow, pad, accent);
   paint.group(BOARD, () => {
     // Cadre de la fenêtre, pieds du chevalet, tablette.
-    paint.box([2.46, 1.74, 0.09], '#2e3a52', [0, 0.8, -0.045]);
+    paint.box([2.46, 1.74, 0.09], '#2563c9', [0, 0.8, -0.045]);
+    paint.box([2.5, 0.1, 0.1], '#1d4ea3', [0, 1.69, -0.05]);
     paint.box([0.07, 2.32, 0.06], WOOD, [-1.02, 0.76, -0.125]);
     paint.box([0.07, 2.32, 0.06], WOOD, [1.02, 0.76, -0.125]);
     paint.box([2.52, 0.05, 0.17], WOOD, [0, -0.03, 0.06]);
@@ -157,7 +160,7 @@ function buildStatic(accent: string) {
     paint.box([0.18, 0.12, 0.08], WOOD_DARK, [0, 1.74, -0.12]);
   });
   const top = new Vector3(0, 1.7, -0.13).applyMatrix4(BOARD);
-  paint.rod([0, -0.04, -1.72], [top.x, top.y, top.z], 0.035, WOOD);
+  paint.rod([0, -0.04, -1.62], [top.x, top.y, top.z], 0.04, WOOD);
   screen.group(BOARD, () => {
     screen.box([2.36, 1.34, 0.01], '#f2ebdd', [0, 0.72, 0.006], undefined, 0);
     screen.box([2.36, 0.2, 0.012], '#dbe3ee', [0, 1.52, 0.007], undefined, 0);
@@ -208,7 +211,7 @@ export function FrontZone({ zone, spot }: ZoneProps) {
   const cursor = useRef<Group>(null);
   const ripple = useRef<Mesh>(null);
   const rippleMaterial = useRef<MeshBasicMaterial>(null);
-  const built = useMemo(() => buildStatic(zone.accent), [zone.accent]);
+  const built = useMemo(() => buildStatic(zone.accent, spot.pad), [spot.pad, zone.accent]);
   const piece = useMemo(() => pieceGeometry(), []);
   const arrow = useMemo(() => cursorGeometry(), []);
   const colors = useMemo(() => PIECES.map((spec) => new Color(spec.color === 'accent' ? zone.accent : spec.color)), [zone.accent]);
@@ -222,7 +225,7 @@ export function FrontZone({ zone, spot }: ZoneProps) {
       loosePose(0, index, 0);
       dummy.position.copy(loose);
       dummy.quaternion.copy(looseQuat);
-      dummy.scale.set(spec.w * 0.72, spec.h * 0.72, DEPTH);
+      dummy.scale.set(spec.w * 0.72 * BOARD_SCALE, spec.h * 0.72 * BOARD_SCALE, DEPTH * BOARD_SCALE);
       dummy.updateMatrix();
       mesh.setMatrixAt(index, dummy.matrix);
       mesh.setColorAt(index, colors[index]);
@@ -281,8 +284,8 @@ export function FrontZone({ zone, spot }: ZoneProps) {
       dummy.position.y += flight * 0.16;
       dummy.position.z += flight * 0.22;
       dummy.quaternion.slerpQuaternions(looseQuat, BOARD_QUAT, Math.min(Math.max(amount, 0), 1));
-      const grow = mix(0.72, 1, Math.min(Math.max(amount, 0), 1));
-      dummy.scale.set(spec.w * grow, spec.h * grow, depth);
+      const grow = mix(0.72, 1, Math.min(Math.max(amount, 0), 1)) * BOARD_SCALE;
+      dummy.scale.set(spec.w * grow, spec.h * grow, depth * BOARD_SCALE);
       dummy.updateMatrix();
       mesh.setMatrixAt(index, dummy.matrix);
 
@@ -315,7 +318,7 @@ export function FrontZone({ zone, spot }: ZoneProps) {
         const atToggle = sinceToggle > 0;
         cursorPoint.set(atToggle ? 0.17 + toggled * 0.08 : -0.8, 0.6, PAGE_Z + 0.06).applyMatrix4(BOARD);
         ring.position.copy(cursorPoint);
-        ring.scale.setScalar(0.4 + since * 3.2);
+        ring.scale.setScalar((0.4 + since * 3.2) * BOARD_SCALE);
         ringMaterial.opacity = (1 - since / 0.6) * 0.9;
       }
     }
@@ -333,10 +336,10 @@ export function FrontZone({ zone, spot }: ZoneProps) {
         frustumCulled={false}
         raycast={noRaycast}
       />
-      <group ref={cursor} rotation={[BOARD_TILT, 0, 0]}>
-        <mesh geometry={arrow} material={uiMaterial} castShadow raycast={noRaycast} />
+      <group ref={cursor} rotation={[BOARD_TILT, 0, 0]} scale={BOARD_SCALE}>
+        <mesh geometry={arrow} material={uiMaterial} raycast={noRaycast} />
       </group>
-      <mesh ref={ripple} rotation={[BOARD_TILT, 0, 0]} visible={false} raycast={noRaycast}>
+      <mesh ref={ripple} rotation={[BOARD_TILT, 0, 0]} scale={BOARD_SCALE} visible={false} raycast={noRaycast}>
         <torusGeometry args={[0.12, 0.014, 6, 28]} />
         <meshBasicMaterial ref={rippleMaterial} color="#ffffff" transparent depthWrite={false} toneMapped={false} />
       </mesh>

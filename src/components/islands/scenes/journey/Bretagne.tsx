@@ -512,7 +512,7 @@ function cloudGeometry() {
   puffs.forEach(([x, y, z, r], index) => {
     kit.add(roughen(ICO1, 0.16, index * 2.1), '#ffffff', { position: [x, y, z], scale: [r, r * 0.78, r * 0.92] }, {
       // Ventre gris ardoise, sommet clair.
-      paint: (_px, py, _pz, out) => out.set('#7f8a9c').lerp(new Color('#e3e8ef'), smooth(-0.7, 0.9, py)),
+      paint: (_px, py, _pz, out) => out.set('#5f6a7d').lerp(new Color('#cfd6e0'), smooth(-0.7, 1.0, py)),
     });
   });
   return kit.build();
@@ -552,7 +552,7 @@ function RainCloud({ sampler }: { sampler: HeightSampler }) {
   const [u, v] = [COTTAGE.u + 1.4, COTTAGE.v + 1.6];
   const [x, z] = fromFrame(u, v);
   const ground = sampler(x, z);
-  const height = ground + 5.6;
+  const height = ground + 7.2;
   const rain = useMemo(() => rainGeometry(), []);
   const quality = useWorld((state) => state.quality);
 
@@ -572,7 +572,7 @@ function RainCloud({ sampler }: { sampler: HeightSampler }) {
 
   return (
     <group ref={group} position={[x, height, z]}>
-      <mesh geometry={cloud} material={smoothPaint} scale={0.95} castShadow raycast={() => null} />
+      <mesh geometry={cloud} material={smoothPaint} scale={1.15} raycast={() => null} />
       {quality !== 'low' && (
         <lineSegments geometry={rain} material={RAIN_MATERIAL} position-y={-0.55} frustumCulled={false} raycast={() => null} />
       )}

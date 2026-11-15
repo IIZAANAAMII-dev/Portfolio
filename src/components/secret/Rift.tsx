@@ -215,9 +215,9 @@ vec3 corridor(vec3 ro, vec3 rd) {
   }
 
   // Brume jaunâtre au loin : la profondeur se lit d'un coup d'œil.
-  vec3 haze = vec3(0.6, 0.5, 0.22) * (0.55 + 0.45 * uLight);
-  c = mix(c, haze, 1.0 - exp(-t * 0.08));
-  return c * (0.5 + 0.75 * uLight);
+  vec3 haze = vec3(0.62, 0.48, 0.14) * (0.55 + 0.45 * uLight);
+  c = mix(c, haze, 1.0 - exp(-t * 0.085));
+  return c * (0.45 + 0.6 * uLight);
 }
 
 void main() {
@@ -243,7 +243,7 @@ void main() {
     rd = mix(rd, vec3(1e-4), step(abs(rd), vec3(1e-4)));
     color = rd.z < -0.01 ? corridor(vec3(p, 0.0), rd) : vec3(0.6, 0.5, 0.22);
     // Bord intérieur brûlant.
-    color += vec3(1.0, 0.9, 0.55) * exp(-d * 24.0) * 2.4 * uLight;
+    color += vec3(1.0, 0.86, 0.45) * exp(-d * 26.0) * 1.5 * uLight;
     alpha = 1.0;
   } else {
     // Liseré éblouissant, frangé de couleurs, et halo doux sur la façade.

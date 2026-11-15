@@ -3,15 +3,20 @@
 import { useLayoutEffect, useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import {
+  AdditiveBlending,
+  CanvasTexture,
   CatmullRomCurve3,
   Color,
   DoubleSide,
   Group,
   InstancedMesh,
   Mesh,
+  MeshBasicMaterial,
   MeshStandardMaterial,
   Object3D,
   PlaneGeometry,
+  RepeatWrapping,
+  TorusGeometry,
   TubeGeometry,
   Vector3,
 } from 'three';
@@ -139,47 +144,51 @@ function Basilica({ sampler }: { sampler: HeightSampler }) {
 
 /* ============================================================ pins parasols */
 
+const PINE_TOP = 3.15;
+
 const PINE_TRUNK = (() => {
+  // Fût nu et élancé, légèrement penché, deux charpentières sous la galette.
   const curve = new CatmullRomCurve3([
     new Vector3(0, 0, 0),
-    new Vector3(0.12, 0.9, 0.04),
-    new Vector3(0.02, 1.9, 0.0),
-    new Vector3(0.28, 2.75, -0.06),
+    new Vector3(0.14, 1.0, 0.04),
+    new Vector3(0.05, 2.1, 0.0),
+    new Vector3(0.32, PINE_TOP, -0.06),
   ]);
-  const tube = new TubeGeometry(curve, 10, 0.11, 6, false);
+  const tube = new TubeGeometry(curve, 12, 0.11, 6, false);
   const positions = tube.attributes.position;
-  // Fût qui s'affine vers le haut.
   for (let index = 0; index < positions.count; index++) {
     const y = positions.getY(index);
-    const t = Math.min(1, Math.max(0, y / 2.75));
-    const center = curve.getPointAt(Math.min(1, t));
-    const k = 1 - t * 0.45;
+    const t = Math.min(1, Math.max(0, y / PINE_TOP));
+    const center = curve.getPointAt(t);
+    const k = 1 - t * 0.5;
     positions.setX(index, center.x + (positions.getX(index) - center.x) * k);
     positions.setZ(index, center.z + (positions.getZ(index) - center.z) * k);
   }
-  const branch = new TubeGeometry(
-    new CatmullRomCurve3([new Vector3(0.05, 2.0, 0), new Vector3(-0.45, 2.45, 0.1), new Vector3(-0.7, 2.62, 0.15)]),
-    5,
-    0.05,
-    5,
-    false,
-  );
-  const merged = mergeGeometries([tube.toNonIndexed(), branch.toNonIndexed()])!;
+  const branches = [
+    [new Vector3(0.1, 2.3, 0), new Vector3(-0.45, 2.75, 0.15), new Vector3(-0.85, 3.0, 0.2)],
+    [new Vector3(0.2, 2.6, 0), new Vector3(0.7, 2.95, -0.25), new Vector3(1.05, 3.05, -0.35)],
+  ].map((points) => new TubeGeometry(new CatmullRomCurve3(points), 5, 0.05, 5, false).toNonIndexed());
+  const merged = mergeGeometries([tube.toNonIndexed(), ...branches])!;
   merged.computeVertexNormals();
   return merged;
 })();
 
+/** Galette du pin parasol : large, plate, dessous sombre et dessus lumineux. */
 const PINE_CANOPY = (() => {
   const kit = new Kit();
-  const blobs: [number, number, number, number][] = [
-    [0.3, 2.95, 0, 1.0], [-0.55, 2.82, 0.2, 0.75], [0.95, 2.8, -0.25, 0.7], [0.1, 2.85, -0.75, 0.72], [-0.1, 2.85, 0.8, 0.7], [0.35, 3.15, 0.1, 0.62],
+  const blobs: [number, number, number, number, number][] = [
+    [0.3, PINE_TOP + 0.08, 0, 1.25, 0.3],
+    [-0.75, PINE_TOP - 0.02, 0.25, 0.68, 0.36],
+    [1.2, PINE_TOP - 0.04, -0.3, 0.62, 0.36],
+    [0.25, PINE_TOP - 0.02, -0.95, 0.66, 0.34],
+    [0.1, PINE_TOP, 0.95, 0.62, 0.34],
+    [0.35, PINE_TOP + 0.24, 0.05, 0.85, 0.24],
   ];
-  blobs.forEach(([x, y, z, r], index) => {
-    kit.add(roughen(ICO1, 0.22, index * 1.9), '#ffffff', { position: [x, y, z], scale: [r, r * 0.38, r] }, {
+  blobs.forEach(([x, y, z, r, flat], index) => {
+    kit.add(roughen(ICO1, 0.24, index * 1.9), '#ffffff', { position: [x, y, z], scale: [r, r * flat, r] }, {
       jitter: 0.12,
       seed: index,
-      // Dessous sombre, dessus lumineux : la galette du pin parasol.
-      paint: (_px, py, _pz, out) => out.set('#2e5531').lerp(new Color('#5d8f45'), smooth(2.7, 3.25, py)),
+      paint: (_px, py, _pz, out) => out.set('#284d2c').lerp(new Color('#609848'), smooth(PINE_TOP - 0.2, PINE_TOP + 0.4, py)),
     });
   });
   return kit.build();
@@ -217,8 +226,10 @@ function Pines({ spots }: { spots: { x: number; y: number; z: number; s: number;
 
 const TECH_W = 2.7;
 const TECH_D = 2.0;
-const STOREY = 1.05;
-const STOREYS = 3;
+const STOREY = 1.02;
+const STOREYS = 4;
+const ROOF = STOREY * STOREYS;
+const MAST = 2.3;
 
 function buildTechFrame() {
   const kit = new Kit();
@@ -228,23 +239,46 @@ function buildTechFrame() {
     kit.add(BOX, white, { position: [0, level * STOREY, 0], scale: [TECH_W + (level === STOREYS ? 0.2 : 0.1), 0.12, TECH_D + 0.1] });
   }
   for (const [x, z] of [[-1, -1], [1, -1], [-1, 1], [1, 1]] as const) {
-    kit.add(BOX, white, { position: [x * (TECH_W / 2 - 0.04), (STOREYS * STOREY) / 2, z * (TECH_D / 2 - 0.04)], scale: [0.09, STOREYS * STOREY, 0.09] });
+    kit.add(BOX, white, { position: [x * (TECH_W / 2 - 0.04), ROOF / 2, z * (TECH_D / 2 - 0.04)], scale: [0.09, ROOF, 0.09] });
   }
   kit.add(BOX, '#cfd6db', { position: [0, -0.35, 0], scale: [TECH_W + 0.3, 0.6, TECH_D + 0.3] });
-  // Toit : panneaux solaires, édicule, mât d'antenne.
-  for (const x of [-0.75, 0, 0.75]) {
-    kit.add(BOX, '#2d4a7a', { position: [x, STOREYS * STOREY + 0.22, -0.35], rotation: [-0.45, 0, 0], scale: [0.62, 0.03, 0.8] });
-    kit.add(BOX, '#9aa3ab', { position: [x, STOREYS * STOREY + 0.12, -0.15], scale: [0.04, 0.2, 0.04] });
+  // Cadre de l'écran de façade.
+  kit.add(BOX, '#2a2f38', { position: [0.55, 2.35, TECH_D / 2 + 0.06], scale: [1.36, 0.9, 0.06] });
+  // Toit : panneaux solaires, édicule, pylône d'antenne en treillis.
+  for (const x of [-0.8, 0.0]) {
+    kit.add(BOX, '#2d4a7a', { position: [x, ROOF + 0.22, -0.4], rotation: [-0.45, 0, 0], scale: [0.62, 0.03, 0.75] });
+    kit.add(BOX, '#9aa3ab', { position: [x, ROOF + 0.12, -0.2], scale: [0.04, 0.2, 0.04] });
   }
-  kit.add(BOX, '#e3e6e8', { position: [0.85, STOREYS * STOREY + 0.3, 0.5], scale: [0.6, 0.5, 0.5] });
-  kit.add(CYL6, '#b9c0c6', { position: [-0.9, STOREYS * STOREY + 0.7, 0.55], scale: [0.025, 1.3, 0.025] });
+  kit.add(BOX, '#e3e6e8', { position: [0.85, ROOF + 0.3, 0.5], scale: [0.6, 0.5, 0.5] });
+  const mastX = -0.85;
+  const mastZ = 0.5;
+  for (const [x, z] of [[-1, -1], [1, -1], [-1, 1], [1, 1]] as const) {
+    kit.add(BOX, '#c9ced3', { position: [mastX + x * 0.09, ROOF + MAST / 2, mastZ + z * 0.09], scale: [0.025, MAST, 0.025] });
+  }
+  for (let k = 0; k < 7; k++) {
+    const y = ROOF + 0.2 + k * 0.3;
+    kit.add(BOX, '#c9ced3', { position: [mastX, y, mastZ + 0.09], rotation: [0, 0, k % 2 ? 0.8 : -0.8], scale: [0.25, 0.018, 0.018] });
+    kit.add(BOX, '#c9ced3', { position: [mastX + 0.09, y + 0.15, mastZ], rotation: [k % 2 ? 0.8 : -0.8, 0, 0], scale: [0.018, 0.018, 0.25] });
+  }
+  kit.add(CYL6, '#e4e7ea', { position: [mastX, ROOF + MAST + 0.25, mastZ], scale: [0.02, 0.5, 0.02] });
   // Place devant : banc, jardinière et son olivier.
   kit.add(BOX, '#d8cbb2', { position: [0, -0.04, TECH_D / 2 + 0.75], scale: [TECH_W + 0.6, 0.08, 1.4] });
   kit.add(BOX, '#8a6142', { position: [-0.7, 0.24, TECH_D / 2 + 1.1], scale: [0.8, 0.06, 0.26] });
   for (const x of [-1.0, -0.4]) kit.add(BOX, '#555a61', { position: [x, 0.11, TECH_D / 2 + 1.1], scale: [0.05, 0.22, 0.22] });
-  kit.add(BOX, '#b9b2a6', { position: [0.85, 0.18, TECH_D / 2 + 1.0], scale: [0.6, 0.36, 0.6] });
-  kit.add(CYL6, '#7a6a55', { position: [0.85, 0.65, TECH_D / 2 + 1.0], rotation: [0, 0, 0.15], scale: [0.05, 0.7, 0.05] });
-  kit.add(roughen(ICO1, 0.3, 4), '#8c9a6a', { position: [0.8, 1.08, TECH_D / 2 + 1.0], scale: [0.42, 0.3, 0.42] }, { jitter: 0.2, seed: 3 });
+  kit.add(BOX, '#b9b2a6', { position: [0.95, 0.18, TECH_D / 2 + 1.0], scale: [0.6, 0.36, 0.6] });
+  kit.add(CYL6, '#7a6a55', { position: [0.95, 0.65, TECH_D / 2 + 1.0], rotation: [0, 0, 0.15], scale: [0.05, 0.7, 0.05] });
+  kit.add(roughen(ICO1, 0.3, 4), '#8c9a6a', { position: [0.9, 1.08, TECH_D / 2 + 1.0], scale: [0.42, 0.3, 0.42] }, { jitter: 0.2, seed: 3 });
+  return kit.build();
+}
+
+/** Liserés de LED cyan au nez de chaque dalle (façade et pignons). */
+function buildNeon() {
+  const kit = new Kit();
+  for (let level = 1; level <= STOREYS; level++) {
+    const y = level * STOREY - 0.08;
+    kit.add(BOX, '#ffffff', { position: [0, y, TECH_D / 2 + 0.065], scale: [TECH_W + 0.1, 0.035, 0.02] });
+    for (const side of [-1, 1]) kit.add(BOX, '#ffffff', { position: [side * (TECH_W / 2 + 0.065), y, 0], scale: [0.02, 0.035, TECH_D + 0.1] });
+  }
   return kit.build();
 }
 
@@ -253,58 +287,91 @@ function buildScreens() {
   const parts = [];
   for (let level = 0; level < STOREYS; level++) {
     for (const x of [-0.8, 0.05, 0.85]) {
-      if ((level + x * 3) % 2 === 1) continue;
-      const plane = new PlaneGeometry(0.46, 0.3).translate(x, level * STOREY + 0.55, TECH_D / 2 - 0.22);
-      parts.push(plane.toNonIndexed());
+      if ((level + Math.round(x * 3)) % 2 === 1) continue;
+      parts.push(new PlaneGeometry(0.46, 0.3).translate(x, level * STOREY + 0.55, TECH_D / 2 - 0.22).toNonIndexed());
     }
-    const side = new PlaneGeometry(0.46, 0.3).rotateY(Math.PI / 2).translate(TECH_W / 2 - 0.2, level * STOREY + 0.55, 0.2 - level * 0.3);
-    parts.push(side.toNonIndexed());
+    parts.push(new PlaneGeometry(0.46, 0.3).rotateY(Math.PI / 2).translate(TECH_W / 2 - 0.2, level * STOREY + 0.55, 0.2 - level * 0.25).toNonIndexed());
   }
   return mergeGeometries(parts)!;
 }
 
 const GLASS = new MeshStandardMaterial({
-  color: '#8fd0de',
+  color: '#6cc3d6',
   roughness: 0.12,
   metalness: 0.25,
   transparent: true,
-  opacity: 0.5,
+  opacity: 0.58,
   emissive: '#dff6ff',
   emissiveIntensity: 0,
   depthWrite: false,
 });
-
+const NEON = new MeshStandardMaterial({ color: '#7ff3ff', emissive: '#38e1ff', emissiveIntensity: 0.6, roughness: 0.4 });
 const LED = new MeshStandardMaterial({ color: '#ff5a4f', emissive: '#ff3b30', emissiveIntensity: 2 });
+const WIFI = [0, 1, 2].map(() => new MeshBasicMaterial({ color: '#6ff0ff', transparent: true, opacity: 0, blending: AdditiveBlending, depthWrite: false }));
+const WIFI_ARCS = [0.22, 0.38, 0.54].map((radius) => new TorusGeometry(radius, 0.028, 4, 18, Math.PI / 2).rotateZ(Math.PI / 4));
+
+/** Texture de code qui défile sur l'écran de façade (créée à la demande). */
+let feed: CanvasTexture | null = null;
+function codeFeed() {
+  if (!feed) {
+    feed = codeScreen().clone();
+    feed.wrapT = RepeatWrapping;
+    feed.repeat.set(1, 0.7);
+    feed.needsUpdate = true;
+  }
+  return feed;
+}
 
 function TechBuilding({ sampler }: { sampler: HeightSampler }) {
   const frame = useMemo(() => buildTechFrame(), []);
+  const neon = useMemo(() => buildNeon(), []);
   const screens = useMemo(() => buildScreens(), []);
   const screenTexture = useMemo(() => codeScreen(), []);
+  const feedTexture = useMemo(() => codeFeed(), []);
   const screenMaterial = useRef<MeshStandardMaterial>(null);
+  const wallMaterial = useRef<MeshStandardMaterial>(null);
   const dish = useRef<Group>(null);
   const [x, z] = fromFrame(TECH.u, TECH.v);
   const base = on(sampler, x, z, 1.4, 0.05);
   useFrame((state) => {
     const t = state.clock.elapsedTime;
     const night = skyState.dayNight;
-    GLASS.emissiveIntensity = smooth(0.15, 0.55, night) * 0.55;
-    LED.emissiveIntensity = (Math.sin(t * 3.2) > 0.55 ? 3.2 : 0.25) * (0.6 + night * 0.6);
+    GLASS.emissiveIntensity = smooth(0.15, 0.55, night) * 0.6;
+    NEON.emissiveIntensity = 0.7 + smooth(0.1, 0.5, night) * 2.2 + Math.sin(t * 1.7) * 0.15;
+    LED.emissiveIntensity = (Math.sin(t * 3.2) > 0.55 ? 3.4 : 0.25) * (0.6 + night * 0.6);
+    // Ondes « wifi » : trois arcs qui s'allument l'un après l'autre.
+    WIFI.forEach((material, index) => {
+      const phase = (t * 1.1 - index * 0.28) % 1.4;
+      material.opacity = phase > 0 && phase < 0.7 ? Math.sin((phase / 0.7) * Math.PI) * (0.65 + night * 0.35) : 0;
+    });
+    if (feed) feed.offset.y = -t * 0.06;
     if (screenMaterial.current) screenMaterial.current.emissiveIntensity = 0.7 + night * 1.3 + Math.sin(t * 7) * 0.04;
+    if (wallMaterial.current) wallMaterial.current.emissiveIntensity = 0.9 + night * 1.2;
     if (dish.current) dish.current.rotation.y = Math.sin(t * 0.35) * 1.1;
   });
   return (
     <group position={base} rotation-y={faceCamera(x, z, -0.35)}>
       <mesh geometry={frame} material={flatPaint} castShadow receiveShadow />
+      <mesh geometry={neon} material={NEON} />
       <mesh geometry={screens}>
         <meshStandardMaterial ref={screenMaterial} map={screenTexture} emissive="#ffffff" emissiveMap={screenTexture} emissiveIntensity={0.8} roughness={0.4} />
       </mesh>
-      <mesh material={GLASS} position={[0, (STOREYS * STOREY) / 2, 0]} renderOrder={4} raycast={() => null}>
-        <boxGeometry args={[TECH_W - 0.12, STOREYS * STOREY - 0.02, TECH_D - 0.12]} />
+      <mesh position={[0.55, 2.35, TECH_D / 2 + 0.095]}>
+        <planeGeometry args={[1.24, 0.78]} />
+        <meshStandardMaterial ref={wallMaterial} map={feedTexture} emissive="#ffffff" emissiveMap={feedTexture} emissiveIntensity={1} roughness={0.35} />
       </mesh>
-      <mesh material={LED} position={[-0.9, STOREYS * STOREY + 1.37, 0.55]}>
-        <sphereGeometry args={[0.06, 8, 6]} />
+      <mesh material={GLASS} position={[0, ROOF / 2, 0]} renderOrder={4} raycast={() => null}>
+        <boxGeometry args={[TECH_W - 0.12, ROOF - 0.02, TECH_D - 0.12]} />
       </mesh>
-      <group ref={dish} position={[0.85, STOREYS * STOREY + 0.6, 0.5]}>
+      <mesh material={LED} position={[-0.85, ROOF + MAST + 0.52, 0.5]}>
+        <sphereGeometry args={[0.07, 8, 6]} />
+      </mesh>
+      <group position={[-0.85, ROOF + MAST + 0.1, 0.5]}>
+        {WIFI_ARCS.map((arc, index) => (
+          <mesh key={index} geometry={arc} material={WIFI[index]} raycast={() => null} />
+        ))}
+      </group>
+      <group ref={dish} position={[0.85, ROOF + 0.6, 0.5]}>
         <mesh rotation={[-0.7, 0, 0]} position={[0, 0.12, 0.05]} castShadow>
           <sphereGeometry args={[0.24, 12, 6, 0, Math.PI * 2, 0, 1.0]} />
           <meshStandardMaterial color="#f2f3f4" roughness={0.5} side={DoubleSide} />
@@ -390,7 +457,7 @@ export function Provence({ sampler }: { sampler: HeightSampler }) {
     const marseille = (u: number, v: number) => v - channelCenter(u) > channelHalfWidth(u) + 0.5;
     const town = (u: number, v: number) => u > -2.6 && u < 4.4 && v > 2.6 && v < 9.6;
     const pinePlaces: [number, number, number][] = [
-      [2.6, 11.4, 1.05], [-4.4, 13.0, 1.15], [8.2, 11.2, 0.95], [-6.6, 2.9, 1.0], [-12.4, 9.4, 0.9], [-3.6, 6.2, 0.85], [-13.0, 3.6, 0.95],
+      [1.8, 15.1, 1.0], [-4.4, 13.0, 1.1], [8.2, 11.2, 0.95], [-6.6, 2.9, 1.0], [-12.4, 9.4, 0.9], [-3.6, 6.2, 0.85], [-13.0, 3.6, 0.95],
     ];
     const pines = pinePlaces.map(([u, v, s], index) => {
       const [x, z] = fromFrame(u, v);

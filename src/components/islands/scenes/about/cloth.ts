@@ -9,9 +9,11 @@ import { clothClock } from '@/lib/substance-models';
  * Le poids du mouvement vient des UV :
  *  - `flag` : libre au bout (u = 1), tenu à la hampe (u = 0) ;
  *  - `belly` : bords tenus, milieu libre (voile, filet tendu entre deux perches) ;
- *  - `hang` : tenu en haut (v = 1), libre en bas (linge sur un fil).
+ *  - `hang` : tenu en haut (v = 1), libre en bas ;
+ *  - `drape` : comme `hang`, mais d'après la position (haut en y = 0) : les UV restent
+ *    libres pour un atlas (le linge sur son fil).
  */
-export type ClothMode = 'flag' | 'belly' | 'hang';
+export type ClothMode = 'flag' | 'belly' | 'hang' | 'drape';
 
 export function clothMaterial({
   color = '#ffffff',
@@ -35,7 +37,9 @@ export function clothMaterial({
     ? 'uv.x * (0.6 + 0.4 * uv.x)'
     : mode === 'belly'
       ? 'sin(uv.x * 3.14159) * sin(uv.y * 3.14159)'
-      : '(1.0 - uv.y) * (1.0 - uv.y)';
+      : mode === 'hang'
+        ? '(1.0 - uv.y) * (1.0 - uv.y)'
+        : 'clamp(-position.y * 1.4, 0.0, 1.0)';
   material.onBeforeCompile = (shader) => {
     shader.uniforms.uClothTime = clothClock;
     shader.vertexShader = shader.vertexShader

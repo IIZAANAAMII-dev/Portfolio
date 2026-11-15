@@ -16,10 +16,10 @@ import { focusItem } from '@/lib/focus';
 import { skyState } from '@/lib/sky';
 import { useWorld } from '@/lib/store';
 import { Hotspot } from '../../kit';
-import { Builder, paintMaterial, type V3 } from './build';
+import { Builder, doubleMaterial, paintMaterial, type V3 } from './build';
 import { coneUniforms, lightConeMaterial } from './Gantry';
 import { OFFICE } from './layout';
-import { Merged, ProvenceFlag, usePulse, Windows, type WindowSpec } from './parts';
+import { Lanterns, Merged, ProvenceFlag, usePulse, Windows, type WindowSpec } from './parts';
 import { companySignTexture, screensAtlasTexture, scrollingPageTexture, useSansFont } from './textures';
 
 /**
@@ -32,12 +32,27 @@ import { companySignTexture, screensAtlasTexture, scrollingPageTexture, useSansF
  * Repère local : façade principale vers +z (nord-est, vers le ponton), côté vitré vers +x.
  */
 
-const WHITE = '#f3f0e8';
+const WHITE = '#f6ecd9';
+const OCHRE = '#e3a65c';
+const TERRACOTTA = '#c8643b';
+const TERRACOTTA_DARK = '#a64e2b';
 const CHARCOAL = '#2d3440';
-const WOOD = '#b07a4f';
 const STONE = '#e6dac4';
 
 const feeder = experiences.find((entry) => entry.id === 'feeder') ?? experiences[0];
+
+/** Génoise : deux rangs de tuiles rondes en encorbellement le long d'un bord de toit. */
+function genoise(b: Builder, [x, y, z]: V3, length: number, along: 'x' | 'z') {
+  const size = (h: number, d: number): V3 => (along === 'x' ? [length, h, d] : [d, h, length]);
+  b.box(size(0.1, 0.2), TERRACOTTA, [x, y, z]);
+  b.box(size(0.08, 0.13), TERRACOTTA_DARK, [x, y - 0.09, z]);
+  const count = Math.floor(length / 0.22);
+  for (let k = 0; k < count; k++) {
+    const offset = -length / 2 + (k + 0.5) * (length / count);
+    const at: V3 = along === 'x' ? [x + offset, y + 0.01, z] : [x, y + 0.01, z + offset];
+    b.cylinder(0.075, 0.075, 0.24, 6, k % 2 ? '#d9774b' : TERRACOTTA, at, along === 'x' ? [Math.PI / 2, 0, 0] : [0, 0, Math.PI / 2]);
+  }
+}
 
 function buildingGeometry() {
   const b = new Builder();
@@ -59,13 +74,38 @@ function buildingGeometry() {
   for (const z of [-1.8, -0.6, 0.6, 1.8]) b.box([0.08, 2.8, 0.07], CHARCOAL, [2.76, 1.52, z]);
   for (const y of [0.2, 2.88]) b.box([0.1, 0.08, 3.7], CHARCOAL, [2.76, y, 0]);
   // Dalle de toit en débord sur le parvis, poteaux fins, bandeau d'enseigne.
-  b.box([6.0, 0.26, 4.8], WHITE, [0, 3.05, 0.3]);
+  b.box([6.0, 0.26, 4.8], '#f7f1e4', [0, 3.05, 0.3]);
   for (const x of [-2.9, 2.9]) b.box([0.12, 2.8, 0.12], WHITE, [x, 1.52, 2.55]);
-  b.box([6.0, 0.6, 0.1], CHARCOAL, [0, 3.1, 2.67]);
-  // Volume en attique, brise-soleil en bois, sa dalle.
-  b.box([3.0, 1.85, 2.3], WHITE, [-1.1, 4.1, -0.55]);
-  b.box([3.3, 0.14, 2.6], WHITE, [-1.1, 5.08, -0.55]);
-  for (let k = 0; k < 9; k++) b.box([0.06, 1.3, 0.12], WOOD, [-2.4 + k * 0.32, 4.15, 0.68]);
+  b.box([6.0, 0.8, 0.1], CHARCOAL, [0, 3.12, 2.67]);
+  // Génoises (rangs de tuiles rondes sous l'avant-toit), la signature des toits provençaux.
+  genoise(b, [-3.0, 2.86, 0.3], 4.8, 'z');
+  genoise(b, [3.0, 2.86, 0.3], 4.8, 'z');
+  genoise(b, [0, 2.86, -2.1], 6.0, 'x');
+  // Volume en attique, enduit ocre, brise-soleil en bois, sa dalle et ses génoises.
+  b.box([3.0, 1.85, 2.3], OCHRE, [-1.1, 4.1, -0.55]);
+  b.box([3.3, 0.14, 2.6], '#f7f1e4', [-1.1, 5.08, -0.55]);
+  genoise(b, [-1.1, 4.95, 0.75], 3.3, 'x');
+  genoise(b, [-1.1, 4.95, -1.85], 3.3, 'x');
+  genoise(b, [-2.75, 4.95, -0.55], 2.6, 'z');
+  genoise(b, [0.55, 4.95, -0.55], 2.6, 'z');
+  for (let k = 0; k < 9; k++) b.box([0.07, 1.3, 0.12], '#8e5f3d', [-2.4 + k * 0.32, 4.15, 0.68]);
+  // Bougainvillier sur le trumeau d'entrée : il grimpe et retombe par-dessus l'avant-toit.
+  const blooms: [number, number, number, number, string][] = [
+    [2.75, 1.0, 2.0, 0.34, '#3f7a3a'], [2.9, 1.7, 1.95, 0.4, '#d23f8f'], [2.55, 2.35, 2.05, 0.42, '#e45aa6'],
+    [3.0, 2.6, 1.6, 0.36, '#b8317a'], [2.2, 2.85, 2.25, 0.4, '#d23f8f'], [2.75, 3.25, 2.4, 0.42, '#e45aa6'],
+    [3.05, 3.2, 1.2, 0.36, '#3f7a3a'], [1.7, 3.3, 2.55, 0.34, '#b8317a'], [3.1, 2.1, 0.75, 0.3, '#e45aa6'],
+    [3.15, 3.15, 0.3, 0.32, '#d23f8f'],
+  ];
+  for (const [x, y, z, r, color] of blooms) b.sphere(r, color, [x, y, z], [1, 0.82, 1], [7, 5]);
+  b.beam([2.85, 0.12, 2.05], [2.7, 2.6, 2.1], 0.06, '#6e4a33');
+  // Jardinières de lavande au bord du parvis.
+  for (const x of [-0.95, 1.25]) {
+    b.box([0.9, 0.34, 0.32], TERRACOTTA, [x, 0.29, 3.32]);
+    b.box([0.94, 0.05, 0.36], TERRACOTTA_DARK, [x, 0.47, 3.32]);
+    for (let k = 0; k < 4; k++) b.sphere(0.13, k % 2 ? '#8f74cf' : '#a68be0', [x - 0.33 + k * 0.22, 0.58, 3.32], [1, 1.3, 1], [6, 4]);
+  }
+  // Suspensions au-dessus du bureau (les globes s'allument à part).
+  for (const x of [-1.6, -0.5, 0.6]) b.rod([x, 2.9, 0.45], [x, 2.5, 0.45], 0.012, CHARCOAL, 4);
   // Panneaux solaires sur la dalle principale.
   for (const x of [1.05, 2.15]) {
     b.box([0.95, 0.05, 0.7], '#27406e', [x, 3.42, -1.15], [-0.4, 0, 0]);
@@ -90,6 +130,20 @@ function buildingGeometry() {
   for (let k = 0; k < 6; k++) {
     b.box([0.26, 0.24, 0.3], k % 2 ? '#c9955c' : '#b98349', [-2.4, 0.42 + Math.floor(k / 3) * 0.5, -1.0 + (k % 3) * 0.75]);
   }
+  return b.build();
+}
+
+/** Store banne rayé jaune soleil et crème, au-dessus de la façade vitrée nord-ouest. */
+function awningGeometry() {
+  const b = new Builder();
+  const stripes = 8;
+  for (let k = 0; k < stripes; k++) {
+    const z = -1.75 + (k + 0.5) * (3.5 / stripes);
+    const color = k % 2 ? '#f6efe3' : '#efb13b';
+    b.box([1.0, 0.03, 3.5 / stripes], color, [3.28, 2.525, z], [0, 0, -0.4]);
+    b.box([0.02, 0.2, 3.5 / stripes], color, [3.74, 2.23, z]);
+  }
+  for (const z of [-1.7, 1.7]) b.rod([2.85, 2.72, z], [3.74, 2.33, z], 0.02, CHARCOAL, 4);
   return b.build();
 }
 
@@ -168,6 +222,8 @@ const ROOM_WINDOWS: WindowSpec[] = [
   { seed: 67, at: [-2.59, 1.5, 0], turn: Math.PI / 2, width: 3.5, height: 2.6 },
 ];
 
+const PENDANTS: V3[] = [[-1.6, 2.42, 0.45], [-0.5, 2.42, 0.45], [0.6, 2.42, 0.45]];
+
 const ATTIC_WINDOWS: WindowSpec[] = [
   { seed: 71, at: [-1.1, 4.15, 0.585], width: 2.6, height: 0.9 },
   { seed: 73, at: [0.41, 4.15, -0.55], turn: Math.PI / 2, width: 1.9, height: 0.9 },
@@ -242,6 +298,7 @@ function BigScreen({ texture }: { texture: ReturnType<typeof scrollingPageTextur
 export function Office() {
   const family = useSansFont();
   const building = useMemo(() => buildingGeometry(), []);
+  const awning = useMemo(() => awningGeometry(), []);
   const terrace = useMemo(() => terraceGeometry(), []);
   const easel = useMemo(() => easelGeometry(), []);
   const cart = useMemo(() => cartGeometry(), []);
@@ -289,7 +346,9 @@ export function Office() {
       >
         <group ref={pulseGroup}>
           <Merged geometry={building} material={paintMaterial()} />
-          <Windows specs={ROOM_WINDOWS} lit="#ffd9a0" glass="#d9dde0" intensity={1.6} />
+          <Windows specs={ROOM_WINDOWS} lit="#ffcf8a" glass="#e4ddd0" intensity={2.4} />
+          <Merged geometry={awning} material={doubleMaterial()} />
+          <Lanterns points={PENDANTS} radius={0.1} />
           <Windows specs={ATTIC_WINDOWS} />
           <mesh geometry={screens} raycast={() => null}>
             <meshStandardMaterial ref={screenMaterial} map={atlas} emissive="#ffffff" emissiveMap={atlas} emissiveIntensity={0.5} roughness={0.5} />
@@ -304,8 +363,8 @@ export function Office() {
             <meshStandardMaterial color="#a9d8ea" transparent opacity={0.28} roughness={0.08} metalness={0.2} depthWrite={false} />
           </mesh>
           {sign && (
-            <mesh position={[0, 3.1, 2.725]} raycast={() => null}>
-              <planeGeometry args={[5.8, 0.58]} />
+            <mesh position={[0, 3.12, 2.725]} raycast={() => null}>
+              <planeGeometry args={[5.76, 0.72]} />
               <meshStandardMaterial ref={signMaterial} map={sign} emissive="#ffffff" emissiveMap={sign} emissiveIntensity={0.12} roughness={0.6} />
             </mesh>
           )}

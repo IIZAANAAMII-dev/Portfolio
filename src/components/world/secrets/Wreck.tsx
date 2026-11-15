@@ -105,7 +105,7 @@ function hullPoint(t: number, k: number, side: 1 | -1): [number, number, number]
   return [-L / 2 + t * L, y, k === SIDE ? 0 : z];
 }
 
-const TEAL = new Color('#3f8696');
+const TEAL = new Color('#2b8ea6');
 const RED = new Color('#a3452f');
 const WHITE = new Color('#ece3cf');
 const WOOD = new Color('#8b6a4a');
@@ -587,7 +587,7 @@ export function Wreck() {
       _dummy.scale.set(size * (1.1 + hash(seed * 3.3) * 0.4), size * (0.7 + hash(seed * 4.7) * 0.3), size);
       _dummy.updateMatrix();
       mesh.setMatrixAt(index, _dummy.matrix);
-      mesh.setColorAt(index, color.set(index % 3 === 0 ? '#a99ba2' : '#c3a196').multiplyScalar(0.9 + hash(seed) * 0.2));
+      mesh.setColorAt(index, color.set(index % 3 === 0 ? '#a58ea6' : '#d6978a').multiplyScalar(0.9 + hash(seed) * 0.2));
     });
     mesh.instanceMatrix.needsUpdate = true;
     if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;

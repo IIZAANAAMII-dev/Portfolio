@@ -13,6 +13,8 @@ const config: IslandSceneConfig = {
   grass: 0.7,
   dressing: false,
   sculpt: (x, z, height, features) => sculptLab(x, z, height, features.plateau),
+  // Caméra à quai un peu plus proche : les zones se lisent depuis le ponton.
+  camera: { zoom: 0.86, lift: 0.5 },
 };
 
 export default config;

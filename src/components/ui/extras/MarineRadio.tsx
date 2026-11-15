@@ -35,6 +35,19 @@ const subscribe = (listener: () => void) => radio.subscribe(listener);
 const getPlaying = () => radio.playing;
 const getServerPlaying = () => false;
 
+/**
+ * Assez de place pour le cadran à côté de la page de contenu (ouverte à gauche) ? En
+ * dessous, le cadran se ferme dès qu'une page s'ouvre : il ne la chevauche jamais.
+ */
+const ROOMY = '(min-width: 1180px)';
+const subscribeRoomy = (listener: () => void) => {
+  const query = window.matchMedia(ROOMY);
+  query.addEventListener('change', listener);
+  return () => query.removeEventListener('change', listener);
+};
+const getRoomy = () => window.matchMedia(ROOMY).matches;
+const getServerRoomy = () => true;
+
 /** Le poste vu de face, en miniature (bouton du coin). */
 function RadioIcon({ needle, live }: { needle: number; live: boolean }) {
   return (
@@ -88,6 +101,7 @@ export default function MarineRadio() {
   const soundOn = useWorld((state) => state.soundOn);
   const logbookOpen = useLogbook((state) => state.open);
   const playing = useSyncExternalStore(subscribe, getPlaying, getServerPlaying);
+  const roomy = useSyncExternalStore(subscribeRoomy, getRoomy, getServerRoomy);
   const [open, setOpen] = useState(false);
   const [station, setStation] = useState<StationId>(() => radio.station);
   const root = useRef<HTMLDivElement>(null);
@@ -95,7 +109,8 @@ export default function MarineRadio() {
   const keys = useRef<(HTMLButtonElement | null)[]>([]);
 
   const visible = phase === 'playing' || phase === 'docked';
-  const dialOpen = open && visible && !logbookOpen;
+  // Jamais par-dessus le carnet, ni par-dessus une page de contenu quand l'écran est étroit.
+  const dialOpen = open && visible && !logbookOpen && (!activeIsland || roomy);
   const current = STATIONS.find((entry) => entry.id === station) ?? STATIONS[0];
   const live = soundOn && playing;
 

@@ -21,6 +21,7 @@ import {
   SphereGeometry,
   Vector2,
 } from 'three';
+import { useWorld } from '@/lib/store';
 import { hash } from '@/lib/utils/math';
 import { erlenmeyerGeometry, flatRing, flipFaces, liquidGeometry, Merger, pose, topAndSides, type Vec3 } from '../geometry';
 import { createBeamMaterial, glassMaterial, glowMaterial, labNight, labState, labTime, paintMaterial } from '../materials';
@@ -36,7 +37,7 @@ import { addPad, noRaycast, ZoneShell, type ZoneProps } from '../Zone';
  */
 
 const PROJECTOR: Vec3 = [-0.12, 0, -0.55];
-const HOLOGRAM_Y = 1.8;
+const HOLOGRAM_Y = 2.35;
 const BASIN: Vec3 = [1.0, 0, 0.55];
 const BASIN_INNER = 0.58;
 const WATER_Y = 0.245;
@@ -57,7 +58,7 @@ void main() {
   float rise = fract(uTime * (0.16 + aSeed.w * 0.12) + aSeed.z);
   float angle = aSeed.x * 6.2831 + uTime * (0.35 + aSeed.w * 0.3);
   float radius = aSeed.y * (0.18 + rise * 0.42);
-  vec3 p = vec3(cos(angle) * radius, 0.42 + rise * 1.55, sin(angle) * radius);
+  vec3 p = vec3(cos(angle) * radius * 1.25, 0.42 + rise * 2.25, sin(angle) * radius * 1.25);
   vAlpha = smoothstep(0.0, 0.12, rise) * (1.0 - smoothstep(0.7, 1.0, rise));
   vec4 mv = modelViewMatrix * vec4(p, 1.0);
   gl_PointSize = clamp(7.0 * (60.0 / max(1.0, -mv.z)), 1.5, 6.0);
@@ -140,18 +141,18 @@ function fishGeometry() {
 /** Icosaèdre en fil de lumière : une tige par arête, une perle par sommet. */
 function wireGeometry(color: string) {
   const merger = new Merger();
-  const edges = new EdgesGeometry(new IcosahedronGeometry(0.52, 0));
+  const edges = new EdgesGeometry(new IcosahedronGeometry(0.7, 0));
   const positions = edges.attributes.position;
   const nodes = new Map<string, Vec3>();
   for (let index = 0; index < positions.count; index += 2) {
     const a: Vec3 = [positions.getX(index), positions.getY(index), positions.getZ(index)];
     const b: Vec3 = [positions.getX(index + 1), positions.getY(index + 1), positions.getZ(index + 1)];
-    merger.rod(a, b, 0.013, color, 4);
+    merger.rod(a, b, 0.018, color, 4);
     nodes.set(a.map((v) => v.toFixed(3)).join(','), a);
     nodes.set(b.map((v) => v.toFixed(3)).join(','), b);
   }
   edges.dispose();
-  nodes.forEach((node) => merger.sphere(0.032, '#ffffff', node, 1, [6, 4], 0));
+  nodes.forEach((node) => merger.sphere(0.045, '#ffffff', node, 1, [6, 4], 0));
   return merger.build();
 }
 
@@ -165,11 +166,11 @@ function duckGeometry() {
   return merger.build();
 }
 
-function buildStatic(accent: string) {
+function buildStatic(accent: string, pad: number) {
   const paint = new Merger();
   const glow = new Merger();
   const glass = new Merger();
-  addPad(paint, glow, 2.0, accent);
+  addPad(paint, glow, pad, accent);
 
   // Projecteur : socle à pans, platine, ailettes, émetteur lumineux.
   paint.group(pose(PROJECTOR), () => {
@@ -220,8 +221,10 @@ export function Lab3DZone({ zone, spot }: ZoneProps) {
   const duck = useRef<Group>(null);
   const water = useRef<Mesh>(null);
   const bubbles = useRef<InstancedMesh>(null);
+  // En qualité basse, les particules du faisceau et les bulles des fioles sont omises.
+  const lite = useWorld((state) => state.quality === 'low');
 
-  const built = useMemo(() => buildStatic(zone.accent), [zone.accent]);
+  const built = useMemo(() => buildStatic(zone.accent, spot.pad), [spot.pad, zone.accent]);
   const wire = useMemo(() => wireGeometry(zone.accent), [zone.accent]);
   const fishShape = useMemo(() => fishGeometry(), []);
   const duckShape = useMemo(() => duckGeometry(), []);
@@ -306,7 +309,7 @@ export function Lab3DZone({ zone, spot }: ZoneProps) {
     }
     mesh.instanceMatrix.needsUpdate = true;
     if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
-  }, []);
+  }, [lite]);
 
   useFrame((state) => {
     if (!labState.awake) return;
@@ -323,7 +326,7 @@ export function Lab3DZone({ zone, spot }: ZoneProps) {
     }
     if (scan.current) {
       const sweep = Math.sin(t * 1.4);
-      scan.current.position.y = HOLOGRAM_Y + sweep * 0.5;
+      scan.current.position.y = HOLOGRAM_Y + sweep * 0.68;
       scan.current.scale.setScalar(Math.sqrt(Math.max(0.05, 1 - sweep * sweep)) * 0.95 + 0.05);
     }
     // Canard : il fait le tour du bassin en dodelinant ; ses ondes suivent (shader).
@@ -353,33 +356,33 @@ export function Lab3DZone({ zone, spot }: ZoneProps) {
   });
 
   return (
-    <ZoneShell zone={zone} spot={spot} sign={[-0.92, 1.3]} reach={2.8}>
+    <ZoneShell zone={zone} spot={spot} sign={[-0.92, 1.3]} reach={3.2}>
       <mesh geometry={built.paint} material={paintMaterial} castShadow receiveShadow raycast={noRaycast} />
       <mesh geometry={built.glow} material={glowMaterial} raycast={noRaycast} />
       <mesh geometry={built.glass} material={glassMaterial} raycast={noRaycast} />
 
       {/* Faisceau, hologramme, particules. */}
-      <mesh position={[PROJECTOR[0], 0.38 + 0.6, PROJECTOR[2]]} material={beam} raycast={noRaycast}>
-        <cylinderGeometry args={[0.68, 0.24, 1.2, 24, 1, true]} />
+      <mesh position={[PROJECTOR[0], 0.38 + 0.85, PROJECTOR[2]]} material={beam} raycast={noRaycast}>
+        <cylinderGeometry args={[0.88, 0.26, 1.7, 24, 1, true]} />
       </mesh>
       <group position={[PROJECTOR[0], 0, PROJECTOR[2]]}>
         <group ref={spinner} position-y={HOLOGRAM_Y}>
           <mesh geometry={wire} material={glowMaterial} raycast={noRaycast} />
         </group>
-        <mesh ref={fish} geometry={fishShape} material={fishMaterial} position-y={HOLOGRAM_Y} raycast={noRaycast} />
+        <mesh ref={fish} geometry={fishShape} material={fishMaterial} position-y={HOLOGRAM_Y} scale={1.35} raycast={noRaycast} />
         <mesh ref={scan} position-y={HOLOGRAM_Y} rotation-x={Math.PI / 2} raycast={noRaycast}>
-          <torusGeometry args={[0.6, 0.01, 4, 40]} />
+          <torusGeometry args={[0.82, 0.014, 4, 44]} />
           <meshBasicMaterial color={zone.accent} toneMapped={false} transparent opacity={0.85} />
         </mesh>
-        <points geometry={particles} material={particleMaterial} frustumCulled={false} raycast={noRaycast} />
+        {!lite && <points geometry={particles} material={particleMaterial} frustumCulled={false} raycast={noRaycast} />}
       </group>
 
       {/* Bassin : eau stylisée et canard. */}
       <mesh ref={water} geometry={waterShape} material={waterMaterial} position={[BASIN[0], WATER_Y, BASIN[2]]} rotation-x={-Math.PI / 2} raycast={noRaycast} />
       <group ref={duck}>
-        <mesh geometry={duckShape} material={paintMaterial} castShadow raycast={noRaycast} />
+        <mesh geometry={duckShape} material={paintMaterial} raycast={noRaycast} />
       </group>
-      <instancedMesh ref={bubbles} args={[bubble, glowMaterial, BUBBLES]} frustumCulled={false} raycast={noRaycast} />
+      {!lite && <instancedMesh ref={bubbles} args={[bubble, glowMaterial, BUBBLES]} frustumCulled={false} raycast={noRaycast} />}
     </ZoneShell>
   );
 }

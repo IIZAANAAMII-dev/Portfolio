@@ -246,7 +246,19 @@ function FishSchool({
   const meshes = useRef<InstancedMesh[]>([]);
   const dummy = useMemo(() => new Object3D(), []);
   const updateAccumulator = useRef(0);
+  /** Horloge de nage du banc : elle s'accélère quand il panique (queues qui battent vite). */
   const timeRef = useRef(0);
+  const schoolPanic = useRef(0);
+  const marker = useRef<SchoolMarker>({ x: center[0], z: center[1], radius, presence: 0 });
+
+  // Le banc se signale aux petits sauts de surface (SeaLife) tant qu'il est monté.
+  useEffect(() => {
+    const entry = marker.current;
+    schoolMarkers.add(entry);
+    return () => {
+      schoolMarkers.delete(entry);
+    };
+  }, []);
   const agentsRef = useRef<Agents | null>(null);
   const initialAgents = useMemo(
     () => createAgents(species, count, radius, depth, seed, scale),
@@ -300,7 +312,7 @@ function FishSchool({
     const agents = agentsRef.current;
     if (!agents) return;
     const time = state.clock.elapsedTime;
-    timeRef.current = time;
+    timeRef.current += Math.min(delta, 1 / 30) * (1 + schoolPanic.current * 1.8);
 
     // Le groupe entier suit une boucle entre plusieurs îles. Les poissons restent
     // en coordonnées locales : leur boids continue donc de fonctionner sans recréer
@@ -348,6 +360,7 @@ function FishSchool({
       * ecologyState.worldLife;
     const visible = currentScale > 0.006 && distance < simulationDistance && ecologicalActivity > 0.025;
     group.current.visible = visible;
+    marker.current.presence = visible ? currentScale * Math.min(1, ecologicalActivity * 1.4) : 0;
     if (!visible) return;
 
     // Population légèrement réduite, mais toujours visible de loin et bien répartie.
@@ -375,6 +388,41 @@ function FishSchool({
     const schoolZ = Math.cos(time * 0.029 + seed * 1.7) * radius * 0.22;
     const localBoatX = boatState.position.x - leaderX;
     const localBoatZ = boatState.position.z - leaderZ;
+    marker.current.x = leaderX + schoolX;
+    marker.current.z = leaderZ + schoolZ;
+
+    // Fuite éclair (« flash expansion ») : quand l'étrave fond sur le banc, chaque poisson
+    // proche détale en travers de la route du bateau, puis le banc se reforme.
+    const boatSpeed = Math.abs(boatState.speed);
+    const boatDirX = Math.cos(boatState.heading);
+    const boatDirZ = Math.sin(boatState.heading);
+    const startleRadius = 7.5 + Math.min(boatSpeed, 13.5) * 0.3;
+    let panicPeak = 0;
+    for (let index = 0; index < activeCount; index++) {
+      agents.panic[index] *= Math.exp(-dt * 0.9);
+      if (species === 'shark' || boatSpeed < 1.8 || agents.panic[index] > 0.45) {
+        panicPeak = Math.max(panicPeak, agents.panic[index]);
+        continue;
+      }
+      const relX = agents.x[index] - localBoatX;
+      const relZ = agents.z[index] - localBoatZ;
+      const gap = Math.hypot(relX, relZ);
+      if (gap < startleRadius && gap > 0.001) {
+        // Côté du bateau où se trouve le poisson : il part de ce côté, un peu vers l'avant.
+        const side = Math.sign(boatDirX * relZ - boatDirZ * relX) || 1;
+        let fleeX = -boatDirZ * side * 1.0 + relX / gap * 0.55 + boatDirX * 0.25;
+        let fleeZ = boatDirX * side * 1.0 + relZ / gap * 0.55 + boatDirZ * 0.25;
+        const fleeLength = Math.hypot(fleeX, fleeZ) || 1;
+        fleeX /= fleeLength;
+        fleeZ /= fleeLength;
+        const burst = (3.2 + Math.min(boatSpeed, 13.5) * 0.22) * (0.8 + hash(seed + index * 3.3 + time) * 0.4);
+        agents.vx[index] = fleeX * burst;
+        agents.vz[index] = fleeZ * burst;
+        agents.panic[index] = 1;
+      }
+      panicPeak = Math.max(panicPeak, agents.panic[index]);
+    }
+    schoolPanic.current = panicPeak;
 
     for (let index = 0; index < activeCount; index++) {
       let cohesionX = 0;
@@ -417,7 +465,9 @@ function FishSchool({
       const homeX = schoolX - agents.x[index];
       const homeZ = schoolZ - agents.z[index];
       const homeDistance = Math.hypot(homeX, homeZ);
-      const boundary = clamp((homeDistance - radius * 0.9) / (radius * 0.85), 0, 1);
+      // En pleine fuite, le rappel vers le banc se tait : il s'éparpille puis se reforme.
+      const boundary = clamp((homeDistance - radius * 0.9) / (radius * 0.85), 0, 1)
+        * (1 - agents.panic[index] * 0.85);
       if (homeDistance > 0.001) {
         forceX += homeX / homeDistance * boundary * 0.38;
         forceZ += homeZ / homeDistance * boundary * 0.38;
@@ -437,7 +487,7 @@ function FishSchool({
       }
 
       const forceLength = Math.hypot(forceX, forceZ);
-      const maxForce = species === 'shark' ? 0.26 : 0.4;
+      const maxForce = (species === 'shark' ? 0.26 : 0.4) + agents.panic[index] * 2.4;
       if (forceLength > maxForce) {
         forceX = forceX / forceLength * maxForce;
         forceZ = forceZ / forceLength * maxForce;
@@ -451,28 +501,26 @@ function FishSchool({
       agents.vz[index] += agents.az[index] * dt;
       const speedPulse = 1 + Math.sin(time * 0.27 + agents.phase[index] * 1.7) * 0.075;
       const boatDistance = Math.hypot(agents.x[index] - localBoatX, agents.z[index] - localBoatZ);
+      const panic = agents.panic[index];
       const targetSpeed = agents.cruise[index] * speedPulse
-        * (1 + clamp((11 - boatDistance) / 11, 0, 0.28));
+        * (1 + clamp((11 - boatDistance) / 11, 0, 0.28)) * (1 + panic * 3.4);
       const currentSpeed = Math.max(Math.hypot(agents.vx[index], agents.vz[index]), 0.001);
-      const correctedSpeed = currentSpeed + (targetSpeed - currentSpeed) * (1 - Math.exp(-1.1 * dt));
+      const correctedSpeed = currentSpeed + (targetSpeed - currentSpeed) * (1 - Math.exp(-(1.1 + panic * 2.5) * dt));
       agents.vx[index] *= correctedSpeed / currentSpeed;
       agents.vz[index] *= correctedSpeed / currentSpeed;
       agents.x[index] += agents.vx[index] * dt;
       agents.z[index] += agents.vz[index] * dt;
 
       const desiredYaw = Math.atan2(agents.vx[index], agents.vz[index]);
-      const yawDelta = clamp(
-        shortestAngle(agents.yaw[index], desiredYaw),
-        -agents.turnRate[index] * dt,
-        agents.turnRate[index] * dt,
-      );
+      const turnRate = agents.turnRate[index] * (1 + panic * 5);
+      const yawDelta = clamp(shortestAngle(agents.yaw[index], desiredYaw), -turnRate * dt, turnRate * dt);
       agents.yaw[index] += yawDelta;
-      const targetBank = clamp(-yawDelta / Math.max(dt, 0.001), -0.13, 0.13);
+      const targetBank = clamp(-yawDelta / Math.max(dt, 0.001), -0.13 - panic * 0.3, 0.13 + panic * 0.3);
       agents.bank[index] += (targetBank - agents.bank[index]) * (1 - Math.exp(-2.4 * dt));
 
       dummy.position.set(
         agents.x[index],
-        agents.depth[index] + Math.sin(time * 0.52 + agents.phase[index]) * 0.16,
+        agents.depth[index] + Math.sin(time * 0.52 + agents.phase[index]) * 0.16 - panic * 0.35,
         agents.z[index],
       );
       dummy.rotation.set(

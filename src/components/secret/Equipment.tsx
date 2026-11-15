@@ -225,7 +225,7 @@ function buildStatics() {
   {
     const { x, z } = DEAD_TREE;
     const y = restSite(x, z, 0.3) - 0.1;
-    const bark = '#4d4842';
+    const bark = '#5d5852';
     const branch = (bx: number, by: number, bz: number, length: number, radius: number, pitch: number, yaw: number, depth: number) => {
       const dir = new Vector3(Math.sin(pitch) * Math.sin(yaw), Math.cos(pitch), Math.sin(pitch) * Math.cos(yaw));
       const cylinder = new CylinderGeometry(radius * 0.62, radius, length, 6);
@@ -297,8 +297,8 @@ function buildTape() {
       if (index > 0) u += length / steps;
       // Le ruban se vrille un peu : sa largeur pivote le long de la portée.
       const twist = Math.sin(t * Math.PI * 2 + phase) * 0.6;
-      const wy = Math.cos(twist) * 0.04;
-      const wn = Math.sin(twist) * 0.04;
+      const wy = Math.cos(twist) * 0.065;
+      const wn = Math.sin(twist) * 0.065;
       positions.push(x + nx * wn, y + wy, z + nz * wn, x - nx * wn, y - wy, z - nz * wn);
       uvs.push(u / 0.5, 1, u / 0.5, 0);
       const f = 4 * t * (1 - t);

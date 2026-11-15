@@ -245,7 +245,8 @@ export function Workshops({ project }: { project: Project }) {
   const mixer = useMemo(() => buildMixer(), []);
 
   // Panneau du titre et panneau « En chantier », de part et d'autre du portail.
-  const gate = polar(-1.62, 9.0);
+  // La plaque du numéro est vissée sur la palissade, juste à gauche du portail.
+  const plaque = polar(-1.785, 9.24);
   const signs = useMemo(() => {
     const m = new Maquette();
     const spots: { at: V3; ry: number }[] = [];
@@ -289,7 +290,8 @@ export function Workshops({ project }: { project: Project }) {
 
   useFrame((state) => {
     const t = state.clock.elapsedTime;
-    if (jib.current) jib.current.rotation.y = -jibBase + Math.sin(t * 0.16) * 0.7;
+    // La flèche balaie le chantier de profil (vers l'ouest), lisible depuis le ponton.
+    if (jib.current) jib.current.rotation.y = -(jibBase + 1.15) + Math.sin(t * 0.16) * 0.8;
     if (trolley.current) trolley.current.position.x = 2.6 + Math.sin(t * 0.23 + 1) * 1.6;
     if (hook.current) {
       hook.current.rotation.z = Math.sin(t * 1.4) * 0.06;
@@ -352,7 +354,7 @@ export function Workshops({ project }: { project: Project }) {
       <mesh geometry={signs.geometry} material={paint} castShadow />
       <SignText lines={splitTitle(project.title)} accent={project.accent} width={1.9} position={signs.spots[0].at} rotation={[0, signs.spots[0].ry, 0]} />
       <SignText lines={['En chantier']} accent="#e2553f" width={1.9} position={signs.spots[1].at} rotation={[0, signs.spots[1].ry, 0]} />
-      <Plaque index={project.index} accent={project.accent} size={0.66} position={[gate[0] - SX, 0.75, gate[1] - SZ]} rotation={[0, Math.atan2(-gate[0], -gate[1]), 0]} />
+      <Plaque index={project.index} accent={project.accent} size={0.9} position={[plaque[0] - SX, 0.62, plaque[1] - SZ]} rotation={[0, Math.atan2(-plaque[0], -plaque[1]), 0]} />
     </Hotspot>
   );
 }

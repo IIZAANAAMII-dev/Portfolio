@@ -296,8 +296,9 @@ body.is-quick-view {
   text-shadow: 0 0 22px rgba(255, 196, 112, 0.5), 0 2px 10px rgba(0, 0, 0, 0.6);
   animation: intro-cta-in 0.9s cubic-bezier(0.16, 1, 0.3, 1) both, intro-breathe 2.6s ease-in-out 0.9s infinite;
 }
-.intro-cta span:first-child { font-size: clamp(2.1rem, calc(var(--ring-rx, 320px) * 0.2), 4rem); font-weight: 600; }
-.intro-cta span:last-child { margin-top: 0.1rem; color: rgba(255, 236, 206, 0.8); font-size: clamp(1.1rem, calc(var(--ring-rx, 320px) * 0.075), 1.55rem); }
+/* Le texte respire au centre de l'anneau : environ un tiers de sa hauteur intérieure. */
+.intro-cta span:first-child { font-size: clamp(1.55rem, calc(var(--ring-rx, 320px) * 0.125), 2.6rem); font-weight: 600; }
+.intro-cta span:last-child { margin-top: 0.2rem; color: rgba(255, 236, 206, 0.78); font-size: clamp(0.92rem, calc(var(--ring-rx, 320px) * 0.05), 1.18rem); letter-spacing: 0.01em; }
 
 .intro-hint {
   position: absolute;

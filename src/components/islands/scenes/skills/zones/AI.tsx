@@ -16,6 +16,7 @@ import {
   TorusGeometry,
 } from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import { useWorld } from '@/lib/store';
 import { damp, hash } from '@/lib/utils/math';
 import { bump, easeInOut, mix } from '../anim';
 import { erlenmeyerGeometry, liquidGeometry, Merger, pose, type Vec3 } from '../geometry';
@@ -31,7 +32,9 @@ import { addPad, noRaycast, ZoneShell, type ZoneProps } from '../Zone';
  */
 
 const CENTER: Vec3 = [0.15, 0, 0.05];
-const RING = 0.78;
+const RING = 0.9;
+/** Les robots sont la vedette de la zone : un peu plus grands que nature. */
+const ROBOT_SCALE = 1.3;
 const ROBOTS = [0, 1, 2].map((index) => {
   const angle = Math.PI / 2 + (index * Math.PI * 2) / 3;
   return { x: CENTER[0] + Math.cos(angle) * RING, z: CENTER[2] + Math.sin(angle) * RING };
@@ -42,9 +45,9 @@ const HOP = 1.5;
 const HOLD = 0.6;
 const CUBES = 2;
 const MAST: Vec3 = [-1.2, 0, -0.85];
-const MAST_TOP = 2.15;
+const MAST_TOP = 3.0;
 const CRATE: Vec3 = [1.3, 0, 0.72];
-const BUBBLE_Y = 1.55;
+const BUBBLE_Y = 1.95;
 
 /** Corps d'un robot (sans bras, yeux ni pièces colorées), face vers +Z. */
 function robotGeometry() {
@@ -107,7 +110,7 @@ void main() {
 
 function ringsGeometry() {
   const parts = [0, 1, 2].map((index) => {
-    const ring = new TorusGeometry(0.42, 0.016, 4, 36).rotateX(Math.PI / 2);
+    const ring = new TorusGeometry(0.5, 0.022, 4, 36).rotateX(Math.PI / 2);
     const count = ring.attributes.position.count;
     ring.setAttribute('aPhase', new BufferAttribute(new Float32Array(count).fill(index / 3), 1));
     ring.deleteAttribute('uv');
@@ -119,11 +122,11 @@ function ringsGeometry() {
   return merged;
 }
 
-function buildStatic(accent: string) {
+function buildStatic(accent: string, pad: number) {
   const paint = new Merger();
   const glow = new Merger();
   const glass = new Merger();
-  addPad(paint, glow, 2.0, accent);
+  addPad(paint, glow, pad, accent);
   // Plateau de travail : cercle clair sous les robots.
   paint.cylinder(RING + 0.36, RING + 0.4, 0.04, 28, '#d9d3e6', [CENTER[0], 0.02, CENTER[2]], undefined, 0.04);
   // Antenne en treillis.
@@ -166,9 +169,9 @@ const tint = new Color();
 
 /** Où sont les mains d'un robot (devant lui, à hauteur de poitrine). */
 function handsOf(index: number, heading: number, out: Vec3) {
-  out[0] = ROBOTS[index].x + Math.sin(heading) * 0.26;
-  out[1] = 0.47;
-  out[2] = ROBOTS[index].z + Math.cos(heading) * 0.26;
+  out[0] = ROBOTS[index].x + Math.sin(heading) * 0.26 * ROBOT_SCALE;
+  out[1] = 0.47 * ROBOT_SCALE;
+  out[2] = ROBOTS[index].z + Math.cos(heading) * 0.26 * ROBOT_SCALE;
   return out;
 }
 
@@ -189,8 +192,10 @@ export function AIZone({ zone, spot }: ZoneProps) {
   const bulb = useRef<InstancedMesh>(null);
   /** Caps et levée des bras, amortis d'une image à l'autre. */
   const motion = useRef({ heading: [0, 0, 0], raise: [0, 0, 0] });
+  // En qualité basse, les ondes de l'antenne sont omises.
+  const lite = useWorld((state) => state.quality === 'low');
 
-  const built = useMemo(() => buildStatic(zone.accent), [zone.accent]);
+  const built = useMemo(() => buildStatic(zone.accent, spot.pad), [spot.pad, zone.accent]);
   const robot = useMemo(() => robotGeometry(), []);
   const accentParts = useMemo(() => accentGeometry(), []);
   const eyePair = useMemo(() => eyesGeometry(), []);
@@ -212,7 +217,7 @@ export function AIZone({ zone, spot }: ZoneProps) {
       }),
     [zone.accent],
   );
-  const bulbShape = useMemo(() => new Merger().sphere(0.09, '#ffffff', [0, 0, 0], 1, [12, 8], 0).build(), []);
+  const bulbShape = useMemo(() => new Merger().sphere(0.14, '#ffffff', [0, 0, 0], 1, [12, 8], 0).build(), []);
   const accentColor = useMemo(() => new Color(zone.accent), [zone.accent]);
 
   useEffect(
@@ -278,7 +283,7 @@ export function AIZone({ zone, spot }: ZoneProps) {
           dummy.position.set(mix(from[0], to[0], u), mix(from[1], to[1], u) + 0.05 + Math.sin(u * Math.PI) * 0.5, mix(from[2], to[2], u));
           dummy.rotation.set(t * 4, t * 3, u * Math.PI);
         }
-        const pop = 1 + bump(s, 0, 0.3) * 0.35;
+        const pop = (1 + bump(s, 0, 0.3) * 0.35) * 1.3;
         dummy.scale.setScalar(pop);
         dummy.updateMatrix();
         mesh.setMatrixAt(index, dummy.matrix);
@@ -306,7 +311,7 @@ export function AIZone({ zone, spot }: ZoneProps) {
 
       dummy.position.set(robotSpot.x, Math.abs(Math.sin(t * 3.2 + index * 2)) * 0.025, robotSpot.z);
       dummy.rotation.set(0, current, Math.sin(t * 1.4 + index) * 0.04);
-      dummy.scale.setScalar(1);
+      dummy.scale.setScalar(ROBOT_SCALE);
       dummy.updateMatrix();
       robotMatrix.copy(dummy.matrix);
       bodies.current?.setMatrixAt(index, robotMatrix);
@@ -356,18 +361,20 @@ export function AIZone({ zone, spot }: ZoneProps) {
   });
 
   return (
-    <ZoneShell zone={zone} spot={spot} sign={[-1.05, 1.25]} reach={2.6}>
+    <ZoneShell zone={zone} spot={spot} sign={[-1.05, 1.25]} reach={3.4}>
       <mesh geometry={built.paint} material={paintMaterial} castShadow receiveShadow raycast={noRaycast} />
       <mesh geometry={built.glow} material={glowMaterial} raycast={noRaycast} />
       <mesh geometry={built.glass} material={glassMaterial} raycast={noRaycast} />
       <instancedMesh ref={bodies} args={[robot, paintMaterial, 3]} castShadow frustumCulled={false} raycast={noRaycast} />
       <instancedMesh ref={accents} args={[accentParts, paintMaterial, 3]} frustumCulled={false} raycast={noRaycast} />
       <instancedMesh ref={eyes} args={[eyePair, glowMaterial, 3]} frustumCulled={false} raycast={noRaycast} />
-      <instancedMesh ref={arms} args={[arm, paintMaterial, 6]} castShadow frustumCulled={false} raycast={noRaycast} />
+      <instancedMesh ref={arms} args={[arm, paintMaterial, 6]} frustumCulled={false} raycast={noRaycast} />
       <instancedMesh ref={cubes} args={[cube, glowMaterial, CUBES]} frustumCulled={false} raycast={noRaycast} />
       <instancedMesh ref={bulb} args={[bulbShape, glowMaterial, 1]} frustumCulled={false} raycast={noRaycast} />
-      <mesh geometry={rings} material={ringMaterial} position={[MAST[0], MAST_TOP + 0.13, MAST[2]]} frustumCulled={false} raycast={noRaycast} />
-      <group ref={bubble} position={[CENTER[0], BUBBLE_Y, CENTER[2]]}>
+      {!lite && (
+        <mesh geometry={rings} material={ringMaterial} position={[MAST[0], MAST_TOP + 0.13, MAST[2]]} frustumCulled={false} raycast={noRaycast} />
+      )}
+      <group ref={bubble} position={[CENTER[0], BUBBLE_Y, CENTER[2]]} scale={1.35}>
         <mesh geometry={speech} material={paintMaterial} raycast={noRaycast} />
         <instancedMesh ref={dots} args={[dot, glowMaterial, 3]} frustumCulled={false} raycast={noRaycast} />
       </group>

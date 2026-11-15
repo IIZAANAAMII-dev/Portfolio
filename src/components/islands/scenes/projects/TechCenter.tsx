@@ -35,7 +35,9 @@ import { Windows, windowRow, type WindowSpec } from './Windows';
  */
 
 const ORANGE = '#ff8a3d';
-const WALL = '#eef0f1';
+const WALL = '#f3f1ec';
+/** Bardage de l'entrepôt, à la couleur du projet. */
+const SHED = '#f28a45';
 const STEEL = '#3d4552';
 const ROOF = '#5b6370';
 
@@ -344,30 +346,30 @@ function buildTechCenter() {
   const t = 0.12;
   m.block(x0 - 0.05, 0.08, z0 - 0.05, x1 + 0.05, 0.38, z1 + 0.05, '#a3a9b2');
   m.block(x0 + t, 0.38, z0 + t, x1 - t, 0.42, z1 - t, '#bdb7ab');
-  m.block(x0, 0.38, z0, x1, h, z0 + t, WALL);
-  m.block(x0, 0.38, z0, x0 + t, h, z1, WALL);
-  m.block(x0, 0.38, z1 - t, DOOR.x0, h, z1, WALL);
-  m.block(DOOR.x1, 0.38, z1 - t, x1, h, z1, WALL);
-  m.block(DOOR.x0, DOOR.h, z1 - t, DOOR.x1, h, z1, WALL);
+  m.block(x0, 0.38, z0, x1, h, z0 + t, SHED);
+  m.block(x0, 0.38, z0, x0 + t, h, z1, SHED);
+  m.block(x0, 0.38, z1 - t, DOOR.x0, h, z1, SHED);
+  m.block(DOOR.x1, 0.38, z1 - t, x1, h, z1, SHED);
+  m.block(DOOR.x0, DOOR.h, z1 - t, DOOR.x1, h, z1, SHED);
   // Mur droit, percé pour le convoyeur.
   const hole = { y0: CONVEYOR_Y - 0.1, y1: CONVEYOR_Y + 0.62, z0: CONVEYOR_Z - 0.38, z1: CONVEYOR_Z + 0.38 };
-  m.block(x1 - t, 0.38, z0, x1, hole.y0, z1, WALL);
-  m.block(x1 - t, hole.y1, z0, x1, h, z1, WALL);
-  m.block(x1 - t, hole.y0, z0, x1, hole.y1, hole.z0, WALL);
-  m.block(x1 - t, hole.y0, hole.z1, x1, hole.y1, z1, WALL);
-  m.block(x1 - 0.02, hole.y0 - 0.06, hole.z0 - 0.06, x1 + 0.05, hole.y1 + 0.06, hole.z1 + 0.06, ORANGE);
+  m.block(x1 - t, 0.38, z0, x1, hole.y0, z1, SHED);
+  m.block(x1 - t, hole.y1, z0, x1, h, z1, SHED);
+  m.block(x1 - t, hole.y0, z0, x1, hole.y1, hole.z0, SHED);
+  m.block(x1 - t, hole.y0, hole.z1, x1, hole.y1, z1, SHED);
+  m.block(x1 - 0.02, hole.y0 - 0.06, hole.z0 - 0.06, x1 + 0.05, hole.y1 + 0.06, hole.z1 + 0.06, '#ffffff');
   // Nervures de bardage et bandeau orange.
   for (let rib = 0; rib < 12; rib++) {
     const x = x0 + 0.2 + rib * 0.29;
     if (x > DOOR.x0 - 0.05 && x < DOOR.x1 + 0.05) continue;
-    m.block(x - 0.025, 0.42, z1, x + 0.025, h - 0.05, z1 + 0.035, '#d9dde2', 0);
+    m.block(x - 0.025, 0.42, z1, x + 0.025, h - 0.05, z1 + 0.035, '#ffab6e', 0);
   }
-  m.block(x0 - 0.02, h - 0.32, z1, x1 + 0.02, h - 0.12, z1 + 0.05, ORANGE);
-  m.block(x0 - 0.04, h - 0.32, z0 - 0.02, x0, h - 0.12, z1 + 0.02, ORANGE);
+  m.block(x0 - 0.02, h - 0.32, z1, x1 + 0.02, h - 0.12, z1 + 0.05, '#ffffff');
+  m.block(x0 - 0.04, h - 0.32, z0 - 0.02, x0, h - 0.12, z1 + 0.02, '#ffffff');
   // Porte de quai : encadrement orange, rideau relevé, butoirs.
-  m.block(DOOR.x0 - 0.12, 0.38, z1 - 0.02, DOOR.x0, DOOR.h + 0.12, z1 + 0.08, ORANGE);
-  m.block(DOOR.x1, 0.38, z1 - 0.02, DOOR.x1 + 0.12, DOOR.h + 0.12, z1 + 0.08, ORANGE);
-  m.block(DOOR.x0 - 0.12, DOOR.h, z1 - 0.02, DOOR.x1 + 0.12, DOOR.h + 0.12, z1 + 0.08, ORANGE);
+  m.block(DOOR.x0 - 0.12, 0.38, z1 - 0.02, DOOR.x0, DOOR.h + 0.12, z1 + 0.08, '#ffffff');
+  m.block(DOOR.x1, 0.38, z1 - 0.02, DOOR.x1 + 0.12, DOOR.h + 0.12, z1 + 0.08, '#ffffff');
+  m.block(DOOR.x0 - 0.12, DOOR.h, z1 - 0.02, DOOR.x1 + 0.12, DOOR.h + 0.12, z1 + 0.08, '#ffffff');
   m.block(DOOR.x0, DOOR.h - 0.32, z1 - 0.1, DOOR.x1, DOOR.h, z1 - 0.02, '#c8cdd4');
   // Pignons et verrière à deux pans.
   const ridge = h + 0.75;
@@ -382,7 +384,7 @@ function buildTechCenter() {
       ],
       t,
       [x, h, zc],
-      WALL,
+      SHED,
       [0, Math.PI / 2, 0],
     );
   }
@@ -428,7 +430,8 @@ function buildTechCenter() {
   m.block(T.x1 - 0.12, 0.2, T.z0, T.x1, g1, T.z1, WALL);
   m.block(T.x0, g1, T.z0, T.x1, top, T.z1, WALL);
   m.block(T.x0 - 0.06, g1 - 0.08, T.z0 - 0.06, T.x1 + 0.06, g1 + 0.06, T.z1 + 0.08, STEEL);
-  m.block(T.x0 - 0.06, g1 * 2 - 0.05, T.z1, T.x1 + 0.06, g1 * 2 + 0.05, T.z1 + 0.08, STEEL);
+  m.block(T.x0 - 0.06, g1 * 2 - 0.12, T.z1, T.x1 + 0.06, g1 * 2 + 0.12, T.z1 + 0.08, '#1f6fe0');
+  m.block(T.x0 - 0.06, g1 - 0.08, T.z1 + 0.02, T.x1 + 0.06, g1 + 0.1, T.z1 + 0.09, '#1f6fe0');
   panes.box([T.x1 - T.x0 - 0.24, g1 - 0.25, 0.02], [(T.x0 + T.x1) / 2, (g1 + 0.2) / 2 + 0.05, T.z1 - 0.06], '#ffffff');
   for (const mx of [T.x0 + 0.7, T.x0 + 1.4, T.x0 + 2.1]) m.block(mx - 0.025, 0.2, T.z1 - 0.08, mx + 0.025, g1 - 0.08, T.z1 - 0.03, STEEL, 0);
   // Baies de serveurs et leurs voyants.

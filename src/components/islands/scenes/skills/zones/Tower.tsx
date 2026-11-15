@@ -42,9 +42,13 @@ const TOWER: Vec3 = [-0.85, 0, -0.55];
 const PAD: Vec3 = [0.75, 0, 0.42];
 const PAD_TOP = 0.14;
 const GANTRY: Vec3 = [1.38, 0, 0.08];
-const CABIN_Y = 3.02;
-const ROCKET_CYCLE = 18;
-const APEX = 8.5;
+/** Hauteur du fût : la tour est le repère le plus haut de l'île. */
+const SHAFT = 3.0;
+const BALCONY_Y = 0.36 + SHAFT + 0.02;
+const CABIN_Y = BALCONY_Y + 0.32;
+const ROCKET_CYCLE = 15;
+const ROCKET_SCALE = 1.35;
+const APEX = 7;
 const CHASE = 8;
 const PUFFS = 18;
 
@@ -96,20 +100,20 @@ function gitGeometry() {
   return merged;
 }
 
-function buildStatic(accent: string) {
+function buildStatic(accent: string, pad: number) {
   const paint = new Merger();
   const glow = new Merger();
-  addPad(paint, glow, 2.1, accent);
+  addPad(paint, glow, pad, accent);
 
   paint.group(pose(TOWER), () => {
     // Socle, fût crème cerclé de jaune, porte.
     paint.octagon(0.62, 0.68, 0.36, topAndSides('#ddd5c6', '#bfb4a2'), [0, 0.18, 0]);
-    paint.cylinder(0.3, 0.36, 2.32, 14, '#f3ead8', [0, 0.36 + 1.16, 0], undefined, 0.06);
-    for (const y of [1.1, 1.95]) paint.cylinder(0.333, 0.338, 0.12, 14, accent, [0, y, 0], undefined, 0);
+    paint.cylinder(0.3, 0.38, SHAFT, 14, '#f6efe1', [0, 0.36 + SHAFT / 2, 0], undefined, 0.06);
+    for (const y of [1.05, 1.95, 2.85]) paint.cylinder(0.335, 0.345, 0.16, 14, accent, [0, y, 0], undefined, 0);
     paint.box([0.26, 0.42, 0.06], '#3d4658', [0, 0.57, 0.335]);
     // Balcon, garde-corps, cabine, toit.
-    paint.cylinder(0.78, 0.74, 0.07, 16, '#8d97a6', [0, 2.7, 0]);
-    paint.add(new CylinderGeometry(0.76, 0.76, 0.14, 16, 1, true), '#d3dbe4', pose([0, 2.81, 0]), 0);
+    paint.cylinder(0.78, 0.74, 0.07, 16, '#8d97a6', [0, BALCONY_Y, 0]);
+    paint.add(new CylinderGeometry(0.76, 0.76, 0.14, 16, 1, true), '#d3dbe4', pose([0, BALCONY_Y + 0.11, 0]), 0);
     paint.add(new CylinderGeometry(0.5, 0.46, 0.44, 8, 1, false, Math.PI / 8), '#2b3242', pose([0, CABIN_Y, 0]), 0);
     for (let index = 0; index < 8; index++) {
       const angle = Math.PI / 8 + (index / 8) * Math.PI * 2;
@@ -121,7 +125,7 @@ function buildStatic(accent: string) {
     paint.cylinder(0.05, 0.05, 0.2, 6, '#5b6472', [0, CABIN_Y + 0.58, 0]);
     // Mâts des feux d'obstacle et hampe du drapeau.
     for (const side of [-0.5, 0.5]) paint.rod([side, CABIN_Y + 0.28, -0.25], [side, CABIN_Y + 0.62, -0.25], 0.015, '#5b6472');
-    paint.rod([0.66, 2.73, 0.3], [0.66, 3.55, 0.3], 0.016, '#e9e3d6');
+    paint.rod([0.66, BALCONY_Y + 0.03, 0.3], [0.66, BALCONY_Y + 0.85, 0.3], 0.016, '#e9e3d6');
   });
 
   // Aire de lancement : bord à chevrons jaunes et noirs, cible au centre.
@@ -154,7 +158,7 @@ function buildStatic(accent: string) {
 /** Bande vitrée de la cabine (s'allume au crépuscule) et deux hublots du fût. */
 function windowsGeometry() {
   const parts: BufferGeometry[] = [new CylinderGeometry(0.515, 0.47, 0.34, 8, 1, true, Math.PI / 8).translate(TOWER[0], CABIN_Y + 0.02, TOWER[2])];
-  for (const y of [1.5, 2.3]) parts.push(new PlaneGeometry(0.12, 0.2).translate(TOWER[0], y, TOWER[2] + 0.335));
+  for (const y of [1.5, 2.4]) parts.push(new PlaneGeometry(0.12, 0.2).translate(TOWER[0], y, TOWER[2] + 0.348));
   parts.forEach((part) => part.deleteAttribute('uv'));
   const merged = mergeGeometries(parts, false);
   parts.forEach((part) => part.dispose());
@@ -232,7 +236,7 @@ export function TowerZone({ zone, spot }: ZoneProps) {
   const puffs = useRef<InstancedMesh>(null);
   const reducedMotion = useWorld((state) => state.reducedMotion);
 
-  const built = useMemo(() => buildStatic(zone.accent), [zone.accent]);
+  const built = useMemo(() => buildStatic(zone.accent, spot.pad), [spot.pad, zone.accent]);
   const git = useMemo(() => gitGeometry(), []);
   const windows = useMemo(() => windowsGeometry(), []);
   const cabinGlass = useMemo(() => windowMaterial(37, '#ffd98a', '#38566e', 2.4), []);
@@ -293,15 +297,15 @@ export function TowerZone({ zone, spot }: ZoneProps) {
     const r = reducedMotion ? 0 : (t + 6) % ROCKET_CYCLE;
     let height = 0;
     let thrust = 0;
-    if (r >= 10.0 && r < 10.4) thrust = 0.35 + Math.sin(t * 40) * 0.1;
-    else if (r >= 10.4 && r < 13.0) {
-      const s = span(r, 10.4, 2.6);
+    if (r >= 7.0 && r < 7.4) thrust = 0.35 + Math.sin(t * 40) * 0.1;
+    else if (r >= 7.4 && r < 10.0) {
+      const s = span(r, 7.4, 2.6);
       height = APEX * s * s;
       thrust = 1;
-    } else if (r >= 13.0 && r < 13.8) {
-      height = APEX + Math.sin(span(r, 13.0, 0.8) * Math.PI) * 0.35;
-    } else if (r >= 13.8 && r < 17.0) {
-      const s = span(r, 13.8, 3.2);
+    } else if (r >= 10.0 && r < 10.8) {
+      height = APEX + Math.sin(span(r, 10.0, 0.8) * Math.PI) * 0.35;
+    } else if (r >= 10.8 && r < 14.0) {
+      const s = span(r, 10.8, 3.2);
       height = APEX * (1 - easeOut(s));
       thrust = 0.35 + s * 0.65;
     }
@@ -321,8 +325,8 @@ export function TowerZone({ zone, spot }: ZoneProps) {
     // allumé pendant le vol.
     const lights = chase.current;
     if (lights) {
-      const countdown = r >= 8.6 && r < 10.4;
-      const flying = r >= 10.4 && r < 17.2;
+      const countdown = r >= 5.6 && r < 7.4;
+      const flying = r >= 7.4 && r < 14.2;
       for (let index = 0; index < CHASE; index++) {
         let on = Math.max(0, 1 - (((t * 4 - index) % CHASE) + CHASE) % CHASE * 0.45);
         if (countdown) on = Math.sin(t * 18) > 0 ? 1 : 0.1;
@@ -344,8 +348,8 @@ export function TowerZone({ zone, spot }: ZoneProps) {
         let size = 0;
         if (burst) {
           const angle = (index / 12) * Math.PI * 2 + hash(index * 3.7) * 0.4;
-          const sinceLaunch = r - 10.2;
-          const sinceLanding = r - 16.6;
+          const sinceLaunch = r - 7.2;
+          const sinceLanding = r - 13.6;
           const since = sinceLanding > 0 ? sinceLanding : sinceLaunch;
           life = since / 2.0;
           const spread = 0.3 + Math.sqrt(Math.max(life, 0)) * 0.95;
@@ -355,9 +359,9 @@ export function TowerZone({ zone, spot }: ZoneProps) {
           size = 0.12 + Math.max(life, 0) * 0.28;
         } else {
           const trail = index - 12;
-          const born = 10.5 + trail * 0.4;
+          const born = 7.5 + trail * 0.4;
           life = (r - born) / 2.2;
-          const s = span(born, 10.4, 2.6);
+          const s = span(born, 7.4, 2.6);
           x = PAD[0] + (hash(index * 5.1) - 0.5) * 0.12;
           z = PAD[2] + (hash(index * 6.3) - 0.5) * 0.12;
           y = PAD_TOP + APEX * s * s + Math.max(life, 0) * 0.4;
@@ -375,21 +379,21 @@ export function TowerZone({ zone, spot }: ZoneProps) {
   });
 
   return (
-    <ZoneShell zone={zone} spot={spot} sign={[1.02, -1.0]} reach={4.2}>
+    <ZoneShell zone={zone} spot={spot} sign={[1.02, -1.0]} reach={4.9}>
       <mesh geometry={built.paint} material={paintMaterial} castShadow receiveShadow raycast={noRaycast} />
       <mesh geometry={built.glow} material={glowMaterial} raycast={noRaycast} />
       <mesh geometry={windows} material={cabinGlass} raycast={noRaycast} />
       <mesh geometry={git} material={flowMaterial} raycast={noRaycast} />
 
       <group ref={radar} position={[TOWER[0], CABIN_Y + 0.68, TOWER[2]]}>
-        <mesh geometry={dish} material={paintMaterial} castShadow raycast={noRaycast} />
+        <mesh geometry={dish} material={paintMaterial} raycast={noRaycast} />
       </group>
       <mesh geometry={lamps} position={[TOWER[0], CABIN_Y + 0.64, TOWER[2] - 0.25]} raycast={noRaycast}>
         <meshBasicMaterial ref={beacons} color="#ff3b30" toneMapped={false} />
       </mesh>
-      <mesh geometry={cloth} material={flag} position={[TOWER[0] + 0.67, 3.38, TOWER[2] + 0.3]} rotation-y={-0.5} raycast={noRaycast} />
+      <mesh geometry={cloth} material={flag} position={[TOWER[0] + 0.67, BALCONY_Y + 0.68, TOWER[2] + 0.3]} rotation-y={-0.5} scale={1.4} raycast={noRaycast} />
 
-      <group ref={rocket} position={[PAD[0], PAD_TOP, PAD[2]]}>
+      <group ref={rocket} position={[PAD[0], PAD_TOP, PAD[2]]} scale={ROCKET_SCALE}>
         <mesh geometry={body} material={paintMaterial} castShadow raycast={noRaycast} />
         <mesh ref={flame} geometry={fire} material={glowMaterial} visible={false} raycast={noRaycast} />
       </group>

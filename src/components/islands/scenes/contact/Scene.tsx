@@ -20,7 +20,7 @@ import {
 import { ClearingAt, WindowPane, type SceneProps } from '../../kit';
 import { groundAt } from '../../terrain-shape';
 import { BeachBottles, DriftingBottle } from './Bottles';
-import { Bunting } from './Bunting';
+import { Bunting, Laundry } from './Bunting';
 import {
   bellPivot,
   buildIsland,
@@ -33,6 +33,7 @@ import {
   glowSpots,
   gullPerch,
   HOUSE,
+  laundryLine,
   mailboxFrame,
   PIER_DECK,
   pierLanterns,
@@ -40,6 +41,7 @@ import {
 } from './build';
 import { BELL, COTTAGE, DOCK_SIDE, hillStairs, MAILBOX, onDockAxis, PIER, polar } from './layout';
 import { Gull } from './Gull';
+import { Keeper } from './Keeper';
 import { LighthouseLamp } from './LighthouseLamp';
 import { Mailbox } from './Mailbox';
 import { ShipBell } from './ShipBell';
@@ -114,6 +116,7 @@ export default function ContactScene({ island, sampler, features }: SceneProps) 
   const stairs = hillStairs(features.hillX, features.hillZ);
   const sea = polar(1.27, 14.8);
   const perch = gullPerch();
+  const line = useMemo(() => laundryLine(sampler), [sampler]);
 
   useFrame((state) => {
     const night = skyState.dayNight;
@@ -131,9 +134,10 @@ export default function ContactScene({ island, sampler, features }: SceneProps) 
       <ClearingAt x={onDockAxis(7.5).x} z={onDockAxis(7.5).z} radius={1.0} />
       <ClearingAt x={frame.x + stairs.dirX * 3.9} z={frame.z + stairs.dirZ * 3.9} radius={1.0} />
       <ClearingAt x={frame.x + stairs.dirX * 5.6} z={frame.z + stairs.dirZ * 5.6} radius={0.8} />
-      <ClearingAt x={MAILBOX.x} z={MAILBOX.z} radius={0.55} />
+      <ClearingAt x={MAILBOX.x} z={MAILBOX.z} radius={0.95} />
       <ClearingAt x={BELL.x} z={BELL.z} radius={0.6} />
       <ClearingAt x={onDockAxis(7.2, -1.1).x} z={onDockAxis(7.2, -1.1).z} radius={0.7} />
+      <ClearingAt x={polar(2.87, 6.5).x} z={polar(2.87, 6.5).z} radius={1.7} />
 
       {/* Tout le statique : phare, maison, escaliers, rochers, canot… (un draw call). */}
       <mesh geometry={built.geometry} material={PAINTED} castShadow receiveShadow raycast={() => null} />
@@ -147,6 +151,7 @@ export default function ContactScene({ island, sampler, features }: SceneProps) 
       {quality !== 'low' && <points geometry={glows} material={GLOWS} renderOrder={8} raycast={() => null} />}
 
       <LighthouseLamp frame={frame} />
+      <Keeper frame={frame} islandX={island.position[0]} islandZ={island.position[1]} />
       {windows.map((window) => (
         <WindowPane key={window.seed} seed={window.seed} width={0.24} height={0.36} position={window.position} rotation={window.rotation} />
       ))}
@@ -160,6 +165,7 @@ export default function ContactScene({ island, sampler, features }: SceneProps) 
       </group>
       <ChimneySmoke position={garland.smoke} />
       {quality !== 'low' && <Bunting from={garland.from} to={garland.to} />}
+      <Laundry from={line[0]} to={line[1]} />
 
       <Mailbox position={mailbox.position} yaw={mailbox.yaw} />
       <ShipBell pivot={bell} yaw={Math.atan2(DOCK_SIDE.x, DOCK_SIDE.z)} />

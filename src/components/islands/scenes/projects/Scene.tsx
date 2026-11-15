@@ -9,6 +9,7 @@ import type { SceneProps } from '../../kit';
 import { CyberCenter } from './Cyber';
 import { Gallery } from './Gallery';
 import { Medical } from './Medical';
+import { Park } from './Park';
 import { Shipyard } from './Shipyard';
 import { TechCenter } from './TechCenter';
 import { Town } from './Town';
@@ -36,6 +37,7 @@ export default function ProjectsScene({ island }: SceneProps) {
     <>
       <Town elevation={island.elevation} />
       <TownLife />
+      <Park />
       {projects.map((project) => {
         const Building = BUILDINGS[project.building];
         return Building ? <Building key={project.id} project={project} /> : null;

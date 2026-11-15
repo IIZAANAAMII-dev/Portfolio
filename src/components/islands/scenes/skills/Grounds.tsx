@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useLayoutEffect, useMemo, useRef } from 'react';
+import { useFrame } from '@react-three/fiber';
 import {
   BufferAttribute,
   BufferGeometry,
@@ -18,7 +19,7 @@ import { ClearingAt } from '../../kit';
 import type { HeightSampler } from '../../terrain-shape';
 import { Merger, pose, type Vec3 } from './geometry';
 import { DOCK_ANGLE, HUB, pathSpecs, PLAZA_TOP, STAIR_TOP, ZONE_SPOTS, type PathSpec } from './layout';
-import { flowMaterial, glowMaterial, paintMaterial } from './materials';
+import { flowMaterial, glowMaterial, labState, paintMaterial } from './materials';
 import { noRaycast } from './Zone';
 
 /**
@@ -42,6 +43,31 @@ interface Built {
   paint: BufferGeometry;
   glow: BufferGeometry;
   flow: BufferGeometry;
+  routes: Route[];
+}
+
+/** Trajet d'une boule de lumière : polyligne, longueurs cumulées, couleur. */
+interface Route {
+  points: Float32Array;
+  cumulative: Float32Array;
+  length: number;
+  color: Color;
+}
+
+/** Hauteur de vol des boules de lumière au-dessus des allées. */
+const ORB_HEIGHT = 0.32;
+
+function makeRoute(flat: number[], color: Color): Route {
+  const points = new Float32Array(flat);
+  const count = points.length / 3;
+  const cumulative = new Float32Array(count);
+  for (let index = 1; index < count; index++) {
+    const dx = points[index * 3] - points[index * 3 - 3];
+    const dy = points[index * 3 + 1] - points[index * 3 - 2];
+    const dz = points[index * 3 + 2] - points[index * 3 - 1];
+    cumulative[index] = cumulative[index - 1] + Math.hypot(dx, dy, dz);
+  }
+  return { points, cumulative, length: cumulative[count - 1], color };
 }
 
 function buildGrounds(sampler: HeightSampler, specs: PathSpec[]): Built {
@@ -68,21 +94,18 @@ function buildGrounds(sampler: HeightSampler, specs: PathSpec[]): Built {
   };
 
   const plazaY = HUB.level + PLAZA_TOP + 0.006;
+  const routes: Route[] = [];
   specs.forEach((spec, specIndex) => {
     const points = sample(spec);
     const color = new Color(spec.color);
-    const toward = (point: Vector3, radius: number) => new Vector3(point.x, 0, point.z).normalize().multiplyScalar(radius);
-    // Les allées des zones commencent sur la place (ligne incrustée), celle de
-    // l'escalier y finit.
-    const isEntry = specIndex === 0;
-    const hubEnd = isEntry ? points[points.length - 1] : points[0];
-    const inner = toward(hubEnd, 1.45);
-    const outer = toward(hubEnd, HUB.radius - 0.02);
+    // Toutes les allées finissent au noyau : leur ligne de lumière continue, incrustée
+    // dans la place, jusqu'au pied de la coupole.
+    const hubEnd = points[points.length - 1];
+    const toward = (radius: number) => new Vector3(hubEnd.x, 0, hubEnd.z).normalize().multiplyScalar(radius);
+    const outer = toward(HUB.radius - 0.02);
+    const inner = toward(1.36);
+    const route: number[] = [];
     let flow = 0;
-    if (!isEntry) {
-      pushStrip(inner, outer, plazaY, plazaY, 0.09, 0, 1.05, color);
-      flow = 1.05;
-    }
     // Ruban de gravier (bords plus sombres) et ligne de lumière au milieu.
     for (let index = 0; index < points.length - 1; index++) {
       const a = points[index];
@@ -114,10 +137,15 @@ function buildGrounds(sampler: HeightSampler, specs: PathSpec[]): Built {
           ribbonColors.push(tint.r, tint.g, tint.b);
         }
       }
-      pushStrip(a, b, ya + 0.052, yb + 0.052, 0.09, flow, flow + length, color);
+      pushStrip(a, b, ya + 0.052, yb + 0.052, 0.15, flow, flow + length, color);
+      route.push(a.x, ya + ORB_HEIGHT, a.z);
       flow += length;
     }
-    if (isEntry) pushStrip(outer, inner, plazaY, plazaY, 0.09, flow, flow + 1.05, color);
+    const last = points[points.length - 1];
+    route.push(last.x, sampler(last.x, last.z) + ORB_HEIGHT, last.z);
+    pushStrip(outer, inner, plazaY, plazaY, 0.15, flow, flow + (HUB.radius - 1.38), color);
+    route.push(outer.x, plazaY + ORB_HEIGHT, outer.z, inner.x, plazaY + ORB_HEIGHT + 0.2, inner.z);
+    routes.push(makeRoute(route, color));
   });
 
   const paint = new Merger();
@@ -170,7 +198,7 @@ function buildGrounds(sampler: HeightSampler, specs: PathSpec[]): Built {
     }
   });
 
-  return { paint: paint.build(), glow: glow.build(), flow: stripGeometry(strips, stripColors, stripFlow) };
+  return { paint: paint.build(), glow: glow.build(), flow: stripGeometry(strips, stripColors, stripFlow), routes };
 }
 
 function stripGeometry(positions: number[], colors: number[], flows: number[]) {
@@ -265,6 +293,66 @@ function Scattered({ spots, geometry, material, castShadow }: { spots: Scatter[]
   return <instancedMesh ref={mesh} args={[geometry, material, spots.length]} castShadow={castShadow} receiveShadow raycast={noRaycast} />;
 }
 
+/* ------------------------------------------------------------- boules de lumière */
+
+const ORBS_PER_ROUTE = 2;
+const ORB_SPEED = 1.3;
+const orbTint = new Color();
+
+/**
+ * Des boules de lumière remontent chaque allée jusqu'au noyau, à la couleur de leur zone,
+ * et plongent dans la coupole : le cristal s'illumine à chaque arrivée.
+ */
+function Orbs({ routes }: { routes: Route[] }) {
+  const mesh = useRef<InstancedMesh>(null);
+  const geometry = useMemo(() => new Merger().sphere(0.1, '#ffffff', [0, 0, 0], 1, [10, 8], 0).build(), []);
+  const count = routes.length * ORBS_PER_ROUTE;
+  useEffect(() => () => geometry.dispose(), [geometry]);
+
+  useLayoutEffect(() => {
+    const target = mesh.current;
+    if (!target) return;
+    for (let index = 0; index < count; index++) {
+      target.setColorAt(index, orbTint.copy(routes[Math.floor(index / ORBS_PER_ROUTE)].color).multiplyScalar(1.5));
+    }
+    if (target.instanceColor) target.instanceColor.needsUpdate = true;
+  }, [count, routes]);
+
+  useFrame((state) => {
+    const target = mesh.current;
+    if (!target || !labState.awake) return;
+    const t = state.clock.elapsedTime;
+    let flash = 0;
+    for (let index = 0; index < count; index++) {
+      const route = routes[Math.floor(index / ORBS_PER_ROUTE)];
+      const phase = (index % ORBS_PER_ROUTE) / ORBS_PER_ROUTE + hash(index * 1.37) * 0.25;
+      const s = (((t * ORB_SPEED) / route.length + phase) % 1 + 1) % 1;
+      const distance = s * route.length;
+      const { cumulative, points } = route;
+      let segment = 1;
+      while (segment < cumulative.length - 1 && cumulative[segment] < distance) segment++;
+      const from = segment - 1;
+      const k = Math.min(1, Math.max(0, (distance - cumulative[from]) / (cumulative[segment] - cumulative[from] || 1)));
+      dummy.position.set(
+        points[from * 3] + (points[segment * 3] - points[from * 3]) * k,
+        points[from * 3 + 1] + (points[segment * 3 + 1] - points[from * 3 + 1]) * k + Math.sin(t * 3.1 + index) * 0.05,
+        points[from * 3 + 2] + (points[segment * 3 + 2] - points[from * 3 + 2]) * k,
+      );
+      const appear = Math.min(1, s / 0.05);
+      const vanish = s > 0.9 ? Math.max(0, 1 - (s - 0.9) / 0.1) : 1;
+      dummy.rotation.set(0, 0, 0);
+      dummy.scale.setScalar(Math.max(0.001, appear * vanish) * (1 + Math.sin(t * 6 + index * 2) * 0.12));
+      dummy.updateMatrix();
+      target.setMatrixAt(index, dummy.matrix);
+      if (s > 0.92) flash = Math.max(flash, 1 - Math.abs(s - 0.97) / 0.05);
+    }
+    target.instanceMatrix.needsUpdate = true;
+    labState.coreFlash = flash;
+  });
+
+  return <instancedMesh ref={mesh} args={[geometry, glowMaterial, count]} frustumCulled={false} raycast={noRaycast} />;
+}
+
 /* ---------------------------------------------------------------- composant */
 
 export function Grounds({ sampler, accents, islandAccent }: { sampler: HeightSampler; accents: Record<SkillZoneId, string>; islandAccent: string }) {
@@ -308,6 +396,7 @@ export function Grounds({ sampler, accents, islandAccent }: { sampler: HeightSam
       <mesh geometry={built.paint} material={paintMaterial} castShadow receiveShadow raycast={noRaycast} />
       <mesh geometry={built.glow} material={glowMaterial} raycast={noRaycast} />
       <mesh geometry={built.flow} material={flowMaterial} raycast={noRaycast} />
+      <Orbs routes={built.routes} />
       <Scattered spots={rocks} geometry={rock} material={rockMaterial} castShadow />
       <Scattered spots={flowers} geometry={flower} material={paintMaterial} />
     </>

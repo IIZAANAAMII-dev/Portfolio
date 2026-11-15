@@ -859,7 +859,7 @@ export function CyberCenter({ project }: { project: Project }) {
 
   // Panneau peint du titre, à l'ouest de la plateforme, face au ponton.
   const signAngle = 3.25;
-  const signR = DAIS.radius + 0.95;
+  const signR = DAIS.radius + 1.3;
   const signX = Math.cos(signAngle) * signR;
   const signZ = Math.sin(signAngle) * signR;
   const signRotation = faceToward(signX, signZ, VIEWPOINT[0], VIEWPOINT[1]);
@@ -901,7 +901,7 @@ export function CyberCenter({ project }: { project: Project }) {
               />
             </group>
           </group>
-          <Plaque index={project.index} accent={project.accent} size={0.6} position={front} rotation={[0, desk.facing, 0]} />
+          <Plaque index={project.index} accent={project.accent} size={0.74} position={front} rotation={[0, desk.facing, 0]} />
           <SpaceOrb badge={project.badge} hovered={hovered} />
           {/* Volume de clic généreux autour de la bulle. */}
           <mesh position-y={ORB_Y} visible={false}>

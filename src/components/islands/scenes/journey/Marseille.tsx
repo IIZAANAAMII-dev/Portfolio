@@ -89,6 +89,7 @@ interface TownBuild {
   geometry: BufferGeometry;
   windows: Matrix4[][];
   lamps: Matrix4[];
+  bulbs: Matrix4[];
   laundry: { start: [number, number, number]; end: [number, number, number] }[];
 }
 
@@ -187,7 +188,34 @@ function buildTown(sampler: HeightSampler): TownBuild {
     const [bx, bz] = fromFrame(HOUSES[b].u + HOUSES[b].d / 2, HOUSES[b].v);
     laundry.push({ start: [ax, ya, az], end: [bx, yb, bz] });
   }
-  return { geometry: kit.build(), windows, lamps, laundry };
+  // Guirlandes d'ampoules en travers de la rue (elles s'allument au crépuscule).
+  const bulbs: Matrix4[] = [];
+  for (const [a, b, lift] of [[1, 6, 2.05], [3, 8, 2.25]] as const) {
+    const ha = houseFrame(HOUSES[a], sampler);
+    const hb = houseFrame(HOUSES[b], sampler);
+    const [ax, az] = fromFrame(HOUSES[a].u - HOUSES[a].d / 2, HOUSES[a].v - 0.25);
+    const [bx, bz] = fromFrame(HOUSES[b].u + HOUSES[b].d / 2, HOUSES[b].v + 0.3);
+    const ay = ha.y + lift;
+    const by = hb.y + lift;
+    const steps = 10;
+    let previous: [number, number, number] | null = null;
+    for (let k = 0; k <= steps; k++) {
+      const t = k / steps;
+      const p: [number, number, number] = [ax + (bx - ax) * t, ay + (by - ay) * t - Math.sin(t * Math.PI) * 0.32, az + (bz - az) * t];
+      if (previous) {
+        const [px, py, pz] = previous;
+        const length = Math.hypot(p[0] - px, p[1] - py, p[2] - pz);
+        kit.add(BOX, '#3a3530', {
+          position: [(p[0] + px) / 2, (p[1] + py) / 2, (p[2] + pz) / 2],
+          rotation: [0, -Math.atan2(p[2] - pz, p[0] - px), Math.atan2(p[1] - py, Math.hypot(p[0] - px, p[2] - pz))],
+          scale: [length + 0.01, 0.014, 0.014],
+        });
+      }
+      if (k > 0 && k < steps) bulbs.push(placeMatrix({ position: [p[0], p[1] - 0.07, p[2]] }));
+      previous = p;
+    }
+  }
+  return { geometry: kit.build(), windows, lamps, bulbs, laundry };
 }
 
 function WindowSet({ matrices, seed }: { matrices: Matrix4[]; seed: number }) {
@@ -223,6 +251,27 @@ function Lamps({ matrices }: { matrices: Matrix4[] }) {
     LAMP_GLOW.emissiveIntensity = 0.25 + smooth(0.1, 0.5, night) * 3.2 + Math.sin(state.clock.elapsedTime * 3.1) * 0.05 * night;
   });
   return <instancedMesh ref={mesh} args={[LAMP_HEAD, LAMP_GLOW, matrices.length]} raycast={() => null} />;
+}
+
+/* ============================================================ guirlandes */
+
+const BULB_GLOW = new MeshStandardMaterial({ color: '#fff4dc', emissive: '#ffc061', emissiveIntensity: 0, roughness: 0.4 });
+const BULB = new SphereGeometry(0.055, 8, 6);
+
+function Garlands({ matrices }: { matrices: Matrix4[] }) {
+  const mesh = useRef<InstancedMesh>(null);
+  useLayoutEffect(() => {
+    const target = mesh.current;
+    if (!target) return;
+    matrices.forEach((matrix, index) => target.setMatrixAt(index, matrix));
+    target.instanceMatrix.needsUpdate = true;
+    target.computeBoundingSphere();
+  }, [matrices]);
+  useFrame((state) => {
+    const night = smooth(0.15, 0.55, skyState.dayNight);
+    BULB_GLOW.emissiveIntensity = 0.1 + night * (2.6 + Math.sin(state.clock.elapsedTime * 2.3) * 0.25);
+  });
+  return <instancedMesh ref={mesh} args={[BULB, BULB_GLOW, matrices.length]} raycast={() => null} />;
 }
 
 /* ============================================================ linge */
@@ -503,6 +552,7 @@ export function Marseille({ sampler }: { sampler: HeightSampler }) {
         <WindowSet key={WINDOW_SEEDS[index]} matrices={matrices} seed={WINDOW_SEEDS[index]} />
       ))}
       <Lamps matrices={town.lamps} />
+      <Garlands matrices={town.bulbs} />
       <mesh geometry={laundry} material={LAUNDRY_MATERIAL} castShadow raycast={() => null} />
       <mesh geometry={quays} material={flatPaint} receiveShadow />
       <Fort sampler={sampler} />

@@ -52,16 +52,16 @@ function canvas2d(width: number, height: number) {
 
 /** Enseigne en façade : lettres claires sur bandeau anthracite, filet de couleur. */
 export function companySignTexture(company: string, family: string, accent: string) {
-  const { canvas, ctx } = canvas2d(1024, 112);
+  const { canvas, ctx } = canvas2d(1024, 128);
   ctx.fillStyle = '#262c35';
-  ctx.fillRect(0, 0, 1024, 112);
+  ctx.fillRect(0, 0, 1024, 128);
   ctx.fillStyle = accent;
-  ctx.fillRect(0, 100, 1024, 12);
-  ctx.fillStyle = '#f6f3ec';
+  ctx.fillRect(0, 114, 1024, 14);
+  ctx.fillStyle = '#fff6e6';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.font = `700 58px ${family}`;
-  ctx.fillText(company, 512, 52, 960);
+  ctx.font = `800 70px ${family}`;
+  ctx.fillText(company, 512, 60, 980);
   return finish(canvas, 8);
 }
 

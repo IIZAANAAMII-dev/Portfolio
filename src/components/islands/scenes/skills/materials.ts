@@ -13,7 +13,11 @@ export const labNight = { value: 0 };
  * `awake` : la caméra est assez proche pour que les animations se voient. Loin, les
  * boucles des zones se figent (aucun calcul par image).
  */
-export const labState = { awake: true };
+export const labState = {
+  awake: true,
+  /** 0 → 1 : une boule de lumière vient d'entrer dans la coupole (le cristal réagit). */
+  coreFlash: 0,
+};
 
 /** Décors : couleurs peintes par sommet, cel-shading global (toon.ts). */
 export const paintMaterial = new MeshStandardMaterial({ vertexColors: true, roughness: 0.82, metalness: 0 });
@@ -86,8 +90,8 @@ function createFlowMaterial() {
         /* glsl */ `#include <color_fragment>
         // Tête lumineuse et traîne : l'impulsion avance vers les aFlow croissants.
         float flowPhase = fract(vFlow * 0.4 - uLabTime * 0.55);
-        float flowPulse = pow(flowPhase, 7.0);
-        diffuseColor.rgb *= 0.5 + uLabNight * 0.6 + flowPulse * (1.5 + uLabNight * 1.8);`,
+        float flowPulse = pow(flowPhase, 6.0);
+        diffuseColor.rgb *= 0.7 + uLabNight * 0.55 + flowPulse * (1.8 + uLabNight * 1.8);`,
       );
   };
   material.customProgramCacheKey = () => 'skills-flow-v1';

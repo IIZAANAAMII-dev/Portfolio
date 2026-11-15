@@ -43,14 +43,14 @@ varying vec2 vUv;
 void main() {
   // Le faisceau s'éteint en s'éloignant de la lanterne (uv.y = 1 au sommet du cône).
   float along = smoothstep(0.0, 1.0, vUv.y);
-  gl_FragColor = vec4(vec3(1.0, 0.88, 0.62), along * along * 0.55 * uStrength);
+  gl_FragColor = vec4(vec3(1.0, 0.84, 0.55), pow(along, 2.6) * 0.62 * uStrength);
 }
 `;
 
 function beamGeometry() {
   // Deux cônes opposés, sommet sur la lampe.
   const length = 30;
-  const one = new ConeGeometry(2.6, length, 20, 1, true).rotateZ(Math.PI / 2).translate(length / 2, 0, 0);
+  const one = new ConeGeometry(1.9, length, 20, 1, true).rotateZ(Math.PI / 2).translate(length / 2, 0, 0);
   const two = one.clone().rotateY(Math.PI);
   return mergeGeometries([one, two])!;
 }
@@ -116,7 +116,9 @@ export function LighthouseLamp({ frame }: { frame: LighthouseFrame }) {
     const time = state.clock.elapsedTime;
     const night = skyState.dayNight;
     const flash = Math.max(0, 1 - (time - flashAt.current) / 4.5);
-    const strength = Math.max(night, flash * 0.85);
+    // Le feu s'allume au crépuscule ; les faisceaux ne balaient franchement qu'à la nuit.
+    const dusk = Math.min(1, Math.max(0, (night - 0.22) / 0.5));
+    const strength = Math.max(dusk * dusk * (3 - 2 * dusk), flash * 0.85);
     if (beam.current) {
       beam.current.rotation.y += dt * (0.55 + flash * 3.4);
       beam.current.visible = strength > 0.03;

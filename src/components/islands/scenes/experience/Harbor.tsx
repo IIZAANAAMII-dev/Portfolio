@@ -70,8 +70,8 @@ function quayGeometry() {
   b.box([0.55, 0.24, 0.38], '#2f6fc0', [12.25, quay.y + 0.14, -0.35], [0, 0.4, 0]);
   b.sphere(0.36, '#7d8a52', [12.3, quay.y + 0.1, -1.25], [1.2, 0.42, 1], [9, 6]);
   b.add(new IcosahedronGeometry(0.1, 0), '#e25a3c', [12.38, quay.y + 0.22, -1.32]);
-  b.cylinder(0.24, 0.26, 0.12, 12, '#c9a46a', [12.75, quay.y + 0.07, 2.15]);
-  b.cylinder(0.16, 0.2, 0.1, 12, '#b9935c', [12.75, quay.y + 0.17, 2.15]);
+  b.cylinder(0.24, 0.26, 0.12, 12, '#c9a46a', [12.2, quay.y + 0.07, 0.3]);
+  b.cylinder(0.16, 0.2, 0.1, 12, '#b9935c', [12.2, quay.y + 0.17, 0.3]);
   b.box([0.42, 0.06, 1.2], '#9b6b45', [12.2, quay.y + 0.45, -3.05]);
   for (const dv of [-0.5, 0.5]) b.box([0.36, 0.42, 0.07], POST, [12.2, quay.y + 0.21, -3.05 + dv]);
   b.box([0.06, 0.4, 1.2], '#9b6b45', [12.0, quay.y + 0.72, -3.05], [0, 0, 0.18]);
@@ -140,7 +140,7 @@ function HarborLight() {
 
 /* ------------------------------------------------------------------ pointus */
 
-interface PointuDesign {
+export interface PointuDesign {
   hull: string;
   band: string;
   inner: string;
@@ -155,7 +155,7 @@ const POINTUS: PointuDesign[] = [
   { hull: '#f4f1ea', band: '#d8473a', inner: '#f4f1ea', fisher: true },
 ];
 
-function pointuGeometry({ hull, band, inner, sail, fisher, motor }: PointuDesign) {
+export function pointuGeometry({ hull, band, inner, sail, fisher, motor }: PointuDesign) {
   const b = new Builder();
   const keel = -0.2;
   addHull(b, {

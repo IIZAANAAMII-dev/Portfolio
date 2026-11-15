@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, type ReactNode, type SyntheticEvent } from 'react';
+import { useEffect, useRef, type ReactNode, type SyntheticEvent } from 'react';
 import { Html } from '@react-three/drei';
 import { useFrame } from '@react-three/fiber';
 import {
@@ -400,10 +400,45 @@ export function SecretCard({
   onClose: () => void;
   children: ReactNode;
 }) {
+  const anchor = useRef<HTMLDivElement>(null);
+  const card = useRef<HTMLElement>(null);
+
+  // La fiche suit l'objet à l'écran ; si elle sortait du cadre (ou passait sous la barre du
+  // haut), on la décale juste ce qu'il faut pour qu'elle reste lisible en entier.
+  useEffect(() => {
+    let frame = 0;
+    let dx = 0;
+    let dy = 0;
+    const loop = () => {
+      const box = card.current?.getBoundingClientRect();
+      const host = anchor.current;
+      if (box && host) {
+        const narrow = window.innerWidth < 640;
+        const top = narrow ? 118 : 84;
+        const side = 12;
+        const nextDy = Math.max(0, Math.round(top - (box.top - dy)));
+        let nextDx = 0;
+        if (box.left - dx < side) nextDx = Math.round(side - (box.left - dx));
+        else if (box.right - dx > window.innerWidth - side) nextDx = Math.round(window.innerWidth - side - (box.right - dx));
+        if (nextDx !== dx || nextDy !== dy) {
+          dx = nextDx;
+          dy = nextDy;
+          host.style.setProperty('--dx', `${dx}px`);
+          host.style.setProperty('--dy', `${dy}px`);
+          host.dataset.shifted = dx !== 0 || dy !== 0 ? 'true' : 'false';
+        }
+      }
+      frame = requestAnimationFrame(loop);
+    };
+    frame = requestAnimationFrame(loop);
+    return () => cancelAnimationFrame(frame);
+  }, []);
+
   return (
     <Html position={position} zIndexRange={[19, 10]}>
-      <div className={styles.anchor}>
+      <div ref={anchor} className={styles.anchor}>
         <article
+          ref={card}
           className={styles.card}
           data-tone={tone}
           aria-label={label}

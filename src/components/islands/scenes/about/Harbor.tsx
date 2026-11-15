@@ -163,7 +163,7 @@ function buildHarbor(sampleAt: (s: number, t: number) => number) {
   }
   const coil = new TorusGeometry(0.2, 0.05, 6, 16);
   coil.rotateX(Math.PI / 2);
-  const coils: [number, number, number][] = [[HARBOR.quayFront - 0.75, QUAY_Y, 0.95], [15.2, JETTY.top, JETTY.t + 0.15], [HARBOR.quayBack + 0.5, QUAY_Y, 3.25]];
+  const coils: [number, number, number][] = [[HARBOR.quayFront - 0.5, QUAY_Y, 0.4], [15.2, JETTY.top, JETTY.t + 0.15], [HARBOR.quayBack + 0.5, QUAY_Y, 3.25]];
   coils.forEach(([s, y, t], index) => {
     paint.add(coil, pose([s, y + 0.06, t], [0, index, 0], [1.15, 1.1, 1.15]), ROPE);
     paint.add(coil, pose([s, y + 0.15, t], [0, index + 1, 0], [0.85, 1.1, 0.85]), ROPE);

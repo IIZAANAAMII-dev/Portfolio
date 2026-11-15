@@ -11,6 +11,8 @@ import { journeyHeight } from './terrain';
  * automatiques : chaque moitié a ses propres rochers et sa propre végétation.
  */
 const config: IslandSceneConfig = {
+  // Un peu plus de recul : le Vieux-Port et le ponton entrent dans le cadre.
+  camera: { zoom: 1.1, lift: -0.4 },
   trees: 0,
   grass: 0.85,
   grassPalette: ['#5d9a3f', '#3f7b36', '#82ab47', '#9a6aae'],

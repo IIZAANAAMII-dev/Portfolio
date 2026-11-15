@@ -72,8 +72,8 @@ function buildStatic(accent: string, accents: Record<SkillZoneId, string>) {
   paint.box([0.4, 0.03, 0.03], '#d3dbe4', [0, MAST_BASE + 1.25, 0], [0, -0.4, 0], 0);
   // Bancs sur la place, face aux zones.
   for (const angle of [DOCK_ANGLE + 1.1, DOCK_ANGLE - 1.15]) {
-    const x = Math.cos(angle) * 1.85;
-    const z = Math.sin(angle) * 1.85;
+    const x = Math.cos(angle) * 1.68;
+    const z = Math.sin(angle) * 1.68;
     const turn = Math.atan2(x, z);
     paint.group(pose([x, PLAZA_TOP, z], [0, turn, 0]), () => {
       paint.box([0.8, 0.06, 0.28], '#9b6b45', [0, 0.32, 0]);
@@ -159,16 +159,19 @@ export function Hub({ accent, accents }: { accent: string; accents: Record<Skill
     if (!labState.awake) return;
     const t = state.clock.elapsedTime;
     if (core.current) core.current.position.y = CORE_Y + Math.sin(t * 1.2) * 0.06;
+    // Chaque boule de lumière qui plonge dans la coupole fait éclater le cristal.
+    const flash = labState.coreFlash;
     if (crystal.current) {
       crystal.current.rotation.y = t * 0.8;
       crystal.current.rotation.x = Math.sin(t * 0.5) * 0.4;
+      crystal.current.scale.setScalar(1 + flash * 0.45);
     }
     if (orbits.current) {
       orbits.current.rotation.y = -t * 0.9;
       orbits.current.rotation.z = Math.sin(t * 0.4) * 0.3;
     }
     if (spinner.current) spinner.current.rotation.y = -t * (3.2 + Math.sin(t * 0.3) * 1.2);
-    if (beacon.current) beacon.current.scale.setScalar(0.85 + Math.max(0, Math.sin(t * 2.2)) * 0.45);
+    if (beacon.current) beacon.current.scale.setScalar(0.85 + Math.max(0, Math.sin(t * 2.2)) * 0.35 + flash * 0.5);
     if (light.current) light.current.intensity = skyState.dayNight * 5.5 * (0.85 + Math.sin(t * 1.2) * 0.15);
   });
 

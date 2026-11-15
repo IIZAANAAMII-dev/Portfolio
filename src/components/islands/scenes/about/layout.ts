@@ -74,7 +74,7 @@ export const HARBOR = {
 
 /* ------------------------------------------------------------------- village */
 
-export type HouseKind = 'longere' | 'capitaine' | 'penty' | 'atelier' | 'gardien';
+export type HouseKind = 'longere' | 'capitaine' | 'penty' | 'atelier' | 'chapelle';
 
 export interface HousePlan {
   id: string;
@@ -169,3 +169,81 @@ export const LIGHTHOUSE = {
   spurY: 2.45,
   spurHalf: 1.7,
 };
+
+/* -------------------------------------------------------------- chemins */
+
+/** Rampe taillée dans le relief (escalier, chemin creux) : de `from` (bas) à `to` (haut). */
+export interface Ramp {
+  from: [number, number];
+  to: [number, number];
+  bottom: number;
+  top: number;
+  half: number;
+  steps: number;
+  /** Portion du trajet où l'on monte (le reste est à plat) : [début, fin] en fraction. */
+  climb: [number, number];
+}
+
+/** L'escalier du port : du pied de la jetée jusqu'à la porte de l'atelier, en écharpe dans la falaise. */
+export const HARBOR_STAIR: Ramp = {
+  from: fromDock(11.75, HARBOR.jettyT),
+  to: [4.15, 10.85],
+  bottom: QUAY_Y + 0.12,
+  top: VILLAGE_Y,
+  half: 0.62,
+  steps: 13,
+  climb: [0, 1],
+};
+
+/** Le chemin creux qui monte du village à la lande et à la chapelle. */
+export const HILL_PATH: Ramp = {
+  from: [6.05, 4.3],
+  to: [0.45, 4.75],
+  bottom: VILLAGE_Y,
+  top: 6.2,
+  half: 0.58,
+  steps: 11,
+  climb: [0.2, 0.8],
+};
+
+/** Hauteur d'une rampe à la fraction `u` de son trajet. */
+export function rampHeight(path: Ramp, u: number) {
+  const [start, end] = path.climb;
+  const t = Math.min(1, Math.max(0, (u - start) / (end - start)));
+  return path.bottom + (path.top - path.bottom) * t;
+}
+
+/* ------------------------------------------------------------- la lande */
+
+/** Chapelle de granit au sommet de la butte, clocher-mur et sa cloche. */
+export const CHAPEL: HousePlan = {
+  id: 'chapelle',
+  kind: 'chapelle',
+  angle: 0,
+  radius: 0,
+  turn: 0,
+  width: 4.4,
+  depth: 2.9,
+  wall: 2.1,
+  paint: '#3c5a7a',
+  chimneys: [],
+};
+export const CHAPEL_AT: [number, number] = [-0.45, -2.3];
+/** La façade (long côté) de la chapelle regarde le village et la caméra. */
+export const CHAPEL_FACING = 1.05;
+
+/** Murets de pierre sèche qui découpent la butte en petits champs. */
+export const FIELD_WALLS: [number, number][][] = [
+  [[-4.1, 4.95], [-2.4, 3.55], [-0.95, 2.35], [0.55, 1.05], [2.2, -0.45], [3.75, -2.0]],
+  [[-0.95, 2.35], [-2.1, 0.35], [-3.1, -1.25], [-3.95, -2.4]],
+];
+
+/** Prairie des moutons (devant), pré de foin (derrière à gauche). */
+export const PASTURE = { center: [1.3, 3.1] as [number, number], radius: 1.7 };
+export const HAYFIELD = { center: [-3.05, 1.25] as [number, number], radius: 1.75 };
+
+/** Corde à linge, tendue sur le plateau entre la longère et la pointe du phare. */
+export const LAUNDRY = { angle: -0.97, from: 8.35, to: 10.2 };
+
+/** Le pêcheur qui ravaude ses filets sur le quai (repère du port : s, t). */
+export const FISHERMAN: [number, number] = [12.05, 1.75];

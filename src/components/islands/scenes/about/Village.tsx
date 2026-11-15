@@ -51,20 +51,6 @@ function buildVillage(sampler: HeightSampler) {
   return { walls: walls.build(), roofs: roofs.build(), details: details.build(), glass, smoke };
 }
 
-/** Perchoirs des goélands sur les faîtages (repère de l'île). */
-export function villagePerches(sampler: HeightSampler): Vec3[] {
-  const point = new Vector3();
-  return HOUSES.flatMap((plan) => {
-    const { matrix } = housePose(sampler, plan);
-    const parts: HouseParts = { walls: new Mesher(false, true), roof: new Mesher(false, true), details: new Mesher(true, false), glass: [] };
-    const info = buildHouse(plan, () => parts);
-    return info.perches.slice(0, plan.kind === 'penty' ? 1 : 2).map((perch) => {
-      point.set(...perch).applyMatrix4(matrix);
-      return [point.x, point.y, point.z] as Vec3;
-    });
-  });
-}
-
 export function Village({ sampler }: { sampler: HeightSampler }) {
   const built = useMemo(() => buildVillage(sampler), [sampler]);
   const materials = villageMaterials();

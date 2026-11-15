@@ -9,7 +9,7 @@ import { hash } from '@/lib/utils/math';
 import type { Project } from '@/types';
 import { Hotspot } from '../../kit';
 import { Maquette } from './builder';
-import { SHIPYARD, VIEWPOINT, faceToward, sitePosition } from './layout';
+import { SHIPYARD, TOWN, VIEWPOINT, faceToward, sitePosition } from './layout';
 import { glow, paint } from './materials';
 import { Plaque, SignText, signFrame } from './signs';
 
@@ -164,12 +164,52 @@ function buildWorker() {
 
 const SPARKS = 10;
 
+/**
+ * Escalier de bois accroché à la falaise : du bord de la ville (palier en encorbellement)
+ * jusqu'au terre-plein du chantier, en suivant la courbe de la côte.
+ */
+function buildStair() {
+  const m = new Maquette();
+  const top = TOWN.level + 0.06;
+  const bottom = SHIPYARD.level + 0.06;
+  const r = 15.0;
+  // Le palier est juste à l'ouest du centre médical (ses jardinières), le pied sur le terre-plein.
+  const from = SHIPYARD.angle + SHIPYARD.halfAngle + 0.4;
+  const to = SHIPYARD.angle + SHIPYARD.halfAngle + 0.03;
+  const steps = 13;
+  const at = (angle: number, radius: number, y: number): [number, number, number] => [Math.cos(angle) * radius, y, Math.sin(angle) * radius];
+  // Palier : du plateau au haut de l'escalier.
+  for (let plank = 0; plank < 8; plank++) {
+    const d = 13.55 + plank * 0.2;
+    m.box([0.18, 0.08, 1.05], at(from + 0.02, d, top), WOOD, [0, -(from + 0.02), 0]);
+  }
+  for (const side of [-0.5, 0.5]) {
+    const a = from + 0.02 + side / r;
+    m.beam(at(a, 13.5, top - 0.06), at(a, 15.55, top - 0.06), 0.1, DARK_WOOD);
+    m.rod(at(a, 15.45, top - 0.1), at(a, 15.45, 0.4), 0.06, DARK_WOOD, 6);
+  }
+  for (let step = 0; step < steps; step++) {
+    const f = (step + 0.5) / steps;
+    const angle = from + (to - from) * f;
+    const y = top + (bottom - top) * ((step + 1) / steps);
+    m.box([0.98, 0.07, 0.34], at(angle, r, y), WOOD, [0, -angle, 0]);
+    if (step % 3 === 1) {
+      for (const d of [r - 0.5, r + 0.5]) m.rod(at(angle, d, y - 0.05), at(angle, d, 0.3), 0.05, DARK_WOOD, 6);
+    }
+  }
+  // Limons et main courante côté mer.
+  for (const d of [r - 0.52, r + 0.52]) m.beam(at(from, d, top - 0.08), at(to, d, bottom - 0.08), 0.08, DARK_WOOD);
+  m.beam(at(from, r + 0.52, top + 0.8), at(to, r + 0.52, bottom + 0.8), 0.05, '#f2ede1');
+  return m.build();
+}
+
 export function Shipyard({ project }: { project: Project }) {
   const boat = useMemo(() => buildBoat(), []);
   const yard = useMemo(() => buildYard(), []);
   const jibGeometry = useMemo(() => buildJib(), []);
   const charge = useMemo(() => buildCharge(), []);
   const worker = useMemo(() => buildWorker(), []);
+  const stair = useMemo(() => buildStair(), []);
   const flag = useMemo(() => new MeshStandardMaterial({ map: gwennHaDu(), side: DoubleSide, roughness: 0.9 }), []);
   const signRotation = faceToward(SX, SZ, VIEWPOINT[0], VIEWPOINT[1]) - RY;
   const sign = useMemo(() => {
@@ -186,11 +226,12 @@ export function Shipyard({ project }: { project: Project }) {
       charge.dispose();
       worker.body.dispose();
       worker.arm.dispose();
+      stair.dispose();
       flag.map?.dispose();
       flag.dispose();
       sign.geometry.dispose();
     },
-    [boat, charge, flag, jibGeometry, sign, worker, yard],
+    [boat, charge, flag, jibGeometry, sign, stair, worker, yard],
   );
 
   const jib = useRef<Group>(null);
@@ -230,6 +271,8 @@ export function Shipyard({ project }: { project: Project }) {
   });
 
   return (
+    <>
+    <mesh geometry={stair} material={paint} castShadow receiveShadow raycast={() => null} />
     <Hotspot onActivate={() => focusItem('projects', project.id)} hoverScale={1.04} position={[SX, SHIPYARD.level, SZ]} rotation={[0, RY, 0]}>
       <mesh geometry={yard.yard} material={paint} castShadow receiveShadow />
       <mesh geometry={yard.lights} material={glow} />
@@ -260,9 +303,10 @@ export function Shipyard({ project }: { project: Project }) {
           <mesh geometry={worker.arm} material={paint} />
         </group>
       </group>
-      <Plaque index={project.index} accent={project.accent} size={0.62} position={[0, 2.25, yard.shed.z1 + 0.07]} />
+      <Plaque index={project.index} accent={project.accent} size={0.78} position={[0, 2.22, yard.shed.z1 + 0.07]} />
       <mesh geometry={sign.geometry} material={paint} castShadow />
       <SignText lines={[project.title]} accent={project.accent} width={1.8} position={sign.text} rotation={[0, signRotation, 0]} />
     </Hotspot>
+    </>
   );
 }

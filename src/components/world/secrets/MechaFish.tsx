@@ -238,7 +238,7 @@ export function MechaFish() {
       _dummy.scale.set(size * 1.25, size * (0.9 + hash(index * 6.1) * 0.5), size);
       _dummy.updateMatrix();
       mesh.setMatrixAt(index, _dummy.matrix);
-      mesh.setColorAt(index, color.set(index % 3 === 1 ? '#8e96a5' : '#a9b1bf').multiplyScalar(0.88 + hash(index * 9.1) * 0.2));
+      mesh.setColorAt(index, color.set(index % 3 === 1 ? '#7684ad' : '#93a0c6').multiplyScalar(0.88 + hash(index * 9.1) * 0.2));
     }
     mesh.instanceMatrix.needsUpdate = true;
     if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;

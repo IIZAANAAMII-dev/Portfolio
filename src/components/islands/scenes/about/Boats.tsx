@@ -106,6 +106,15 @@ function sinagotParts() {
   // Vergues des deux voiles au tiers.
   const fore = { tack: [1.85, deck + 0.25, 0.02] as Vec3, clew: [0.35, deck + 0.3, -0.05] as Vec3, throat: [1.52, deck + 2.25, 0] as Vec3, peak: [0.2, deck + 3.0, -0.05] as Vec3 };
   const main = { tack: [0.32, deck + 0.3, 0.02] as Vec3, clew: [-1.85, deck + 0.35, -0.08] as Vec3, throat: [-0.05, deck + 2.75, 0] as Vec3, peak: [-1.7, deck + 3.7, -0.08] as Vec3 };
+  // Les voiles sèchent, vergues écartées sur bâbord : on les voit de face depuis le quai.
+  const swing = (point: Vec3, mastX: number, angle: number): Vec3 => {
+    const dx = point[0] - mastX;
+    return [mastX + dx * Math.cos(angle) + point[2] * Math.sin(angle), point[1], -dx * Math.sin(angle) + point[2] * Math.cos(angle)];
+  };
+  for (const key of ['tack', 'clew', 'throat', 'peak'] as const) {
+    fore[key] = swing(fore[key], foreFoot[0], -0.62);
+    main[key] = swing(main[key], mainFoot[0], -0.78);
+  }
   spar(rig, fore.throat, fore.peak, 0.035, SPAR);
   spar(rig, main.throat, main.peak, 0.04, SPAR);
   // Girouette rouge en tête du grand mât.

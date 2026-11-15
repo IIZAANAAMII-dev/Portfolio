@@ -30,7 +30,7 @@ const RISE = 0.75;
 /** Hauteur des dalles des zones au-dessus du sol aplani. */
 export const PAD_TOP = 0.2;
 /** Échelle des dioramas (une zone est dessinée pour une dalle de rayon `pad`). */
-export const ZONE_SCALE = 1.15;
+export const ZONE_SCALE = 1.35;
 /** Hauteur de la place centrale au-dessus du sol. */
 export const PLAZA_TOP = 0.16;
 
@@ -57,15 +57,15 @@ export interface ZoneSpot {
 }
 
 const SPOTS: { id: SkillZoneId; angle: number; distance: number; pad: number }[] = [
-  { id: 'front', angle: 92 * DEG, distance: 6.8, pad: 2.1 },
-  { id: 'lab3d', angle: 38 * DEG, distance: 6.6, pad: 2.0 },
-  { id: 'ai', angle: 345 * DEG, distance: 6.9, pad: 2.0 },
-  { id: 'tower', angle: 291 * DEG, distance: 6.7, pad: 2.1 },
-  { id: 'back', angle: 238 * DEG, distance: 6.9, pad: 2.1 },
-  { id: 'commerce', angle: 184 * DEG, distance: 6.8, pad: 2.2 },
+  { id: 'front', angle: 95 * DEG, distance: 7.3, pad: 2.0 },
+  { id: 'lab3d', angle: 40 * DEG, distance: 6.6, pad: 1.95 },
+  { id: 'ai', angle: 345 * DEG, distance: 7.2, pad: 1.95 },
+  { id: 'tower', angle: 290 * DEG, distance: 6.55, pad: 2.0 },
+  { id: 'back', angle: 236 * DEG, distance: 7.05, pad: 2.0 },
+  { id: 'commerce', angle: 181 * DEG, distance: 6.75, pad: 2.05 },
 ];
 
-export const HUB = { x: 0, z: 0, radius: 2.5, level: slope(0, 0) };
+export const HUB = { x: 0, z: 0, radius: 2.15, level: slope(0, 0) };
 
 export const ZONE_SPOTS: ZoneSpot[] = SPOTS.map(({ id, angle, distance, pad }) => {
   const x = Math.cos(angle) * distance;
@@ -105,15 +105,13 @@ export function sculptLab(x: number, z: number, height: number, plateau: number)
 /** Point d'arrivée de l'escalier du ponton sur le plateau, et départ de l'allée. */
 export const STAIR_TOP = { distance: 9.55, angle: DOCK_ANGLE };
 
-/** Allées : de l'escalier au noyau, puis du noyau vers chaque zone. */
+/** Allées : de l'escalier et de chaque zone vers le noyau (les impulsions y convergent). */
 export interface PathSpec {
   /** Points (x, z) de l'allée. */
   points: [number, number][];
   width: number;
   /** Couleur de la ligne lumineuse. */
   color: string;
-  /** Sens des impulsions : +1 du premier point vers le dernier. */
-  flow: 1 | -1;
 }
 
 export function pathSpecs(accents: Record<SkillZoneId, string>, islandAccent: string): PathSpec[] {
@@ -127,7 +125,6 @@ export function pathSpecs(accents: Record<SkillZoneId, string>, islandAccent: st
     ],
     width: 1.15,
     color: islandAccent,
-    flow: 1,
   };
   const spokes = ZONE_SPOTS.map<PathSpec>((spot) => {
     const angle = Math.atan2(spot.z, spot.x);
@@ -136,12 +133,11 @@ export function pathSpecs(accents: Record<SkillZoneId, string>, islandAccent: st
     const end = distance - spot.reach * 0.9;
     return {
       points: [
-        [Math.cos(angle) * start, Math.sin(angle) * start],
         [Math.cos(angle) * end, Math.sin(angle) * end],
+        [Math.cos(angle) * start, Math.sin(angle) * start],
       ],
-      width: 0.8,
+      width: 0.85,
       color: accents[spot.id],
-      flow: 1,
     };
   });
   return [entry, ...spokes];

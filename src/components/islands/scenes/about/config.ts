@@ -1,6 +1,6 @@
-import { lerp, smoothstep } from '@/lib/utils/math';
+import { clamp, lerp, smoothstep } from '@/lib/utils/math';
 import type { IslandSceneConfig } from '../types';
-import { BASIN_FLOOR, HARBOR, LIGHTHOUSE, QUAY_Y, VILLAGE_Y, toDock } from './layout';
+import { BASIN_FLOOR, HARBOR, HARBOR_STAIR, HILL_PATH, LIGHTHOUSE, QUAY_Y, VILLAGE_Y, rampHeight, toDock, type Ramp } from './layout';
 
 /**
  * Relief de l'île À propos : un hameau de pêcheurs breton.
@@ -16,6 +16,20 @@ const LZ = Math.sin(LIGHTHOUSE.angle);
 /** Secteur angulaire du village (du phare jusqu'au penty), fondu sur les bords. */
 function villageSector(angle: number) {
   return smoothstep(-1.6, -1.0, angle) * (1 - smoothstep(1.95, 2.55, angle));
+}
+
+/** Rampe taillée en écharpe : le sol suit la pente du chemin, bords fondus. */
+function ramp(x: number, z: number, h: number, path: Ramp) {
+  const dx = path.to[0] - path.from[0];
+  const dz = path.to[1] - path.from[1];
+  const u = ((x - path.from[0]) * dx + (z - path.from[1]) * dz) / (dx * dx + dz * dz);
+  if (u < -0.2 || u > 1.2) return h;
+  const along = clamp(u, 0, 1);
+  const distance = Math.hypot(x - (path.from[0] + dx * along), z - (path.from[1] + dz * along));
+  if (distance > path.half + 1) return h;
+  const across = 1 - smoothstep(path.half, path.half + 1, distance);
+  const ends = smoothstep(-0.2, 0.02, u) * (1 - smoothstep(0.98, 1.2, u));
+  return lerp(h, rampHeight(path, along), across * ends);
 }
 
 function sculpt(x: number, z: number, height: number) {
@@ -42,7 +56,11 @@ function sculpt(x: number, z: number, height: number) {
     h = Math.min(h, lerp(h, BASIN_FLOOR, basin));
   }
 
-  // 3. La pointe du phare : une langue de terre étroite qui descend vers son rocher.
+  // 3. L'escalier du port (vers l'atelier) et le chemin creux qui monte à la lande.
+  h = ramp(x, z, h, HARBOR_STAIR);
+  h = ramp(x, z, h, HILL_PATH);
+
+  // 4. La pointe du phare : une langue de terre étroite qui descend vers son rocher.
   const along = x * LX + z * LZ;
   if (along > LIGHTHOUSE.spurFrom - 1 && along < LIGHTHOUSE.radius + 3) {
     const across = Math.abs(-x * LZ + z * LX);

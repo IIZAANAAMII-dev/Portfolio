@@ -10,7 +10,6 @@ import {
   CylinderGeometry,
   InstancedMesh,
   Mesh,
-  MeshBasicMaterial,
   Object3D,
   PlaneGeometry,
   ShaderMaterial,
@@ -35,6 +34,9 @@ const RACKS = [-0.84, 0, 0.84];
 const DB: Vec3 = [0.95, 0, 0.62];
 const SPOOL: Vec3 = [-1.45, 0, -0.08];
 const REELS = [1.12, 0.66];
+/** Base de données en tour : six disques empilés, joints lumineux entre eux. */
+const DISCS = [0, 1, 2, 3, 4, 5].map((index) => 0.19 + index * 0.33);
+const DISC_TOP = DISCS[DISCS.length - 1] + 0.13;
 
 const ledVertex = /* glsl */ `
 attribute vec2 aGrid;
@@ -150,10 +152,10 @@ function cableGeometry(toHub: number, pad: number) {
   return merged;
 }
 
-function buildStatic(accent: string) {
+function buildStatic(accent: string, pad: number) {
   const paint = new Merger();
   const glow = new Merger();
-  addPad(paint, glow, 2.1, accent);
+  addPad(paint, glow, pad, accent);
   for (const x of RACKS) {
     paint.box([0.74, 1.5, 0.62], '#2d3550', [x, 0.79, RACK_Z]);
     paint.box([0.78, 0.06, 0.66], '#48526e', [x, 0.03, RACK_Z]);
@@ -167,12 +169,14 @@ function buildStatic(accent: string) {
   paint.torus(0.22, 0.03, '#5d6883', [0, 1.63, RACK_Z], [Math.PI / 2, 0, 0]);
   paint.cylinder(0.24, 0.24, 0.02, 16, '#1d2230', [0, 1.615, RACK_Z], undefined, 0);
   // Base de données : socle, trois disques, couvercle clair.
-  paint.octagon(0.52, 0.55, 0.06, '#cfc6b6', [DB[0], 0.03, DB[2]]);
-  for (const y of [0.2, 0.52, 0.84]) {
-    paint.cylinder(0.4, 0.4, 0.26, 22, topAndSides('#fbf8f1', '#e6dfd0'), [DB[0], y, DB[2]], undefined, 0.05);
+  paint.octagon(0.56, 0.6, 0.08, '#cfc6b6', [DB[0], 0.04, DB[2]]);
+  for (const y of DISCS) {
+    paint.cylinder(0.44, 0.44, 0.26, 24, topAndSides('#fbf8f1', '#e6dfd0'), [DB[0], y, DB[2]], undefined, 0.05);
   }
-  paint.add(flatRing(0.2, 0.33, 22), '#f0c58f', pose([DB[0], 0.972, DB[2]]), 0);
-  glow.cylinder(0.05, 0.05, 0.03, 10, accent, [DB[0], 0.985, DB[2]], undefined, 0);
+  paint.add(flatRing(0.22, 0.36, 24), '#f0b066', pose([DB[0], DISC_TOP + 0.002, DB[2]]), 0);
+  // Couronne : petite antenne et voyant au sommet de la tour de données.
+  paint.cylinder(0.04, 0.06, 0.36, 8, '#3a4258', [DB[0], DISC_TOP + 0.18, DB[2]]);
+  glow.sphere(0.09, accent, [DB[0], DISC_TOP + 0.4, DB[2]], 1, [10, 8], 0);
   // Touret de câble couché, câble orange enroulé.
   paint.group(pose(SPOOL, [0, 0.5, 0]), () => {
     for (const side of [-0.17, 0.17]) paint.cylinder(0.3, 0.3, 0.05, 14, '#b07a48', [side, 0.3, 0], [0, 0, Math.PI / 2], 0.05);
@@ -186,13 +190,11 @@ function buildStatic(accent: string) {
 }
 
 const dummy = new Object3D();
-const bandColor = new Color();
 
 export function BackZone({ zone, spot }: ZoneProps) {
   const reels = useRef<InstancedMesh>(null);
   const fan = useRef<Mesh>(null);
-  const bands = useRef<MeshBasicMaterial>(null);
-  const built = useMemo(() => buildStatic(zone.accent), [zone.accent]);
+  const built = useMemo(() => buildStatic(zone.accent, spot.pad), [spot.pad, zone.accent]);
   const leds = useMemo(() => ledGeometry(), []);
   const reel = useMemo(() => reelGeometry(), []);
   const blades = useMemo(() => fanGeometry(), []);
@@ -203,12 +205,37 @@ export function BackZone({ zone, spot }: ZoneProps) {
     [],
   );
   const bandGeometry = useMemo(() => {
-    const parts = [0.36, 0.68].map((y) => new CylinderGeometry(0.393, 0.393, 0.06, 22, 1, true).translate(DB[0], y, DB[2]));
+    const parts = DISCS.slice(1).map((y) => new CylinderGeometry(0.433, 0.433, 0.08, 24, 1, true).translate(DB[0], y - 0.165, DB[2]));
     const merged = mergeGeometries(parts, false);
     parts.forEach((part) => part.dispose());
     return merged as BufferGeometry;
   }, []);
-  const accent = useMemo(() => new Color(zone.accent), [zone.accent]);
+  // Joints de la tour de données : des vagues de lumière montent d'un disque à l'autre.
+  const bandMaterial = useMemo(
+    () =>
+      new ShaderMaterial({
+        uniforms: { uTime: labTime, uNight: labNight, uColor: { value: new Color(zone.accent) } },
+        vertexShader: /* glsl */ `
+          varying float vY;
+          void main() {
+            vY = position.y;
+            gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+          }
+        `,
+        fragmentShader: /* glsl */ `
+          uniform float uTime;
+          uniform float uNight;
+          uniform vec3 uColor;
+          varying float vY;
+          void main() {
+            float wave = pow(fract(vY * 0.62 - uTime * 0.45), 4.0);
+            gl_FragColor = vec4(uColor * (0.55 + uNight * 0.9 + wave * (2.2 + uNight * 1.5)), 1.0);
+            #include <colorspace_fragment>
+          }
+        `,
+      }),
+    [zone.accent],
+  );
 
   useEffect(
     () => () => {
@@ -221,8 +248,9 @@ export function BackZone({ zone, spot }: ZoneProps) {
       cableMaterial.dispose();
       ledMaterial.dispose();
       bandGeometry.dispose();
+      bandMaterial.dispose();
     },
-    [bandGeometry, blades, built, cableMaterial, cables, ledMaterial, leds, reel],
+    [bandGeometry, bandMaterial, blades, built, cableMaterial, cables, ledMaterial, leds, reel],
   );
 
   useLayoutEffect(() => {
@@ -253,12 +281,6 @@ export function BackZone({ zone, spot }: ZoneProps) {
       mesh.instanceMatrix.needsUpdate = true;
     }
     if (fan.current) fan.current.rotation.y = t * 9;
-    // Joints de la base de données : respiration lente.
-    if (bands.current) {
-      const breath = 0.5 + 0.5 * Math.sin(t * 1.5);
-      bandColor.copy(accent).multiplyScalar(0.55 + breath * 0.9 + labNight.value * 1.2);
-      bands.current.color.copy(bandColor);
-    }
   });
 
   return (
@@ -269,9 +291,7 @@ export function BackZone({ zone, spot }: ZoneProps) {
       <mesh geometry={cables} material={cableMaterial} castShadow raycast={noRaycast} />
       <instancedMesh ref={reels} args={[reel, paintMaterial, 2]} raycast={noRaycast} />
       <mesh ref={fan} geometry={blades} material={paintMaterial} position={[0, 1.64, RACK_Z]} raycast={noRaycast} />
-      <mesh geometry={bandGeometry} raycast={noRaycast}>
-        <meshBasicMaterial ref={bands} color={zone.accent} toneMapped={false} />
-      </mesh>
+      <mesh geometry={bandGeometry} material={bandMaterial} raycast={noRaycast} />
     </ZoneShell>
   );
 }

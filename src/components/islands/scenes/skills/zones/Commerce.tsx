@@ -32,7 +32,9 @@ const WAREHOUSE: Vec3 = [-0.72, 0, -0.68];
 const BELT_Z = -0.68;
 const BELT_TOP = 0.44;
 const CRANE: Vec3 = [1.2, 0, 0.18];
-const JIB_Y = 1.56;
+const JIB_Y = 2.3;
+/** Hauteur du crochet pendant les déplacements de la flèche. */
+const CARRY_Y = JIB_Y - 0.55;
 const PICK: Vec3 = [1.6, 0.43, 1.07];
 const DROP: Vec3 = [1.45, BELT_TOP + 0.12, BELT_Z];
 const TERMINAL: Vec3 = [0.55, 0, 1.3];
@@ -71,10 +73,10 @@ function parcelGeometry() {
   return merger.build();
 }
 
-function buildStatic(accent: string) {
+function buildStatic(accent: string, pad: number) {
   const paint = new Merger();
   const glow = new Merger();
-  addPad(paint, glow, 2.2, accent);
+  addPad(paint, glow, pad, accent);
 
   // Entrepôt-boutique : murs crème, toit cintré en tôle verte, porte du tapis, auvent rayé.
   paint.group(pose(WAREHOUSE), () => {
@@ -83,7 +85,7 @@ function buildStatic(accent: string) {
       new CylinderGeometry(0.58, 0.58, 1.5, 14, 1, false, 0, Math.PI),
       (point, normal, out) => {
         if (Math.abs(normal.x) > 0.9) out.set('#e9dcc0');
-        else out.set(Math.sin(point.x * 34) > 0.2 ? '#5fb46f' : '#4f9d5f');
+        else out.set(Math.sin(point.x * 34) > 0.2 ? '#36b25a' : '#27904a');
       },
       pose([0, 0.82, 0], [0, 0, Math.PI / 2]),
       0.05,
@@ -118,9 +120,12 @@ function buildStatic(accent: string) {
   // Grue de quai : semelle, fût, et (animée à part) la tête.
   paint.box([0.42, 0.06, 0.42], '#5b6472', [CRANE[0], 0.03, CRANE[2]]);
   paint.box([0.13, JIB_Y - 0.06, 0.13], '#e2553f', [CRANE[0], (JIB_Y - 0.06) / 2 + 0.06, CRANE[2]]);
-  for (let index = 0; index < 4; index++) {
-    paint.box([0.14, 0.012, 0.012], '#b8402f', [CRANE[0], 0.25 + index * 0.33, CRANE[2] + 0.068], [0, 0, 0.6], 0);
+  for (let index = 0; index < 6; index++) {
+    paint.box([0.14, 0.012, 0.012], '#b8402f', [CRANE[0], 0.25 + index * 0.34, CRANE[2] + 0.068], [0, 0, 0.6], 0);
   }
+  // Cabine du grutier, à mi-hauteur du fût.
+  paint.box([0.24, 0.2, 0.22], '#f2c14e', [CRANE[0] + 0.15, JIB_Y - 0.45, CRANE[2]]);
+  glow.box([0.012, 0.09, 0.15], '#ffe9a8', [CRANE[0] + 0.272, JIB_Y - 0.43, CRANE[2]], undefined, 0);
 
   // Palette et sa pile de colis (la place avant droite attend le prochain).
   paint.box([0.64, 0.06, 0.64], '#b07a48', [PALLET[0], 0.075, PALLET[2]]);
@@ -231,7 +236,7 @@ export function CommerceZone({ zone, spot }: ZoneProps) {
   const paperMaterial = useRef<MeshBasicMaterial>(null);
   const printer = useRef<Group>(null);
 
-  const built = useMemo(() => buildStatic(zone.accent), [zone.accent]);
+  const built = useMemo(() => buildStatic(zone.accent, spot.pad), [spot.pad, zone.accent]);
   const parcel = useMemo(() => parcelGeometry(), []);
   const craneHead = useMemo(() => craneHeadGeometry(), []);
   const receipt = useMemo(() => receiptTexture(), []);
@@ -303,7 +308,7 @@ export function CommerceZone({ zone, spot }: ZoneProps) {
     const angle = mix(AIM_PICK.angle, AIM_DROP.angle, swing);
     const reach = mix(AIM_PICK.reach, AIM_DROP.reach, swing);
     const low = mix(PICK[1], DROP[1], swing) + 0.12;
-    const hookY = mix(1.05, low, drop);
+    const hookY = mix(CARRY_Y, low, drop);
     if (head.current) head.current.rotation.y = angle;
     if (hook.current) {
       // Le crochet pend sous le chariot, avec un léger balancement après chaque arrêt.
@@ -396,7 +401,7 @@ export function CommerceZone({ zone, spot }: ZoneProps) {
             <boxGeometry args={[0.08, 0.06, 0.08]} />
             <meshStandardMaterial color="#f2c14e" roughness={0.6} />
           </mesh>
-          <mesh ref={carried} geometry={parcel} material={paintMaterial} position-y={-0.12} castShadow raycast={noRaycast} />
+          <mesh ref={carried} geometry={parcel} material={paintMaterial} position-y={-0.12} raycast={noRaycast} />
         </group>
       </group>
 

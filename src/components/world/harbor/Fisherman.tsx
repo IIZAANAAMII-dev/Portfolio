@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import {
+  BoxGeometry,
   BufferAttribute,
   BufferGeometry,
   ConeGeometry,
@@ -11,13 +12,15 @@ import {
   LineBasicMaterial,
   LineSegments,
   SphereGeometry,
+  Sprite,
   TorusGeometry,
   Vector3,
 } from 'three';
 import { Pieces, pose } from '@/components/islands/docks/parts';
-import { PAINTED } from '@/components/islands/docks/planks';
+import { LANTERN_GLASS, LANTERN_HALO, PAINTED } from '@/components/islands/docks/planks';
 import { ambience } from '@/lib/audio/ambience';
 import { boatState } from '@/lib/boat-state';
+import { skyState } from '@/lib/sky';
 import { useWorld } from '@/lib/store';
 import { waveHeight } from '@/lib/waves';
 import { ripple } from '../Flotsam';
@@ -36,6 +39,9 @@ const CYCLE = 17;
 export const fishWatch = { active: false, position: new Vector3(), float: new Vector3() };
 
 const YELLOW = '#f2c230';
+/** Lampe-tempête (repère du pêcheur) : centre de sa vitre. */
+const LAMP: [number, number, number] = [0.62, 0.14, -0.45];
+const LAMP_GLASS = new BoxGeometry(0.14, 0.18, 0.14);
 const NAVY = '#2d3e63';
 const SKIN = '#f1c6a0';
 const BOOT = '#2f3a35';
@@ -56,6 +62,13 @@ function fishermanGeometries() {
   body.add(new TorusGeometry(0.15, 0.008, 4, 10, Math.PI), '#4b5a66', pose([-0.5, 0.26, -0.3], [0, 0.4, 0]));
   body.add(new ConeGeometry(0.05, 0.09, 3), '#e98a4a', pose([-0.47, 0.31, -0.28], [0.3, 0, 0.5], [1, 1, 0.4]));
   body.add(new CylinderGeometry(0.11, 0.11, 0.12, 4, 1), '#3f7f6f', pose([0.44, 0.06, -0.3], [0, Math.PI / 4, 0], [1.4, 1, 1]), 0.15);
+  // Petite lampe-tempête posée à côté de lui (la vitre s'allume la nuit).
+  body.add(new BoxGeometry(0.2, 0.04, 0.2), '#2f343c', pose([LAMP[0], 0.02, LAMP[2]]));
+  for (const cx of [-1, 1]) {
+    for (const cz of [-1, 1]) body.add(new BoxGeometry(0.02, 0.2, 0.02), '#2f343c', pose([LAMP[0] + cx * 0.08, 0.14, LAMP[2] + cz * 0.08]));
+  }
+  body.add(new ConeGeometry(0.15, 0.1, 4), '#c8553d', pose([LAMP[0], 0.29, LAMP[2]], [0, Math.PI / 4, 0]));
+  body.add(new TorusGeometry(0.04, 0.01, 4, 8), '#2f343c', pose([LAMP[0], 0.36, LAMP[2]]));
 
   // Tête (pivot au cou) : visage, barbe blanche, nez rouge, yeux, joues roses, suroît.
   const head = new Pieces();
@@ -147,6 +160,7 @@ export function Fisherman({ position, yaw, water }: { position: [number, number,
   const shins = useRef<(Group | null)[]>([]);
   const head = useRef<Group>(null);
   const lineRef = useRef<LineSegments>(null);
+  const halo = useRef<Sprite>(null);
   const events = useRef({ cycle: -1, splashed: false, struck: false, cast: false });
 
   useEffect(() => () => {
@@ -167,6 +181,7 @@ export function Fisherman({ position, yaw, water }: { position: [number, number,
       e.struck = false;
       e.cast = false;
     }
+    if (halo.current) halo.current.visible = skyState.dayNight > 0.04;
     const near = Math.hypot(boatState.position.x - position[0], boatState.position.z - position[2]) < 28;
     const audible = near && useWorld.getState().phase !== 'intro';
 
@@ -288,6 +303,8 @@ export function Fisherman({ position, yaw, water }: { position: [number, number,
           <group ref={tip} position={geometries.tip} />
         </group>
         <group ref={bucket} position={[-0.5, 0.3, -0.3]} />
+        <mesh geometry={LAMP_GLASS} material={LANTERN_GLASS} position={LAMP} raycast={() => null} />
+        <sprite ref={halo} material={LANTERN_HALO} position={LAMP} scale={1.1} visible={false} raycast={() => null} />
       </group>
       <group ref={float}>
         <mesh geometry={geometries.float} material={PAINTED} />

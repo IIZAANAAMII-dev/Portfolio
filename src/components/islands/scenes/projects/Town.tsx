@@ -238,6 +238,24 @@ function buildTown(elevation: number) {
   PLAZA_LANTERNS.forEach(([x, k, z]) => {
     lamp(props, globes, [x, TOP, z], elevation * k + 0.38, false);
   });
+  // Guirlandes de guinguette d'un lampadaire de la place à l'autre (ampoules de couleur).
+  const bulbs = ['#ffd38a', '#ff9a8a', '#9fe6ff', '#c7a8ff', '#b8f5a0'];
+  const order = [...PLAZA_LANTERNS].sort((a, b) => Math.atan2(a[2], a[0]) - Math.atan2(b[2], b[0]));
+  order.forEach(([x0, k0, z0], index) => {
+    const [x1, k1, z1] = order[(index + 1) % order.length];
+    const y0 = elevation * k0 + 0.38 + 0.3;
+    const y1 = elevation * k1 + 0.38 + 0.3;
+    const segments = 10;
+    let previous: V3 = [x0, y0, z0];
+    for (let step = 1; step <= segments; step++) {
+      const f = step / segments;
+      const sag = Math.sin(f * Math.PI) * 0.55;
+      const point: V3 = [x0 + (x1 - x0) * f, y0 + (y1 - y0) * f - sag, z0 + (z1 - z0) * f];
+      props.rod(previous, point, 0.012, '#2b2f36', 3);
+      if (step < segments) globes.sphere(0.06, [point[0], point[1] - 0.07, point[2]], bulbs[(step + index) % bulbs.length], 0);
+      previous = point;
+    }
+  });
   [-2.45, -1.0, 0.16, 1.3, 2.55].forEach((angle) => {
     const r = WALK.outer - 0.24;
     lamp(props, globes, [Math.cos(angle) * r, TOP, Math.sin(angle) * r], TOP + 2.05, true);
@@ -248,7 +266,7 @@ function buildTown(elevation: number) {
   }
 
   // Bancs face à l'hologramme.
-  [-2.9, -1.6, 1.05, 2.3].forEach((angle) => {
+  [-1.6, 1.05, 2.3].forEach((angle) => {
     const r = 4.6;
     const x = Math.cos(angle) * r;
     const z = Math.sin(angle) * r;

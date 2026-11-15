@@ -30,19 +30,21 @@ import { Mesher, meterCylinder, pebble, pose, type Vec3 } from './mesher';
 
 /**
  * Le grand phare, sur son rocher de granit au bout de la pointe — à la manière des phares
- * en mer du Morbihan : soubassement de granit, tour blanche dont le haut est peint en
- * rouge, encorbellement de consoles sous la galerie, garde-corps noir, lanterne vitrée
- * et coupole rouge. La nuit, deux faisceaux opposés balaient lentement la mer ; quand l'un
+ * en mer du Morbihan : soubassement de granit, tour blanchie à la chaux cerclée de granit,
+ * encorbellement de consoles sous la galerie, garde-corps noir, lanterne vitrée et
+ * coupole vert bronze. La nuit, deux faisceaux opposés balaient lentement la mer ; quand l'un
  * d'eux passe face à la caméra, la lanterne éclate. Un clic : il tourne à toute vitesse.
  */
 
 const WHITE = '#f4f0e7';
-const RED = '#c8382f';
-const BLACK = '#24262b';
+/** Vert bronze des lanternes bretonnes (chambre de veille, coupole). */
+const GREEN = '#2c4a3f';
+const BLACK = '#202227';
 const GRANITE = '#d6cec1';
+const GRANITE_DARK = '#a99e91';
 
 /** Hauteurs (repère du phare : 0 = dessus du soubassement). */
-const TOWER = { bottom: 0.45, top: 7.6, radiusBottom: 0.98, radiusTop: 0.7, redFrom: 6.25 };
+const TOWER = { bottom: 0.45, top: 7.6, radiusBottom: 0.98, radiusTop: 0.7, band: 6.35 };
 const GALLERY = 8.0;
 const LANTERN = { bottom: 8.45, top: 9.55, radius: 0.58 };
 export const LIGHTHOUSE_LAMP_Y = (LANTERN.bottom + LANTERN.top) / 2;
@@ -53,13 +55,12 @@ function buildTower() {
   // Soubassement de granit à pans (octogone), fondations plongées dans le rocher.
   masonry.add(meterCylinder(1.5, 1.72, 1.9, 8), pose([0, -0.5, 0], [0, Math.PI / 8, 0]));
   paint.add(new CylinderGeometry(1.58, 1.58, 0.1, 8), pose([0, TOWER.bottom - 0.03, 0], [0, Math.PI / 8, 0]), GRANITE);
-  // Fût blanc puis tête rouge, légèrement conique.
+  // Fût blanchi à la chaux, légèrement conique, chaînes de granit au pied et sous la corniche.
   const span = TOWER.top - TOWER.bottom;
   const radiusAt = (y: number) => TOWER.radiusBottom + (TOWER.radiusTop - TOWER.radiusBottom) * ((y - TOWER.bottom) / span);
-  const white = TOWER.redFrom - TOWER.bottom;
-  paint.add(new CylinderGeometry(radiusAt(TOWER.redFrom), TOWER.radiusBottom, white, 20), pose([0, TOWER.bottom + white / 2, 0]), WHITE);
-  const red = TOWER.top - TOWER.redFrom;
-  paint.add(new CylinderGeometry(TOWER.radiusTop, radiusAt(TOWER.redFrom), red, 20), pose([0, TOWER.redFrom + red / 2, 0]), RED);
+  paint.add(new CylinderGeometry(TOWER.radiusTop, TOWER.radiusBottom, span, 20), pose([0, TOWER.bottom + span / 2, 0]), WHITE);
+  paint.add(new CylinderGeometry(radiusAt(1.25) + 0.03, TOWER.radiusBottom + 0.03, 0.8, 20), pose([0, TOWER.bottom + 0.4, 0]), GRANITE_DARK);
+  paint.add(new CylinderGeometry(radiusAt(TOWER.band + 0.25) + 0.03, radiusAt(TOWER.band) + 0.03, 0.25, 20), pose([0, TOWER.band + 0.125, 0]), GRANITE);
   // Encorbellement : une corniche évasée et ses consoles de granit.
   paint.add(new CylinderGeometry(1.0, TOWER.radiusTop, 0.4, 20), pose([0, TOWER.top + 0.2, 0]), GRANITE);
   for (let index = 0; index < 14; index++) {
@@ -80,8 +81,8 @@ function buildTower() {
     paint.add(rail, pose([0, GALLERY + y, 0]), BLACK);
     rail.dispose();
   }
-  // Chambre de veille (socle de la lanterne).
-  paint.add(new CylinderGeometry(0.66, 0.7, 0.4, 16), pose([0, GALLERY + 0.25, 0]), RED);
+  // Chambre de veille (socle de la lanterne), peinte en vert bronze.
+  paint.add(new CylinderGeometry(0.66, 0.7, 0.4, 16), pose([0, GALLERY + 0.25, 0]), GREEN);
   // Montants de la lanterne et ceinture haute.
   const bars = 10;
   for (let index = 0; index < bars; index++) {
@@ -99,15 +100,15 @@ function buildTower() {
   paint.add(ring, pose([0, LANTERN.top, 0]), BLACK);
   paint.add(ring, pose([0, LANTERN.bottom + 0.02, 0]), BLACK);
   ring.dispose();
-  // Coupole rouge, boule de ventilation, paratonnerre et girouette.
+  // Coupole vert bronze, boule de ventilation, paratonnerre et girouette.
   const dome = new SphereGeometry(0.7, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2);
-  paint.add(dome, pose([0, LANTERN.top, 0], [0, 0, 0], [1, 0.72, 1]), RED);
+  paint.add(dome, pose([0, LANTERN.top, 0], [0, 0, 0], [1, 0.72, 1]), GREEN);
   dome.dispose();
   paint.add(new SphereGeometry(0.13, 10, 8), pose([0, LANTERN.top + 0.6, 0]), BLACK);
   paint.rod([0, LANTERN.top + 0.6, 0], [0, LANTERN.top + 1.35, 0], 0.018, BLACK, 4);
   paint.box([0.42, 0.1, 0.02], [0.1, LANTERN.top + 1.12, 0], [0, 0.6, 0], BLACK);
   // Porte et petites fenêtres qui montent en spirale (l'escalier intérieur).
-  paint.box([0.7, 1.35, 0.2], [0, TOWER.bottom + 0.68, TOWER.radiusBottom - 0.04], [0, 0, 0], '#2f5f4f');
+  paint.box([0.7, 1.35, 0.2], [0, TOWER.bottom + 0.68, TOWER.radiusBottom - 0.04], [0, 0, 0], GREEN);
   paint.box([0.9, 0.18, 0.24], [0, TOWER.bottom + 1.42, TOWER.radiusBottom - 0.02], [0, 0, 0], GRANITE);
   for (let index = 0; index < 4; index++) {
     const y = 2.0 + index * 1.2;

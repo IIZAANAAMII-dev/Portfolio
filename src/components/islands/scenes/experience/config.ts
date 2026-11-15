@@ -7,7 +7,8 @@ import { sculptExperience } from './layout';
  * poudingue (teinte rouille) et relief retouché : port, chantier naval, Bec de l'Aigle.
  */
 const config: IslandSceneConfig = {
-  camera: { zoom: 1.22, lift: 2.5 },
+  // Cadrage à quai : un peu de recul et la visée relevée, pour que le portique tienne en entier.
+  camera: { zoom: 1.14, lift: 2.5 },
   trees: 0,
   grass: 0.85,
   grassPalette: ['#7f9a40', '#5f8237', '#a9a34a', '#cdb15c'],

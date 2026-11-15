@@ -131,9 +131,9 @@ function buildGallery() {
   }
 
   // Totem de la galerie (porte la plaque du numéro).
-  m.block(-3.25, 0.1, 1.95, -2.75, 2.7, 2.15, WHITE);
-  m.block(-3.27, 0.1, 2.15, -2.73, 0.45, 2.17, BLUE, 0);
-  lights.block(-3.27, 0.5, 2.15, -3.21, 2.6, 2.18, '#9ec2ff');
+  m.block(-3.38, 0.1, 1.95, -2.62, 2.75, 2.15, WHITE);
+  m.block(-3.4, 0.1, 2.15, -2.6, 0.45, 2.17, BLUE, 0);
+  lights.block(-3.4, 0.5, 2.15, -3.33, 2.65, 2.18, '#9ec2ff');
 
   return { body: m.build(), lights: lights.build(), panes: panes.build(), big, easel };
 }
@@ -195,7 +195,7 @@ export function Gallery({ project }: { project: Project }) {
       <Screen width={1.3} height={0.81} url={second} fallback="form" position={easelScreen} rotation={[0, easel.ry, 0]} />
       <Screen width={1.3} height={0.81} url={main} fallback="bento" crop={BENTO} pan={[BENTO, BENTO_LOW]} position={[-1.25, 1.75, P.z0 + 0.21]} />
       <Screen width={1.3} height={0.81} url={main} fallback="grid" crop={HERO} pan={[HERO, HERO_LOW]} panSpeed={0.07} position={[1.25, 1.75, P.z0 + 0.21]} />
-      <Plaque index={project.index} accent={project.accent} size={0.62} position={[-3.0, 2.25, 2.16]} />
+      <Plaque index={project.index} accent={project.accent} size={0.9} position={[-3.0, 2.15, 2.17]} />
       <group ref={banner} />
       <mesh geometry={sign.geometry} material={paint} castShadow />
       <SignText lines={[project.title]} accent={project.accent} width={1.9} position={sign.text} rotation={[0, -0.12, 0]} />

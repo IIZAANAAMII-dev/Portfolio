@@ -163,7 +163,7 @@ function Studio({ island }: { island: IslandConfig }) {
     clock.current = state.clock.elapsedTime;
   });
   if (!rgEntry) return null;
-  const [sx, sz] = fromBuilding(RG.at, RG.front, -1.55, 2.35);
+  const [sx, sz] = fromBuilding(RG.at, RG.front, -1.75, 2.45);
   return (
     <>
       <group position={[RG.at[0], RG.y, RG.at[1]]} rotation-y={facing(RG.front)}>
@@ -192,8 +192,8 @@ function Studio({ island }: { island: IslandConfig }) {
         position={[sx, RG.y - 0.04, sz]}
         rotation={facing(RG.front) + 0.25}
         accent={island.accent}
-        width={1.9}
-        post={1.15}
+        width={2.5}
+        post={1.3}
       />
     </>
   );
@@ -297,7 +297,7 @@ function School({ island }: { island: IslandConfig }) {
     clock.current = state.clock.elapsedTime;
   });
   if (!gretaEntry) return null;
-  const [sx, sz] = fromBuilding(GRETA.at, GRETA.front, -1.75, 2.6);
+  const [sx, sz] = fromBuilding(GRETA.at, GRETA.front, -1.95, 2.7);
   return (
     <>
       <group position={[GRETA.at[0], GRETA.y, GRETA.at[1]]} rotation-y={facing(GRETA.front)}>
@@ -329,8 +329,8 @@ function School({ island }: { island: IslandConfig }) {
         position={[sx, GRETA.y - 0.04, sz]}
         rotation={facing(GRETA.front) - 0.2}
         accent={island.accent}
-        width={1.9}
-        post={1.15}
+        width={2.5}
+        post={1.3}
       />
     </>
   );

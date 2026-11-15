@@ -33,7 +33,7 @@ export const STAIRS = {
 
 /** Terre-plein du chantier naval, en contrebas au sud. */
 export const SHIPYARD = {
-  angle: 1.3,
+  angle: 1.45,
   halfAngle: 0.3,
   inner: 14.4,
   outer: 16.4,

@@ -83,6 +83,85 @@ function buntingGeometry(from: Vec3, to: Vec3, sag: number, spacing: number) {
   return geometry;
 }
 
+/** Linge qui sèche : drap blanc, marinière rayée, serviette rouge, ciré jaune. */
+const GARMENTS: { t: number; width: number; height: number; colors: string[] }[] = [
+  { t: 0.2, width: 0.85, height: 0.68, colors: ['#f7f4ee'] },
+  { t: 0.46, width: 0.5, height: 0.56, colors: ['#f7f4ee', '#24375a'] },
+  { t: 0.66, width: 0.38, height: 0.46, colors: ['#d9483b'] },
+  { t: 0.84, width: 0.42, height: 0.58, colors: ['#f2c230'] },
+];
+
+function laundryGeometry(from: Vec3, to: Vec3, sag: number) {
+  const point = (t: number): Vec3 => [
+    from[0] + (to[0] - from[0]) * t,
+    from[1] + (to[1] - from[1]) * t - sag * 4 * t * (1 - t),
+    from[2] + (to[2] - from[2]) * t,
+  ];
+  const length = Math.hypot(to[0] - from[0], to[2] - from[2]) || 1;
+  const ux = (to[0] - from[0]) / length;
+  const uz = (to[2] - from[2]) / length;
+  const positions: number[] = [];
+  const colors: number[] = [];
+  const flutter: number[] = [];
+  const phases: number[] = [];
+  const color = new Color();
+  const push = (p: Vec3, hex: string, free: number, phase: number) => {
+    positions.push(p[0], p[1], p[2]);
+    color.set(hex);
+    colors.push(color.r, color.g, color.b);
+    flutter.push(free);
+    phases.push(phase);
+  };
+  for (let index = 0; index < 16; index++) {
+    const a = point(index / 16);
+    const b = point((index + 1) / 16);
+    const a2: Vec3 = [a[0], a[1] + 0.025, a[2]];
+    const b2: Vec3 = [b[0], b[1] + 0.025, b[2]];
+    for (const p of [a, b, b2, a, b2, a2]) push(p, '#e9dcc0', 0, 0);
+  }
+  GARMENTS.forEach((garment, item) => {
+    const top = point(garment.t);
+    const rows = 7;
+    for (let row = 0; row < rows; row++) {
+      const y0 = (row / rows) * garment.height;
+      const y1 = ((row + 1) / rows) * garment.height;
+      const hex = garment.colors[row % garment.colors.length];
+      const corner = (side: number, depth: number): Vec3 => [
+        top[0] + ux * side * garment.width * 0.5,
+        top[1] - depth,
+        top[2] + uz * side * garment.width * 0.5,
+      ];
+      const f0 = (row / rows) ** 1.3;
+      const f1 = ((row + 1) / rows) ** 1.3;
+      const phase = item * 1.9;
+      push(corner(-1, y0), hex, f0, phase);
+      push(corner(1, y0), hex, f0, phase + 0.6);
+      push(corner(1, y1), hex, f1, phase + 0.6);
+      push(corner(-1, y0), hex, f0, phase);
+      push(corner(1, y1), hex, f1, phase + 0.6);
+      push(corner(-1, y1), hex, f1, phase);
+    }
+  });
+  const geometry = new BufferGeometry();
+  geometry.setAttribute('position', new BufferAttribute(new Float32Array(positions), 3));
+  geometry.setAttribute('color', new BufferAttribute(new Float32Array(colors), 3));
+  geometry.setAttribute('aFlutter', new BufferAttribute(new Float32Array(flutter), 1));
+  geometry.setAttribute('aPhase', new BufferAttribute(new Float32Array(phases), 1));
+  geometry.computeVertexNormals();
+  geometry.computeBoundingSphere();
+  return geometry;
+}
+
+/** Corde à linge tendue entre deux poteaux (les poteaux sont dans le décor fusionné). */
+export function Laundry({ from, to }: { from: Vec3; to: Vec3 }) {
+  const geometry = useMemo(() => laundryGeometry(from, to, 0.18), [from, to]);
+  useEffect(() => () => geometry.dispose(), [geometry]);
+  useFrame((state) => {
+    flutterTime.value = state.clock.elapsedTime;
+  });
+  return <mesh geometry={geometry} material={MATERIAL} castShadow raycast={() => null} />;
+}
+
 export function Bunting({ from, to, sag = 0.7, spacing = 0.5 }: { from: Vec3; to: Vec3; sag?: number; spacing?: number }) {
   const geometry = useMemo(() => buntingGeometry(from, to, sag, spacing), [from, sag, spacing, to]);
   useEffect(() => () => geometry.dispose(), [geometry]);

@@ -369,10 +369,22 @@ function advance(time: number, dt: number) {
   const forwardX = Math.cos(boatState.heading);
   const forwardZ = Math.sin(boatState.heading);
   if (DEMO) {
-    // Démonstration à quai : le pod tourne autour du bateau immobile.
+    // Démonstration à quai : le pod tourne au large du bateau immobile (côté pleine eau).
+    let outX = 0;
+    let outZ = 1;
+    let nearest = Number.POSITIVE_INFINITY;
+    for (const solid of SOLIDS) {
+      const gap = Math.hypot(boatState.position.x - solid.x, boatState.position.z - solid.z) - solid.r;
+      if (gap < nearest) {
+        nearest = gap;
+        const length = Math.hypot(boatState.position.x - solid.x, boatState.position.z - solid.z) || 1;
+        outX = (boatState.position.x - solid.x) / length;
+        outZ = (boatState.position.z - solid.z) / length;
+      }
+    }
     const orbit = time * 0.3;
-    s.ax = damp(s.ax, boatState.position.x + Math.cos(orbit) * 11, 1.5, dt);
-    s.az = damp(s.az, boatState.position.z + Math.sin(orbit) * 11, 1.5, dt);
+    s.ax = damp(s.ax, boatState.position.x + outX * 12 + Math.cos(orbit) * 8, 1.5, dt);
+    s.az = damp(s.az, boatState.position.z + outZ * 12 + Math.sin(orbit) * 8, 1.5, dt);
     s.heading = orbit + Math.PI / 2;
     s.speed = 3.3;
     if (s.mode === 'approach' && s.modeTime > 6) s.mode = 'escort';

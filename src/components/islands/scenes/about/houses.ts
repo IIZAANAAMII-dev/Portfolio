@@ -57,6 +57,13 @@ export interface HouseInfo {
   perches: Vec3[];
 }
 
+/** Hauteur du faîtage d'une maison du plan (repère de la maison). */
+export function ridgeOf(plan: HousePlan) {
+  const rise = plan.depth * 0.5 * (plan.kind === 'penty' ? 1.08 : 1);
+  const slope = Math.atan2(rise, plan.depth / 2);
+  return plan.wall + rise + ROOF_THICKNESS / Math.cos(slope);
+}
+
 const blob = new IcosahedronGeometry(1, 1);
 const bud = new IcosahedronGeometry(1, 0);
 
@@ -284,7 +291,14 @@ export function buildHouse(
 
   // --- Ouvertures de la façade.
   const doorX = options.door ?? (plan.kind === 'capitaine' ? 0 : plan.kind === 'longere' ? -0.45 : -width * 0.2);
-  addDoor(facade, front, doorX, plan.paint);
+  if (plan.kind === 'chapelle') {
+    // La chapelle s'ouvre sur son pignon (sous le clocher-mur), pas sur le long côté.
+    body.details.within(pose([0, 0, 0], [0, Math.PI / 2, 0]));
+    addDoor(body, width / 2, 0, plan.paint);
+    body.details.within(null);
+  } else {
+    addDoor(facade, front, doorX, plan.paint);
+  }
   const windows: Opening[] = [];
   const low = 0.9;
   if (plan.kind === 'longere') {
@@ -300,6 +314,9 @@ export function buildHouse(
   } else if (plan.kind === 'atelier') {
     // Grande verrière d'atelier à petits carreaux.
     windows.push({ x: 0.75, y: 0.8, width: 1.45, height: 1.2, shutters: false, flowers: true });
+  } else if (plan.kind === 'chapelle') {
+    // Baies étroites et hautes.
+    for (const x of [-1.1, 0.5]) windows.push({ x, y: 0.7, width: 0.38, height: 1.05, shutters: false });
   }
   const facadeMatrix = new Matrix4();
   windows.forEach((opening, index) => addWindow(facade, facadeMatrix, front, opening, plan.paint, seed + index * 7.1));
@@ -309,6 +326,8 @@ export function buildHouse(
   // L'atelier n'a pas de fenêtre au dos : le mur porte la bibliothèque et le bureau.
   const backWindows: Opening[] = plan.kind === 'atelier'
     ? []
+    : plan.kind === 'chapelle'
+      ? [{ x: -0.6, y: 0.7, width: 0.38, height: 1.05, shutters: false }]
     : plan.kind === 'penty'
       ? [{ x: 0.4, y: low, width: 0.6, height: 0.8 }]
       : [{ x: -width * 0.22, y: low, width: 0.66, height: 0.88 }, { x: width * 0.24, y: low, width: 0.66, height: 0.88 }];
@@ -322,7 +341,9 @@ export function buildHouse(
   }
 
   // --- Hortensias au pied de la façade (sur le côté pour l'atelier : la façade s'abat).
-  if (plan.kind === 'atelier') {
+  if (plan.kind === 'chapelle') {
+    // Pas de fleurs au pied d'une chapelle de lande.
+  } else if (plan.kind === 'atelier') {
     addHydrangea(body.details, [-width / 2 - 0.45, 0, front - 0.4], seed);
     addHydrangea(body.details, [width / 2 + 0.5, 0, front - 0.6], seed + 3.3, 0.9);
   } else {
