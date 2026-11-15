@@ -224,7 +224,8 @@ function SharkCircling({ zone }: { zone: SharkZone }) {
 
     // Sillage : on remonte la trajectoire dans le temps (V qui s'ouvre derrière la dorsale).
     const exposure = clamp((m.depth + 1.25) / 0.7, 0, 1);
-    const positions = geometry.getAttribute('position') as BufferAttribute;
+    // Passer par le mesh (et non par les valeurs des hooks) : règles du React Compiler.
+    const positions = ribbon.geometry.getAttribute('position') as BufferAttribute;
     for (let index = 0; index < TRAIL; index++) {
       const age = index / (TRAIL - 1);
       const past = sharkPath(zone, time - index * TRAIL_STEP);
@@ -239,7 +240,7 @@ function SharkCircling({ zone }: { zone: SharkZone }) {
       positions.setXYZ(index * 2 + 1, baseX + sideX * width, y, baseZ + sideZ * width);
     }
     positions.needsUpdate = true;
-    const u = material.uniforms;
+    const u = (ribbon.material as ShaderMaterial).uniforms;
     u.uTime.value = time;
     u.uStrength.value = exposure * reveal;
     u.uBio.value = ecologyState.plankton;
