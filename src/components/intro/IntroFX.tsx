@@ -34,11 +34,11 @@ import { riseSchedule, sweepBearing, SWEEP_FROM, SWEEP_SPAN, type RiseSlot } fro
 import { introSfx } from './sfx';
 
 /**
- * Effets de la cinématique d'ouverture, en coordonnées monde (quatre appels de dessin, montés
- * seulement le temps de l'intro) : anneaux d'écume autour des îles qui surgissent, gerbes
- * d'eau, toux du moteur (bouffées sombres, remous d'hélice, avant qui se lève), mouettes qui
- * s'envolent du ponton de départ. Le « metteur en scène » tient aussi l'horloge du pop GPU
- * (pop.ts) et les bruitages.
+ * Effets de la cinématique d'ouverture, en coordonnées monde (cinq appels de dessin, visibles
+ * seulement le temps de l'intro) : faisceau de la lanterne qui balaie la mer, anneaux d'écume
+ * autour des îles qui surgissent, gerbes d'eau, toux du moteur (bouffées sombres, remous
+ * d'hélice, avant qui se lève), mouettes qui s'envolent du ponton de départ. Le « metteur en
+ * scène » tient aussi l'horloge du pop GPU (pop.ts) et les bruitages.
  */
 
 /** Toux du moteur (s depuis le clic) : « teuf… teuf-teuf ». */
@@ -136,7 +136,7 @@ varying float vAngle;
 void main() {
   float profile = sin(clamp(vEdge, 0.0, 1.0) * 3.14159);
   float lace = 0.55 + 0.45 * sin(vAngle * 29.0 + uClock * 2.1) * sin(vAngle * 11.0 - uClock * 1.3 + 1.7);
-  float alpha = vAlpha * profile * lace * 0.92;
+  float alpha = vAlpha * profile * lace;
   if (alpha < 0.01) discard;
   gl_FragColor = vec4(0.94, 0.99, 0.97, alpha);
   #include <colorspace_fragment>
@@ -347,15 +347,16 @@ function placeDrops(mesh: InstancedMesh, island: number, slot: RiseSlot, clock: 
       continue;
     }
     const angle = a * Math.PI * 2;
-    const reach = slot.radius * (0.84 + c * 0.22) + (2.2 + b * 3.4) * age;
-    const rise = 5.2 + c * 6.5;
+    const reach = slot.radius * (0.84 + c * 0.22) + (2.6 + b * 3.8) * age;
+    const rise = 6.5 + c * 7.5;
     const height = 0.4 + rise * age - 7.6 * age * age;
     if (height < -0.5) {
       mesh.setMatrixAt(index, hidden);
       continue;
     }
     const t = age / DROP_LIFE;
-    const size = (0.2 + a * 0.26) * scale * (1 - t * t);
+    // Gerbes lisibles de loin (les îles surgissent à 80-150 m de la caméra).
+    const size = (0.42 + a * 0.5) * scale * (1 - t * t);
     const fall = Math.abs(rise - 15.2 * age);
     dummy.position.set(slot.x + Math.cos(angle) * reach, height, slot.z + Math.sin(angle) * reach);
     dummy.rotation.set(0, -angle, 0);

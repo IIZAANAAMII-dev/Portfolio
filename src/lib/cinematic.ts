@@ -121,18 +121,18 @@ export function frontSeconds(radius: number) {
 }
 
 /**
- * Lumière du monde (brouillard, ciel, soleil) : la nuit de la carte s'ouvre sur le jour. Un
- * éclat d'aube franchit vite les teintes intermédiaires juste après l'impact, puis le jour
- * monte au rythme des îles.
+ * Lumière du monde (brouillard, ciel, soleil) : la nuit de la carte s'ouvre sur le jour. À
+ * l'impact, un éclat d'aube (un quart de seconde) franchit les teintes intermédiaires, encore
+ * ternes, puis le jour monte au rythme des îles.
  */
 const dawn = monotoneCurve(
   [
     [0, 0],
     [SPLASH_SECONDS, 0],
-    [1.15, 0.3],
-    [1.6, 0.45],
-    [2.2, 0.58],
-    [2.9, 0.7],
+    [SPLASH_SECONDS + 0.24, 0.42],
+    [1.7, 0.5],
+    [2.3, 0.6],
+    [3.0, 0.71],
     [3.7, 0.8],
     [4.6, 0.89],
     [5.8, 0.965],
@@ -184,7 +184,7 @@ export function introRadiusFromGameTransition(t: number) {
 export function introGlowFromGameTransition(t: number) {
   const seconds = introSeconds(t);
   // Avant l'impact, une lisière discrète : le diaphragme ouvert ne doit pas voiler l'eau.
-  if (seconds < SPLASH_SECONDS) return 0.32 * smoothstep(0.1, 0.45, seconds);
+  if (seconds < SPLASH_SECONDS) return 0.1 * smoothstep(0.1, 0.45, seconds);
   const since = seconds - SPLASH_SECONDS;
   return (0.85 + 1.15 * Math.exp(-since * 1.8)) * (1 - smoothstep(4.4, 6.2, seconds));
 }

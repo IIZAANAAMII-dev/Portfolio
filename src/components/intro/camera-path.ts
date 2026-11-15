@@ -53,12 +53,20 @@ const tangentB = new Vector3();
 const slopeA = new Vector3();
 const slopeB = new Vector3();
 
-function toWorld(local: Local, scale: { along: number; height: number }, out: Vector3) {
+/** Échelle des clés : recul et hauteur de la grue, portée du regard (un écran étroit plonge plus). */
+export interface CraneScale {
+  along: number;
+  height: number;
+  reach: number;
+}
+
+function toWorld(local: Local, scale: CraneScale, out: Vector3, target = false) {
   const forwardX = Math.cos(boatState.heading);
   const forwardZ = Math.sin(boatState.heading);
   // Droite de la caméra quand elle regarde selon le cap : (−sin, cos).
-  const along = local[0] * scale.along;
-  const side = local[1] * scale.along;
+  const factor = target ? scale.reach : scale.along;
+  const along = local[0] * factor;
+  const side = local[1] * factor;
   return out.set(
     boatState.position.x + forwardX * along - forwardZ * side,
     local[2] * scale.height,
@@ -98,7 +106,7 @@ export function introCameraAt(
   start: CameraPoseInput,
   end: CameraPoseInput,
   wideFov: number,
-  scale: { along: number; height: number },
+  scale: CraneScale,
   outPosition: Vector3,
   outTarget: Vector3,
 ) {
@@ -114,7 +122,7 @@ export function introCameraAt(
       fovs[index] = end.fov;
     } else {
       toWorld(key.position!, scale, positions[index]);
-      toWorld(key.target!, scale, targets[index]);
+      toWorld(key.target!, scale, targets[index], true);
       const wide = key.wide ?? 0;
       fovs[index] = index < 6 ? start.fov + (wideFov - start.fov) * wide : end.fov + (wideFov - end.fov) * wide;
     }

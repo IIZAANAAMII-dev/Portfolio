@@ -33,8 +33,15 @@ const bankTarget = new Vector3();
 /** Poses de départ et d'arrivée de la grue d'ouverture (vecteurs partagés, champ mis à jour). */
 const introStartPose = { position: introPosition, target: introTarget, fov: 30 };
 const introEndPose = { position: gameplayPosition, target: gameplayTarget, fov: 42 };
-/** Échelle des clés de la grue : un téléphone recule et monte un peu plus (cadre plus serré). */
-const CRANE_SCALE = { desktop: { along: 1, height: 1 }, mobile: { along: 1.1, height: 1.12 }, portrait: { along: 1.18, height: 1.2 } };
+/**
+ * Échelle des clés de la grue : un téléphone recule et monte un peu plus (cadre plus serré) ;
+ * en portrait, le regard porte moins loin (moins de ciel, l'archipel au centre de l'écran).
+ */
+const CRANE_SCALE = {
+  desktop: { along: 1, height: 1, reach: 1 },
+  mobile: { along: 1.1, height: 1.12, reach: 0.9 },
+  portrait: { along: 1.18, height: 1.2, reach: 0.68 },
+};
 
 function introFov(aspect: number, mobile: boolean) {
   return aspect < 0.82 ? 36 : mobile ? 33 : 30;
@@ -137,7 +144,7 @@ function boundaryPose(mobile: boolean) {
 function cranePose(seconds: number, mobile: boolean, aspect: number, reducedMotion: boolean, outPosition: Vector3, outTarget: Vector3) {
   const portrait = aspect < 0.82;
   introStartPose.fov = introFov(aspect, mobile);
-  const wide = portrait ? 60 : mobile ? 48 : 46;
+  const wide = portrait ? 56 : mobile ? 48 : 46;
   const scale = portrait ? CRANE_SCALE.portrait : mobile ? CRANE_SCALE.mobile : CRANE_SCALE.desktop;
   const fov = introCameraAt(seconds, introStartPose, introEndPose, wide, scale, outPosition, outTarget);
   if (!reducedMotion) {
