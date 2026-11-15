@@ -85,10 +85,9 @@ vWet = krWet;
 `;
 
 const ARM_POSITION = /* glsl */ `
-// Ventre un peu aplati, plis annulaires très légers.
+// Ventre un peu aplati.
 float krFlat = 1.0 - 0.16 * pow(max(krCos, 0.0), 2.0);
-float krRings = 1.0 + 0.03 * sin(position.y * 230.0);
-vec3 transformed = krC + krDir * krR * krFlat * krRings;
+vec3 transformed = krC + krDir * krR * krFlat;
 `;
 
 const SUCKER_NORMAL = /* glsl */ `
@@ -161,12 +160,13 @@ float krAlong = 0.5;
   float krLaneId = floor(krAz * 9.0);
   float krRand = fract(sin(krLaneId * 91.7 + 3.1) * 43758.5);
   float krLane = fract(krAz * 9.0);
-  float krLine = 1.0 - smoothstep(0.0, 0.04 + krRand * 0.06, abs(krLane - 0.5));
-  float krFlow = fract(vKrLocal.y * 0.32 + uTime * (0.7 + krRand * 0.8) + krRand * 5.0);
-  float krDrop = smoothstep(0.0, 0.12, krFlow) * (1.0 - smoothstep(0.45, 1.0, krFlow));
-  float krSheet = krLine * krDrop * step(0.3, krRand) * uWet;
-  diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.62, 0.72, 0.78), krSheet * 0.3);
-  krWetness = max(krWetness * 0.6, krSheet);
+  float krLine = 1.0 - smoothstep(0.0, 0.05 + krRand * 0.05, abs(krLane - 0.5));
+  // Filets courts qui glissent vers la mer, pas des lignes continues.
+  float krFlow = fract(vKrLocal.y * 0.55 + uTime * (0.7 + krRand * 0.8) + krRand * 5.0);
+  float krDrop = smoothstep(0.0, 0.08, krFlow) * (1.0 - smoothstep(0.18, 0.42, krFlow));
+  float krSheet = krLine * krDrop * step(0.45, krRand) * uWet;
+  diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.7, 0.78, 0.82), krSheet * 0.22);
+  krWetness = max(krWetness * 0.7, krSheet);
 }
 #endif
 #ifdef KR_LID
@@ -175,8 +175,8 @@ float krAlong = 0.5;
   vec3 krD = normalize(vKrLocal);
   float krAzL = atan(krD.x, krD.z);
   float krEl = asin(clamp(krD.y, -1.0, 1.0));
-  float krW = 0.8;
-  float krHalf = uLid * 0.62 * pow(max(0.0, 1.0 - (krAzL * krAzL) / (krW * krW)), 0.6);
+  float krW = 0.86;
+  float krHalf = uLid * 0.7 * pow(max(0.0, 1.0 - (krAzL * krAzL) / (krW * krW)), 0.55);
   float krFront = step(0.0, krD.z) * step(abs(krAzL), krW);
   if (krFront > 0.5 && abs(krEl) < krHalf) discard;
   float krEdge = 1.0 - smoothstep(0.0, 0.08, abs(krEl) - krHalf);
@@ -211,12 +211,12 @@ const SKIN_LIGHT = /* glsl */ `
   #if NUM_DIR_LIGHTS > 0
     // Reflet mouillé, net comme un aplat de dessin animé.
     vec3 krH = normalize(directionalLights[0].direction + krV);
-    float krSpec = smoothstep(0.93, 0.95, dot(normal, krH));
-    totalEmissiveRadiance += directionalLights[0].color * krSpec * (0.22 + krWetness * 0.6);
+    float krSpec = smoothstep(0.955, 0.97, dot(normal, krH));
+    totalEmissiveRadiance += directionalLights[0].color * krSpec * (0.15 + krWetness * 0.4);
   #endif
   // Reflet de ciel sur la peau mouillée, visible même sans soleil.
-  float krSky = smoothstep(0.86, 0.9, dot(normal, normalize(vec3(-0.3, 0.75, 0.6))));
-  totalEmissiveRadiance += uRim * krSky * krWetness * 0.5;
+  float krSky = smoothstep(0.9, 0.93, dot(normal, normalize(vec3(-0.3, 0.75, 0.6))));
+  totalEmissiveRadiance += uRim * krSky * krWetness * 0.28;
   // Eclair : le kraken surgit, blanc bleuté, le temps d'un flash.
   totalEmissiveRadiance += vec3(0.7, 0.85, 1.0) * uFlash * (0.1 + krFres * 0.9);
 }

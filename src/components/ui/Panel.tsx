@@ -4,7 +4,7 @@ import { useEffect, useLayoutEffect, useRef, useState, type PointerEvent as Reac
 import { islandById, islands } from '@/data/islands';
 import { useWorld } from '@/lib/store';
 import { STAMPS, useLogbook } from '@/lib/logbook';
-import { SHEET_PEEK, sheetState } from '@/lib/sheet';
+import { SHEET_PEEK, setSheetCover } from '@/lib/sheet';
 import { islandContent } from './content';
 import { Stamp } from './Logbook';
 import type { IslandId } from '@/types';
@@ -25,7 +25,7 @@ function isPhoneLayout() {
 /** Hauteur visible de la feuille (px) et part de l'écran qu'elle couvre (caméra, CSS). */
 function publishSheet(visible: number) {
   const height = Math.max(window.innerHeight, 1);
-  sheetState.cover = Math.min(Math.max(visible / height, 0), 1);
+  setSheetCover(Math.min(Math.max(visible / height, 0), 1));
   document.documentElement.style.setProperty('--sheet-h', `${Math.round(Math.max(visible, 0))}px`);
 }
 
@@ -39,6 +39,8 @@ interface Drag {
   lastT: number;
   velocity: number;
   moved: boolean;
+  /** Le geste a commencé sur la poignée (un simple toucher y déplie / replie la page). */
+  onHandle: boolean;
 }
 
 function CloseIcon() {
@@ -148,6 +150,7 @@ export function Panel() {
       lastT: event.timeStamp,
       velocity: 0,
       moved: false,
+      onHandle: Boolean((event.target as HTMLElement).closest('.sheet__handle')),
     };
     event.currentTarget.setPointerCapture(event.pointerId);
   };
@@ -178,8 +181,9 @@ export function Panel() {
     if (paper.current) paper.current.style.transform = '';
     setDragging(false);
     if (!state.moved) {
-      // Un simple toucher sur la poignée déplie ou replie la page.
-      if ((event.target as HTMLElement).closest('.sheet__handle')) setExpanded(!expanded);
+      // Un simple toucher sur la poignée déplie ou replie la page (la capture du pointeur
+      // redirige `pointerup` vers la zone de prise : on se fie au point de départ).
+      if (state.onHandle && event.type === 'pointerup') setExpanded(!expanded);
       return;
     }
     const peekOffset = state.height - Math.min(state.height, window.innerHeight * SHEET_PEEK);

@@ -1,0 +1,1106 @@
+/*
+ * VERSION RAPIDE — le portfolio en une page, lisible en deux minutes.
+ * Mer de nuit en fond (avec le quadrillage discret d'une carte marine), pages de carnet en
+ * papier pour le contenu. Aucune animation ne conditionne l'affichage : tout est visible
+ * d'emblée, même sans JavaScript d'animation, en mouvement réduit ou sur un appareil lent.
+ * Typographie : uniquement les variables du site (--font-display, --font-serif, --font-mono).
+ */
+
+.root {
+  --qv-gutter: clamp(1rem, 4vw, 2rem);
+  --qv-ink: var(--page-ink);
+  --qv-muted: color-mix(in srgb, var(--page-ink) 72%, transparent);
+  --qv-faint: color-mix(in srgb, var(--page-ink) 14%, transparent);
+  --qv-shadow: 0 22px 60px color-mix(in srgb, var(--abyss) 70%, transparent);
+  position: relative;
+  min-height: 100dvh;
+  overflow-x: clip;
+  padding-left: var(--safe-l);
+  padding-right: var(--safe-r);
+  padding-bottom: var(--safe-b);
+  color: var(--paper);
+  font-family: var(--font-serif);
+  background-color: var(--abyss);
+  background-image:
+    radial-gradient(70rem 36rem at 50% -10rem, color-mix(in srgb, var(--shallow) 42%, transparent), transparent 70%),
+    radial-gradient(40rem 30rem at 92% 22rem, color-mix(in srgb, var(--dawn) 8%, transparent), transparent 70%),
+    linear-gradient(color-mix(in srgb, var(--paper) 3.5%, transparent) 1px, transparent 1px),
+    linear-gradient(90deg, color-mix(in srgb, var(--paper) 3.5%, transparent) 1px, transparent 1px);
+  background-size: auto, auto, 6rem 6rem, 6rem 6rem;
+  background-position: 0 0, 0 0, -1px -1px, -1px -1px;
+}
+
+.root a,
+.root button {
+  -webkit-tap-highlight-color: transparent;
+}
+
+.skip {
+  position: absolute;
+  z-index: 40;
+  left: var(--qv-gutter);
+  top: 0.75rem;
+  padding: 0.6rem 1rem;
+  border-radius: 999px;
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink);
+  background: var(--dawn);
+  transform: translateY(-200%);
+}
+.skip:focus-visible {
+  transform: none;
+}
+
+/* --- En-tête ----------------------------------------------------------------- */
+
+.hero {
+  max-width: 74rem;
+  margin: 0 auto;
+  padding: calc(var(--safe-t) + 1.25rem) var(--qv-gutter) clamp(3rem, 7vw, 5rem);
+  scroll-margin-top: 0;
+}
+.hero:focus {
+  outline: none;
+}
+
+.heroBar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: clamp(2.25rem, 7vh, 4.5rem);
+}
+
+.kicker {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+  font-family: var(--font-mono);
+  font-size: 0.66rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--paper) 74%, transparent);
+}
+.kicker::before {
+  content: '';
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  background: var(--dawn);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--dawn) 18%, transparent);
+}
+
+.heroGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr);
+  align-items: end;
+  gap: clamp(2rem, 5vw, 4rem);
+}
+
+.name {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: clamp(3.4rem, 10.5vw, 7.6rem);
+  line-height: 0.84;
+  letter-spacing: 0.01em;
+  text-transform: uppercase;
+  color: var(--paper);
+  text-wrap: balance;
+}
+.name span {
+  display: block;
+}
+.name span + span {
+  color: var(--dawn);
+}
+
+.role {
+  margin-top: 1.1rem;
+  font-size: clamp(1.15rem, 2.2vw, 1.45rem);
+  font-style: italic;
+  line-height: 1.3;
+  color: color-mix(in srgb, var(--paper) 92%, transparent);
+}
+
+.current {
+  margin-top: 0.45rem;
+  font-family: var(--font-mono);
+  font-size: 0.74rem;
+  line-height: 1.6;
+  letter-spacing: 0.06em;
+  color: color-mix(in srgb, var(--paper) 70%, transparent);
+}
+.current strong {
+  font-weight: 500;
+  color: var(--paper);
+}
+
+.intro {
+  max-width: 36rem;
+  margin-top: 1.25rem;
+  font-size: 1.08rem;
+  line-height: 1.6;
+  color: color-mix(in srgb, var(--paper) 80%, transparent);
+  text-wrap: pretty;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 1.75rem;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: var(--tap);
+  padding: 0 1.1rem;
+  border: 1px solid color-mix(in srgb, var(--paper) 26%, transparent);
+  border-radius: 999px;
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--paper);
+  background: color-mix(in srgb, var(--abyss) 40%, transparent);
+  transition:
+    color var(--dur-micro) ease,
+    border-color var(--dur-micro) ease,
+    background-color var(--dur-micro) ease,
+    transform var(--dur-micro) var(--ease-out);
+}
+.btn:hover {
+  border-color: color-mix(in srgb, var(--paper) 62%, transparent);
+  background: color-mix(in srgb, var(--paper) 8%, transparent);
+  transform: translateY(-1px);
+}
+.btn:active {
+  transform: scale(0.97);
+}
+.btn svg {
+  flex: none;
+  width: 0.9rem;
+  height: 0.9rem;
+}
+.btnPrimary {
+  border-color: var(--dawn);
+  color: var(--ink);
+  background: var(--dawn);
+}
+.btnPrimary:hover {
+  border-color: var(--paper);
+  background: color-mix(in srgb, var(--dawn) 70%, var(--paper));
+}
+
+.note {
+  max-width: 30rem;
+  margin-top: 1.25rem;
+  font-size: 0.9rem;
+  font-style: italic;
+  color: color-mix(in srgb, var(--paper) 66%, transparent);
+}
+
+/* --- Papier (pages du carnet) ---------------------------------------------------- */
+
+.card {
+  position: relative;
+  border-radius: 18px;
+  color: var(--qv-ink);
+  background: var(--page);
+  box-shadow: var(--qv-shadow), inset 0 0 46px color-mix(in srgb, var(--sand) 55%, transparent);
+}
+
+/* « En bref » : la fiche d'identité, avec la marge rouge du carnet de bord. */
+.fiche {
+  padding: 1.4rem 1.5rem 1.5rem 2.35rem;
+}
+.fiche::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 1.3rem;
+  width: 1px;
+  background: color-mix(in srgb, var(--stamp-red) 38%, transparent);
+}
+
+.ficheTitle {
+  font-family: var(--font-mono);
+  font-size: 0.66rem;
+  font-weight: 500;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--stamp-red);
+}
+
+.facts {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.95rem 1.25rem;
+  margin-top: 1rem;
+}
+.facts dt {
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--qv-muted);
+}
+.facts dd {
+  margin-top: 0.2rem;
+  font-size: 1rem;
+  line-height: 1.4;
+}
+.factWide {
+  grid-column: 1 / -1;
+}
+
+.domains {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  margin-top: 0.35rem;
+}
+
+/* --- Mise en page : sommaire collant + contenu -------------------------------------- */
+
+.layout {
+  display: grid;
+  grid-template-columns: 12.5rem minmax(0, 1fr);
+  gap: clamp(2rem, 4vw, 3.5rem);
+  max-width: 74rem;
+  margin: 0 auto;
+  padding: 0 var(--qv-gutter) clamp(3rem, 8vw, 6rem);
+}
+
+.toc {
+  position: sticky;
+  top: calc(var(--safe-t) + 1.5rem);
+  align-self: start;
+  z-index: 10;
+}
+.tocTitle {
+  margin: 0 0 0.6rem 0.75rem;
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--paper) 52%, transparent);
+}
+.tocList {
+  display: grid;
+  gap: 0.1rem;
+}
+.tocLink {
+  display: flex;
+  align-items: baseline;
+  gap: 0.75rem;
+  padding: 0.55rem 0.75rem;
+  border-radius: 10px;
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: color-mix(in srgb, var(--paper) 66%, transparent);
+  transition: color var(--dur-micro) ease, background-color var(--dur-micro) ease;
+}
+.tocLink b {
+  min-width: 1.4rem;
+  font-family: var(--font-display);
+  font-size: 1.15rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  color: var(--accent);
+  opacity: 0.75;
+}
+.tocLink:hover {
+  color: var(--paper);
+  background: color-mix(in srgb, var(--paper) 6%, transparent);
+}
+.tocLink[aria-current] {
+  color: var(--paper);
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+}
+.tocLink[aria-current] b {
+  opacity: 1;
+}
+
+.tocBack {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  margin: 1.25rem 0 0 0.75rem;
+  font-family: var(--font-mono);
+  font-size: 0.66rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--paper) 60%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--paper) 22%, transparent);
+  transition: color var(--dur-micro) ease, border-color var(--dur-micro) ease;
+}
+.tocBack:hover {
+  color: var(--paper);
+  border-color: var(--paper);
+}
+.tocBack svg {
+  width: 0.8rem;
+  height: 0.8rem;
+}
+
+/* --- Sections ----------------------------------------------------------------------- */
+
+.main {
+  min-width: 0;
+}
+
+.section {
+  scroll-margin-top: calc(var(--safe-t) + 1.25rem);
+}
+.section:focus {
+  outline: none;
+}
+.section + .section {
+  margin-top: clamp(3.5rem, 8vw, 6rem);
+}
+
+.sectionHead {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: end;
+  gap: 0 1rem;
+  margin-bottom: 1.5rem;
+}
+.sectionHead::after {
+  content: '';
+  grid-column: 1 / -1;
+  height: 1px;
+  margin-top: 1rem;
+  background: linear-gradient(90deg, var(--accent), transparent 75%);
+  opacity: 0.55;
+}
+.sectionNum {
+  font-family: var(--font-display);
+  font-size: clamp(3rem, 6vw, 4.4rem);
+  font-weight: 800;
+  line-height: 0.8;
+  color: var(--accent);
+}
+.sectionTitle {
+  font-family: var(--font-display);
+  font-size: clamp(2.1rem, 4.6vw, 3.1rem);
+  font-weight: 800;
+  line-height: 0.9;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--paper);
+}
+.sectionTagline {
+  margin-top: 0.3rem;
+  font-size: 1.05rem;
+  font-style: italic;
+  color: var(--dawn);
+}
+
+/* Petits titres et textes communs aux pages de papier. */
+.subhead {
+  margin: 1.1rem 0 0.45rem;
+  font-family: var(--font-mono);
+  font-size: 0.64rem;
+  font-weight: 500;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--qv-muted);
+}
+.subhead:first-child {
+  margin-top: 0;
+}
+
+.list {
+  display: grid;
+  gap: 0.35rem;
+  font-size: 0.97rem;
+  line-height: 1.5;
+}
+.list li {
+  position: relative;
+  padding-left: 1.05rem;
+}
+.list li::before {
+  content: '';
+  position: absolute;
+  left: 0.1rem;
+  top: 0.72em;
+  width: 0.45rem;
+  height: 1.5px;
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--accent, var(--stamp-red)) 70%, var(--page-ink));
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.textLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  border-bottom: 1px solid color-mix(in srgb, var(--page-ink) 32%, transparent);
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.06em;
+  transition: border-color var(--dur-micro) ease;
+}
+.textLink:hover {
+  border-color: var(--page-ink);
+}
+.textLink svg {
+  width: 0.75rem;
+  height: 0.75rem;
+}
+
+/* À propos */
+.about {
+  display: grid;
+  grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr);
+  gap: 1.5rem 2.25rem;
+  padding: clamp(1.25rem, 3.5vw, 2rem);
+}
+.lead {
+  font-size: clamp(1.08rem, 1.8vw, 1.22rem);
+  line-height: 1.65;
+  text-wrap: pretty;
+}
+.aboutSide {
+  padding-left: 1.5rem;
+  border-left: 1px solid var(--qv-faint);
+}
+.aboutSide p {
+  font-size: 1rem;
+}
+
+/* Projets */
+.projects {
+  display: grid;
+  gap: 1.25rem;
+}
+
+.project {
+  container-type: inline-size;
+  padding: clamp(1.15rem, 3.2vw, 1.85rem);
+  border-top: 3px solid var(--accent);
+}
+
+.projectHead {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  gap: 0.25rem 0.9rem;
+}
+.projectIndex {
+  font-family: var(--font-display);
+  font-size: 2.7rem;
+  font-weight: 800;
+  line-height: 0.8;
+  color: color-mix(in oklab, var(--accent) 55%, var(--page-ink));
+}
+.projectTitle {
+  font-family: var(--font-display);
+  font-size: clamp(1.45rem, 3vw, 1.85rem);
+  font-weight: 800;
+  line-height: 0.95;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+.projectMeta {
+  margin-top: 0.35rem;
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  line-height: 1.5;
+  letter-spacing: 0.06em;
+  color: var(--qv-muted);
+}
+.projectTags {
+  grid-column: 2;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem;
+  margin-top: 0.4rem;
+}
+.projectTags :global(.status) {
+  white-space: normal;
+  line-height: 1.35;
+}
+.projectTags :global(.project-badge) {
+  margin-left: 0;
+}
+
+.projectBody {
+  display: grid;
+  gap: 1.25rem 1.75rem;
+  margin-top: 1.1rem;
+}
+.summary {
+  font-size: 1.04rem;
+  line-height: 1.6;
+  text-wrap: pretty;
+}
+.projectText > .summary + .subhead {
+  margin-top: 1rem;
+}
+
+.media {
+  display: grid;
+  align-content: start;
+  gap: 0.6rem;
+}
+.media img {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 16 / 10;
+  object-fit: cover;
+  border: 1px solid var(--qv-faint);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--page-ink) 7%, transparent);
+}
+.media a {
+  display: block;
+  border-radius: 10px;
+  transition: transform var(--dur-micro) var(--ease-out);
+}
+.media a:hover {
+  transform: translateY(-2px);
+}
+
+.feature {
+  margin-top: 1.1rem;
+  padding: 0.9rem 1rem 1rem;
+  border: 1px solid color-mix(in srgb, var(--accent) 34%, transparent);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--accent) 8%, var(--page));
+}
+.feature .textLink {
+  margin-top: 0.75rem;
+}
+
+.parts {
+  display: grid;
+  gap: 0.4rem;
+}
+.parts li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.35rem 0.75rem;
+  padding: 0.45rem 0.7rem;
+  border: 1px dashed color-mix(in srgb, var(--page-ink) 24%, transparent);
+  border-radius: 10px;
+  font-size: 0.97rem;
+}
+
+.projectFoot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.9rem 1.25rem;
+  margin-top: 1.25rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--qv-faint);
+}
+
+.siteLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  min-height: 2.5rem;
+  padding: 0 1rem;
+  border: 1px solid color-mix(in srgb, var(--page-ink) 28%, transparent);
+  border-radius: 999px;
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.06em;
+  color: var(--page-ink);
+  transition: border-color var(--dur-micro) ease, background-color var(--dur-micro) ease, transform var(--dur-micro) var(--ease-out);
+}
+.siteLink:hover {
+  border-color: var(--page-ink);
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  transform: translateY(-1px);
+}
+.siteLink svg {
+  width: 0.8rem;
+  height: 0.8rem;
+}
+
+/* Expérimentation perso : une fiche plus légère, bordure pointillée. */
+.experiment {
+  padding: 1.15rem 1.35rem 1.25rem;
+  border: 1px dashed color-mix(in srgb, var(--page-ink) 30%, transparent);
+  background: color-mix(in srgb, var(--page) 90%, var(--sand));
+}
+.experimentHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.25rem 0.9rem;
+}
+.experimentTitle {
+  font-family: var(--font-display);
+  font-size: 1.5rem;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+.experiment .summary {
+  margin: 0.5rem 0 0.85rem;
+  font-size: 1rem;
+}
+
+/* Compétences */
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.75rem;
+  margin-bottom: 1.15rem;
+  padding: 0.75rem 1rem;
+  border: 1px solid color-mix(in srgb, var(--paper) 12%, transparent);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--paper) 4%, transparent);
+}
+.legend :global(.chip) {
+  color: var(--ink);
+  background: var(--page);
+}
+.legend :global(.chip--explore) {
+  color: var(--paper);
+  border-color: color-mix(in srgb, var(--paper) 55%, transparent);
+  background: transparent;
+}
+.legendNote {
+  font-size: 0.92rem;
+  font-style: italic;
+  color: color-mix(in srgb, var(--paper) 72%, transparent);
+}
+
+.zones {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 17rem), 1fr));
+  gap: 1rem;
+}
+.zone {
+  padding: 1.1rem 1.2rem 1.2rem;
+  border-left: 4px solid var(--accent);
+}
+.zoneTitle {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  font-family: var(--font-display);
+  font-size: 1.35rem;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+.zoneDot {
+  flex: none;
+  width: 0.6rem;
+  height: 0.6rem;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 25%, transparent);
+}
+.zoneContext {
+  margin: 0.45rem 0 0.8rem;
+  font-size: 0.95rem;
+  line-height: 1.45;
+  color: var(--qv-muted);
+}
+
+/* Expériences */
+.jobs {
+  display: grid;
+  gap: 1rem;
+}
+.job {
+  container-type: inline-size;
+  padding: clamp(1.15rem, 3vw, 1.6rem);
+}
+.jobGrid {
+  display: grid;
+  gap: 0.75rem 1.75rem;
+}
+.jobWhen {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.9rem;
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--qv-muted);
+}
+.jobPeriod {
+  color: var(--page-ink);
+  font-weight: 500;
+}
+.jobRole {
+  font-family: var(--font-display);
+  font-size: clamp(1.35rem, 2.8vw, 1.65rem);
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+.jobCompany {
+  margin: 0.3rem 0 0.75rem;
+  font-size: 1.02rem;
+  font-style: italic;
+  color: var(--qv-muted);
+}
+.job .chips {
+  margin-top: 0.9rem;
+}
+
+/* Parcours */
+.route {
+  position: relative;
+  display: grid;
+  gap: 1.35rem;
+  padding: clamp(1.25rem, 3.5vw, 2rem);
+}
+.step {
+  position: relative;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 1rem;
+}
+.step:not(:last-child)::before {
+  content: '';
+  position: absolute;
+  left: calc(0.85rem - 1px);
+  top: 2rem;
+  bottom: -1.2rem;
+  border-left: 2px dotted color-mix(in srgb, var(--page-ink) 26%, transparent);
+}
+.stepMarker {
+  font-family: var(--font-mono);
+  font-size: 0.64rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--qv-muted);
+}
+.stepTitle {
+  margin-top: 0.15rem;
+  font-family: var(--font-display);
+  font-size: 1.35rem;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+.stepText {
+  margin-top: 0.35rem;
+  font-size: 0.98rem;
+  line-height: 1.55;
+  color: color-mix(in srgb, var(--page-ink) 86%, transparent);
+}
+
+/* Contact */
+.contact {
+  display: grid;
+  grid-template-columns: minmax(0, 1.45fr) minmax(0, 1fr);
+  gap: 1.5rem 2.25rem;
+  padding: clamp(1.25rem, 3.5vw, 2rem);
+}
+.contactLead {
+  margin-bottom: 0.9rem;
+  font-size: clamp(1.15rem, 2.2vw, 1.35rem);
+  font-style: italic;
+  line-height: 1.35;
+}
+.direct {
+  padding-left: 1.5rem;
+  border-left: 1px solid var(--qv-faint);
+}
+.directList {
+  display: grid;
+  gap: 0.15rem;
+}
+.directList a {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  min-height: var(--tap);
+  font-size: 1rem;
+  overflow-wrap: anywhere;
+  transition: color var(--dur-micro) ease;
+}
+.directList a span {
+  border-bottom: 1px solid color-mix(in srgb, var(--page-ink) 28%, transparent);
+  transition: border-color var(--dur-micro) ease;
+}
+.directList a:hover span {
+  border-color: var(--page-ink);
+}
+.directList svg {
+  flex: none;
+  width: 1rem;
+  height: 1rem;
+  color: var(--stamp-red);
+}
+.based {
+  margin-top: 1rem;
+  font-size: 1.05rem;
+  font-style: italic;
+  color: var(--qv-muted);
+}
+
+/* Liens et focus sur le papier : contour rouge du carnet. */
+.card a:focus-visible,
+.card button:focus-visible {
+  outline-color: var(--stamp-red);
+}
+
+/* --- Pied de page --------------------------------------------------------------- */
+
+.footer {
+  max-width: 74rem;
+  margin: 0 auto;
+  padding: 2.5rem var(--qv-gutter) calc(var(--safe-b) + 3rem);
+  border-top: 1px solid color-mix(in srgb, var(--paper) 10%, transparent);
+  text-align: center;
+}
+.teaser {
+  font-size: 1.15rem;
+  font-style: italic;
+  color: color-mix(in srgb, var(--dawn) 85%, transparent);
+}
+.footerActions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.5rem;
+  margin-top: 1.25rem;
+}
+.copyright {
+  margin-top: 1.5rem;
+  font-family: var(--font-mono);
+  font-size: 0.66rem;
+  letter-spacing: 0.1em;
+  color: color-mix(in srgb, var(--paper) 58%, transparent);
+}
+
+/* --- Entrée : un fondu court, porté par le compositeur, jamais bloquant ------------- */
+
+@media (prefers-reduced-motion: no-preference) {
+  .heroMain > *,
+  .fiche {
+    animation: qv-rise 0.7s var(--ease-out) both;
+  }
+  .heroMain > :nth-child(2) { animation-delay: 60ms; }
+  .heroMain > :nth-child(3) { animation-delay: 110ms; }
+  .heroMain > :nth-child(4) { animation-delay: 160ms; }
+  .heroMain > :nth-child(5) { animation-delay: 210ms; }
+  .fiche { animation-delay: 260ms; }
+}
+
+@keyframes qv-rise {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* --- Adaptations ------------------------------------------------------------------- */
+
+@container (min-width: 38rem) {
+  .projectBody[data-media] {
+    grid-template-columns: minmax(0, 1.12fr) minmax(0, 1fr);
+  }
+  .projectHead {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+  }
+  .projectTags {
+    grid-column: 3;
+    grid-row: 1;
+    max-width: 15rem;
+    justify-content: flex-end;
+    margin-top: 0;
+  }
+  .jobGrid {
+    grid-template-columns: 10.5rem minmax(0, 1fr);
+  }
+  .jobWhen {
+    flex-direction: column;
+    padding-top: 0.3rem;
+  }
+}
+
+/* Tablette et téléphone : le sommaire devient une barre collée en haut, qui défile au doigt. */
+@media (max-width: 959px) {
+  .layout {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0;
+  }
+  .toc {
+    top: 0;
+    margin: 0 calc(var(--qv-gutter) * -1) 2rem;
+    padding: calc(var(--safe-t) + 0.4rem) var(--qv-gutter) 0.4rem;
+    border-bottom: 1px solid color-mix(in srgb, var(--paper) 10%, transparent);
+    background: color-mix(in srgb, var(--abyss) 92%, transparent);
+  }
+  .tocTitle,
+  .tocBack,
+  .tocLink b {
+    display: none;
+  }
+  .tocList {
+    display: flex;
+    gap: 0.2rem;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scrollbar-width: none;
+    mask-image: linear-gradient(90deg, transparent, #000 0.75rem, #000 calc(100% - 0.75rem), transparent);
+  }
+  .tocList::-webkit-scrollbar {
+    display: none;
+  }
+  .tocList li:first-child {
+    padding-left: 0.5rem;
+  }
+  .tocList li:last-child {
+    padding-right: 0.5rem;
+  }
+  .tocLink {
+    min-height: var(--tap);
+    align-items: center;
+    padding: 0 0.85rem;
+    border-radius: 999px;
+    font-size: 0.68rem;
+  }
+  .section {
+    scroll-margin-top: calc(var(--safe-t) + 4.25rem);
+  }
+}
+
+@media (max-width: 899px) {
+  .heroGrid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 719px) {
+  .about,
+  .contact {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .aboutSide,
+  .direct {
+    padding: 1.25rem 0 0;
+    border-left: 0;
+    border-top: 1px solid var(--qv-faint);
+  }
+}
+
+@media (max-width: 420px) {
+  .facts {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .actions .btn {
+    flex: 1 1 auto;
+    justify-content: center;
+  }
+}
+
+/* --- Impression : un CV sur papier blanc, sans les commandes ------------------------- */
+
+@media print {
+  .root,
+  .root * {
+    color: #000 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    text-shadow: none !important;
+  }
+  .root {
+    min-height: 0;
+  }
+  .skip,
+  .toc,
+  .heroBar button,
+  .actions,
+  .bottle,
+  .footerActions,
+  .teaser {
+    display: none !important;
+  }
+  .layout {
+    display: block;
+    padding-bottom: 0;
+  }
+  .hero {
+    padding-top: 0;
+    padding-bottom: 1.5rem;
+  }
+  .heroBar {
+    margin-bottom: 1rem;
+  }
+  .heroGrid,
+  .about,
+  .contact {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .name {
+    font-size: 3.2rem;
+  }
+  .card {
+    border: 1px solid #bbb;
+    break-inside: avoid;
+  }
+  .project,
+  .job,
+  .zone {
+    break-inside: avoid;
+  }
+  .section + .section {
+    margin-top: 1.75rem;
+  }
+  .sectionHead::after {
+    background: #000 !important;
+    opacity: 0.25;
+  }
+  .media {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .projectBody[data-media] {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .main a[href^='http']::after {
+    content: ' (' attr(href) ')';
+    font-size: 0.8em;
+    word-break: break-all;
+  }
+  .footer {
+    border: 0;
+    padding-top: 1rem;
+  }
+}

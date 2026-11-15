@@ -93,7 +93,8 @@ export function ringMaterial() {
         float radius = max(aRing.w, 0.05);
         float stretch = max(aRingFx.z, 1.0);
         float extent = 4.4;
-        vec2 local = position.xy * extent;
+        // (x, −y) : le quad regarde vers le haut une fois couché sur l'eau (sinon il est éliminé).
+        vec2 local = vec2(position.x, -position.y) * extent;
         // Ellipse orientée (tête) : étirée selon son cap.
         float c = cos(aRingFx.w);
         float s = sin(aRingFx.w);

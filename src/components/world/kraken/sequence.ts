@@ -54,10 +54,10 @@ const T_SLAP = T_ATTACK + 1.1;
 
 /** Bras du cercle (angle autour du bateau depuis la direction de la tête, en radians). */
 const RING = [
-  { angle: 0.62, radius: 17, length: 42, thickness: 2.2, order: 2, lean: 0.95, curl: 3.6, tilt: -0.32, twist: 0.35 },
-  { angle: -0.66, radius: 18, length: 44, thickness: 2.3, order: 0, lean: 0.85, curl: 3.9, tilt: -0.28, twist: -0.35 },
-  { angle: 1.3, radius: 15.5, length: 38, thickness: 2.0, order: 4, lean: 1.05, curl: 3.4, tilt: -0.36, twist: 0.45 },
-  { angle: -1.32, radius: 16, length: 40, thickness: 2.05, order: 1, lean: 0.95, curl: 3.7, tilt: -0.3, twist: -0.45 },
+  { angle: 0.98, radius: 16, length: 42, thickness: 2.2, order: 2, lean: 0.95, curl: 3.6, tilt: -0.32, twist: 0.35 },
+  { angle: -1.0, radius: 16.5, length: 44, thickness: 2.3, order: 0, lean: 0.85, curl: 3.9, tilt: -0.28, twist: -0.35 },
+  { angle: 1.5, radius: 15.5, length: 38, thickness: 2.0, order: 4, lean: 1.05, curl: 3.4, tilt: -0.36, twist: 0.45 },
+  { angle: -1.52, radius: 16, length: 40, thickness: 2.05, order: 1, lean: 0.95, curl: 3.7, tilt: -0.3, twist: -0.45 },
   // Les deux bras qui saisissent la coque : avant (4) et arrière (5).
   { angle: 2.0, radius: 12.5, length: 34, thickness: 1.7, order: 5, lean: 1.1, curl: 3.0, tilt: -0.25, twist: 0 },
   { angle: -1.95, radius: 13, length: 34, thickness: 1.7, order: 3, lean: 1.1, curl: 3.2, tilt: -0.25, twist: 0 },
@@ -493,7 +493,7 @@ export function stepKraken(delta: number, time: number) {
     ecologyState.monsterToX = seq.headX - seq.outX * 4;
     ecologyState.monsterToZ = seq.headZ - seq.outZ * 4;
     const rise = krakenState.head.rise;
-    ecologyState.monsterWake = stage === 'impact' ? 1 : 0.4 + rise * 0.35;
+    ecologyState.monsterWake = stage === 'impact' ? 0.85 : 0.3 + rise * 0.22;
     ecologyState.monsterSurface = stage === 'impact' ? 1 : 0.1 + rise * 0.4;
     ecologyState.leviathanAttack = stage === 'attack' || stage === 'impact' ? smoothstep(T_ATTACK, T_ATTACK + 0.22, T) : 0;
     ecologyState.impact = Math.max(pulse(T - T_SLAP, 4.5) * 0.45, pulse(T - T_RELEASE, 3.6) * 0.95);
@@ -731,7 +731,7 @@ function poseSequence(T: number, time: number, calm: number) {
     // Repère de l'hélice dans celui du bateau tenu : axe vers l'arrière, centre au-dessus
     // de la flottaison, une moitié de coque chacun.
     const along = front ? 2.7 : -0.45;
-    const origin = rotateCarry(along, 0.75, 0, hold.yaw, hold.pitch, hold.roll);
+    const origin = rotateCarry(along, 1.0, 0, hold.yaw, hold.pitch, hold.roll);
     arm.hx = hold.x + origin.x;
     arm.hy = hold.y + origin.y;
     arm.hz = hold.z + origin.z;
@@ -747,8 +747,8 @@ function poseSequence(T: number, time: number, calm: number) {
     arm.vy = arm.az * arm.ux - arm.ax * arm.uz;
     arm.vz = arm.ax * arm.uy - arm.ay * arm.ux;
     arm.hLength = 2.4;
-    arm.hRadiusUp = 1.85;
-    arm.hRadiusSide = 1.45;
+    arm.hRadiusUp = 2.05;
+    arm.hRadiusSide = 1.5;
     arm.hTurns = 1.35;
     const rootSide = (arm.rootX - hold.x) * arm.vx + (arm.rootZ - hold.z) * arm.vz;
     arm.hand = rootSide > 0 ? -1 : 1;
@@ -780,13 +780,14 @@ function poseSequence(T: number, time: number, calm: number) {
   const blink = 1 - Math.exp(-Math.pow((T - (T_COIL + 1.05)) / 0.09, 2));
   eye.open = smoothstep(T_STALK + 0.55, T_STALK + 1.05, T) * blink * (1 - smoothstep(T_IMPACT + 0.55, T_IMPACT + 0.95, T));
   eye.pupil = 0.44 - 0.3 * smoothstep(T_STALK + 1.1, T_COIL + 0.6, T) + 0.3 * smoothstep(T_ATTACK + 1.4, T_RELEASE, T);
-  eye.glow = (0.25 + night * 0.9) * (0.7 + 0.6 * smoothstep(T_COIL, T_COIL + 0.6, T));
+  eye.glow = (0.5 + night * 0.8) * (0.75 + 0.6 * smoothstep(T_COIL, T_COIL + 0.6, T));
   eye.target.set(carried ? carry.x : boatX, carried ? carry.y + 1 : 1.4, carried ? carry.z : boatZ);
 
   const ink = krakenState.ink;
   ink.x = seq.headX - seq.outX * 3;
   ink.z = seq.headZ - seq.outZ * 3;
-  ink.amount = smoothstep(T_IMPACT + 0.4, T_IMPACT + 2.9, T);
-  ink.fade = smoothstep(T_IMPACT + 0.4, T_IMPACT + 0.8, T) * (1 - smoothstep(T_RESPAWN + 0.4, T_RESPAWN + 1.6, T));
+  // L'encre jaillit quand le kraken replonge, avant que le voile ne couvre l'écran.
+  ink.amount = smoothstep(T_IMPACT + 0.2, T_IMPACT + 1.4, T);
+  ink.fade = smoothstep(T_IMPACT + 0.2, T_IMPACT + 0.5, T) * (1 - smoothstep(T_RESPAWN + 0.4, T_RESPAWN + 1.6, T));
   ink.seed = hash(seq.anchorX * 0.1) * 10;
 }

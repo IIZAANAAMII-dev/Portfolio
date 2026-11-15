@@ -12,12 +12,29 @@ import { MessageInABottle } from './MessageInABottle';
 
 /**
  * Le contenu de chaque île, en DOM. Ces composants sont partagés entre les panneaux de
- * l'expérience 3D et la Quick View : une seule source pour chaque texte (data/*.ts).
+ * l'expérience 3D et la version rapide : une seule source pour chaque texte (data/*.ts).
  */
+
+/** Espace fine insécable (avant ; ! ? et dans les guillemets). */
+const FINE = ' ';
+/** Espace insécable (avant les deux-points). */
+const NBSP = ' ';
+
+/**
+ * Typographie française à l'affichage : les textes de data/*.ts restent écrits avec des
+ * espaces ordinaires (faciles à modifier), et ne se coupent jamais avant « : ; ! ? » ni
+ * à l'intérieur des guillemets.
+ */
+export function fr(text: string) {
+  return text
+    .replace(/[   ]+([;!?»])/g, `${FINE}$1`)
+    .replace(/[   ]+:(?=\s|$)/g, `${NBSP}:`)
+    .replace(/«[   ]*/g, `«${FINE}`);
+}
 
 function Stack({ items }: { items: string[] }) {
   return (
-    <ul className="flex flex-wrap gap-1.5">
+    <ul className="flex flex-wrap gap-1.5" aria-label="Technologies">
       {items.map((item) => (
         <li key={item} className="chip">
           {item}
@@ -49,7 +66,7 @@ function useFocusScroll(island: IslandId, id: string) {
 export function AboutContent() {
   return (
     <div className="space-y-5">
-      <p className="text-[15px] leading-relaxed text-ink/85">{site.about}</p>
+      <p className="text-[15px] leading-relaxed text-ink/85">{fr(site.about)}</p>
       <dl className="facts">
         <div>
           <dt className="eyebrow text-ink">Rôle</dt>
@@ -94,9 +111,11 @@ export function AboutContent() {
 /* --------------------------------------------------------------- COMPÉTENCES */
 
 function SkillChip({ item }: { item: SkillItem }) {
+  const pro = item.level === 'pro';
   return (
-    <li className={item.level === 'pro' ? 'chip' : 'chip chip--explore'} title={item.level === 'pro' ? 'Utilisé dans mon travail' : 'En exploration'}>
+    <li className={pro ? 'chip' : 'chip chip--explore'} title={pro ? 'Utilisé dans mon travail' : 'En exploration'}>
       {item.name}
+      {!pro && <span className="sr-only"> (en exploration)</span>}
     </li>
   );
 }
@@ -109,7 +128,7 @@ function SkillZoneBlock({ zone }: { zone: (typeof skillZones)[number] }) {
         <span className="zone-dot" style={{ background: zone.accent }} aria-hidden="true" />
         {zone.label}
       </h3>
-      <p className="text-sm text-ink/60">{zone.context}</p>
+      <p className="text-sm text-ink/60">{fr(zone.context)}</p>
       <ul className="flex flex-wrap gap-1.5">
         {zone.items.map((item) => (
           <SkillChip key={item.name} item={item} />
@@ -129,7 +148,7 @@ export function SkillsContent() {
       {skillZones.map((zone) => (
         <SkillZoneBlock key={zone.id} zone={zone} />
       ))}
-      <p className="text-xs text-ink/45">Pas de pourcentages : ce que j’utilise, et ce que j’apprends.</p>
+      <p className="text-xs text-ink/45">{fr('Pas de pourcentages : ce que j’utilise, et ce que j’apprends.')}</p>
     </div>
   );
 }
@@ -142,37 +161,53 @@ function StatusBadge({ project }: { project: Project }) {
   );
 }
 
+function Chevron() {
+  return (
+    <svg className="project-toggle__chevron" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true">
+      <path d="M2.5 4.5 6 8l3.5-3.5" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
 function ProjectCard({ project, open, onToggle }: { project: Project; open: boolean; onToggle: () => void }) {
   const { ref } = useFocusScroll('projects', project.id);
+  const detailsId = `project-details-${project.id}`;
   return (
     <article ref={ref as React.RefObject<HTMLElement>} className="focus-target border-b border-ink/10 pb-3 last:border-0">
-      <button
-        type="button"
-        onClick={onToggle}
-        className="flex w-full items-baseline justify-between gap-3 text-left"
-        aria-expanded={open}
-      >
-        <span className="min-w-0">
-          <span className="project-index" style={{ color: project.accent }}>
-            {project.index}
+      {/* Motif « accordéon » : le bouton est dans le titre, la hiérarchie des titres reste juste. */}
+      <h3>
+        <button type="button" onClick={onToggle} className="project-toggle" aria-expanded={open} aria-controls={detailsId}>
+          <span className="min-w-0">
+            <span className="project-index" style={{ color: project.accent }}>
+              {project.index}
+            </span>
+            <span className="text-base font-medium">{project.title}</span>
+            {project.badge && <span className="project-badge">{project.badge}</span>}
           </span>
-          <span className="text-base font-medium">{project.title}</span>
-          {project.badge && <span className="project-badge">{project.badge}</span>}
-        </span>
-        <StatusBadge project={project} />
-      </button>
+          <span className="flex flex-none items-center gap-2">
+            <StatusBadge project={project} />
+            <Chevron />
+          </span>
+        </button>
+      </h3>
       <p className="mt-0.5 text-xs text-ink/50">
         {project.kind} · {project.context}
       </p>
-      <p className="mt-1 text-sm text-ink/70">{project.summary}</p>
+      <p className="mt-1 text-sm text-ink/70">{fr(project.summary)}</p>
 
       {open && (
-        <div className="animate-rise mt-4 space-y-4 text-sm">
+        <div id={detailsId} className="animate-rise mt-4 space-y-4 text-sm">
           {project.screenshots && project.screenshots.length > 0 && (
             <div className="shots">
-              {project.screenshots.map((src) => (
+              {project.screenshots.map((src, index) => (
                 // eslint-disable-next-line @next/next/no-img-element -- captures statiques, tailles variables
-                <img key={src} src={src} alt={`Capture de ${project.title}`} loading="lazy" />
+                <img
+                  key={src}
+                  src={src}
+                  alt={`Capture d’écran de ${project.title}${index > 0 ? ` (${index + 1})` : ''}`}
+                  loading="lazy"
+                  decoding="async"
+                />
               ))}
             </div>
           )}
@@ -180,16 +215,16 @@ function ProjectCard({ project, open, onToggle }: { project: Project; open: bool
             <h4 className="eyebrow text-ink">Ce que j’ai fait</h4>
             <ul className="list-disc pl-4 text-ink/75">
               {project.highlights.map((item) => (
-                <li key={item}>{item}</li>
+                <li key={item}>{fr(item)}</li>
               ))}
             </ul>
           </div>
           {project.feature && (
             <div className="feature-card">
-              <h4 className="eyebrow text-ink">Zoom · {project.feature.title}</h4>
+              <h4 className="eyebrow text-ink">Zoom · {fr(project.feature.title)}</h4>
               <ul className="list-disc pl-4 text-ink/75">
                 {project.feature.points.map((point) => (
-                  <li key={point}>{point}</li>
+                  <li key={point}>{fr(point)}</li>
                 ))}
               </ul>
               {project.feature.url && (
@@ -263,7 +298,7 @@ function ExperienceItem({ entry }: { entry: (typeof experiences)[number] }) {
       {entry.location && <p className="text-xs text-ink/50">{entry.location}</p>}
       <ul className="mt-2 space-y-1 text-sm text-ink/70">
         {entry.missions.map((mission) => (
-          <li key={mission}>{mission}</li>
+          <li key={mission}>{fr(mission)}</li>
         ))}
       </ul>
       <div className="mt-3">
@@ -295,7 +330,7 @@ function JourneyItem({ step, index }: { step: (typeof journey)[number]; index: n
       <div>
         <p className="eyebrow text-ink/60">{step.marker}</p>
         <h3 className="text-base font-medium">{step.title}</h3>
-        <p className="text-sm text-ink/65">{step.description}</p>
+        <p className="text-sm text-ink/65">{fr(step.description)}</p>
       </div>
     </li>
   );
@@ -316,7 +351,7 @@ export function JourneyContent() {
 export function ContactContent() {
   return (
     <div className="space-y-5">
-      <p className="text-lg">Un projet, une question, ou juste envie d’échanger ?</p>
+      <p className="text-lg">{fr('Un projet, une question, ou juste envie d’échanger ?')}</p>
       <MessageInABottle />
       <ul className="space-y-2 text-sm">
         <li>

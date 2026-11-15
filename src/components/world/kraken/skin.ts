@@ -64,20 +64,6 @@ function paintSkin(size: number) {
     tiled(size, x, y, radius, (px, py) => softDisc(ctx, px, py, radius, color, alpha));
   }
 
-  // Plis annulaires : fines lignes ondulées qui font le tour du bras.
-  ctx.lineWidth = Math.max(1, size / 340);
-  for (let ring = 0; ring < 9; ring++) {
-    const base = (ring + next() * 0.4) * (size / 9);
-    ctx.strokeStyle = rgba([60, 10, 36], 0.08 + next() * 0.08);
-    ctx.beginPath();
-    for (let x = 0; x <= size; x += size / 32) {
-      const y = base + Math.sin((x / size) * Math.PI * 2 * 3 + ring) * size * 0.006;
-      if (x === 0) ctx.moveTo(x, y);
-      else ctx.lineTo(x, y);
-    }
-    ctx.stroke();
-  }
-
   // Taches sombres cerclées de clair.
   for (let index = 0; index < 96; index++) {
     const x = next() * size;

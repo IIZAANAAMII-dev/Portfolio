@@ -15,6 +15,7 @@ import {
   type Points,
 } from 'three';
 import { BoatModel } from '@/components/boat/BoatModel';
+import { boatState } from '@/lib/boat-state';
 import { ecologyState } from '@/lib/ecology';
 import { useWorld } from '@/lib/store';
 import { waveHeight } from '@/lib/waves';
@@ -112,6 +113,38 @@ function setBasisMatrix(target: InstancedMesh, index: number, center: Vector3, f
   target.setMatrixAt(index, matrix);
 }
 
+const demoPosition = new Vector3();
+const demoTarget = new Vector3();
+
+/** Réplique des poses jeu / cinématique de CameraRig, sans l'amortissement (captures figées). */
+function demoCamera(camera: PerspectiveCamera, mobile: boolean) {
+  const forwardX = Math.cos(boatState.heading);
+  const forwardZ = Math.sin(boatState.heading);
+  const distance = mobile ? 36 : 30;
+  demoPosition.set(boatState.position.x - forwardX * distance, mobile ? 62 : 54, boatState.position.z - forwardZ * distance);
+  demoTarget.set(boatState.position.x + forwardX * 8, 0.8, boatState.position.z + forwardZ * 8);
+  const blend = ecologyState.boundaryCinematic;
+  if (blend > 0.001) {
+    let dx = ecologyState.monsterX - boatState.position.x;
+    let dz = ecologyState.monsterZ - boatState.position.z;
+    const length = Math.max(Math.hypot(dx, dz), 0.001);
+    dx /= length;
+    dz /= length;
+    const midX = (boatState.position.x + ecologyState.monsterX) * 0.5;
+    const midZ = (boatState.position.z + ecologyState.monsterZ) * 0.5;
+    const away = mobile ? 92 : 78;
+    demoPosition.lerp(local.set(midX - dz * away - dx * 7, mobile ? 22 : 18, midZ + dx * away - dz * 7), blend);
+    demoTarget.lerp(local.set(midX, 12, midZ), blend);
+  }
+  camera.position.copy(demoPosition);
+  camera.lookAt(demoTarget);
+  const fov = 42 + blend * 6;
+  if (Math.abs(camera.fov - fov) > 0.01) {
+    camera.fov = fov;
+    camera.updateProjectionMatrix();
+  }
+}
+
 /** Cible du regard ramenée dans le repère de la tête (lacet seul, roulis négligeable). */
 function headLocal(x: number, y: number, z: number, out: Vector3) {
   const head = krakenState.head;
@@ -170,7 +203,7 @@ export function KrakenRig() {
     krakenUniforms.uPupil.value = krakenState.eye.pupil;
     krakenUniforms.uEyeGlow.value = krakenState.eye.glow;
     // Photophores : chapelets qui palpitent dans le noir de l'orage et de la nuit.
-    const glow = (0.12 + night * 0.95 + ecologyState.stormCover * 0.18) * (0.62 + 0.38 * Math.sin(time * 1.6));
+    const glow = (0.03 + night * 0.95) * (0.62 + 0.38 * Math.sin(time * 1.6));
     kraken.materials.arm.emissiveIntensity = glow;
     kraken.materials.head.emissiveIntensity = glow * 0.8;
     kraken.materials.lid.emissiveIntensity = glow * 0.5;
@@ -313,6 +346,27 @@ export function KrakenRig() {
       }
     }
 
+    if (process.env.NODE_ENV !== 'production' && krakenDemo.enabled) {
+      const debug = window as unknown as { __krakenDebug?: () => unknown };
+      debug.__krakenDebug = () => ({
+        rings: rings.current?.visible,
+        ringData: rings.current ? Array.from((rings.current.geometry.getAttribute('aRing') as InstancedBufferAttribute).array).slice(0, 8) : null,
+        ringFx: rings.current ? Array.from((rings.current.geometry.getAttribute('aRingFx') as InstancedBufferAttribute).array).slice(0, 8) : null,
+        camera: camera.position.toArray().map((v) => Math.round(v)),
+        programs: state.gl.info.programs?.length,
+        errors: (state.gl.info.programs ?? [])
+          .map((program) => program as unknown as { name: string; diagnostics?: { runnable: boolean } })
+          .filter((program) => program.diagnostics && !program.diagnostics.runnable)
+          .map((program) => program.name),
+        checks: state.gl.debug.checkShaderErrors,
+      });
+    }
+
+    /* --- Démo figée : la caméra prend directement la pose que CameraRig atteindrait --- */
+    if (process.env.NODE_ENV !== 'production' && krakenDemo.pose && krakenDemo.pose !== 'eye' && !photoCamera) {
+      demoCamera(camera, state.size.width / Math.max(1, state.size.height) < 0.82);
+    }
+
     /* --- Démo « eye » : gros plan sur l'œil qui fixe le bateau (développement) --- */
     if (process.env.NODE_ENV !== 'production' && krakenDemo.pose === 'eye' && !photoCamera && showHead) {
       const frame = kraken.eyes[1];
@@ -323,10 +377,16 @@ export function KrakenRig() {
         headState.y + frame.center.y,
         headState.z - frame.center.x * s + frame.center.z * c,
       );
+      // Sur l'axe du regard (entre l'œil et le bateau) : l'œil fixe l'objectif.
       const nx = frame.normal.x * c + frame.normal.z * s;
       const nz = -frame.normal.x * s + frame.normal.z * c;
-      camera.position.set(eyeWorld.x + nx * 9.5 + c * 3.5, eyeWorld.y + 1.6, eyeWorld.z + nz * 9.5 - s * 3.5);
-      camera.lookAt(eyeWorld.x, eyeWorld.y - 0.3, eyeWorld.z);
+      let vx = nx * 0.55 + c * 0.85;
+      let vz = nz * 0.55 - s * 0.85;
+      const vl = Math.hypot(vx, vz) || 1;
+      vx /= vl;
+      vz /= vl;
+      camera.position.set(eyeWorld.x + vx * 15, eyeWorld.y + 2.4, eyeWorld.z + vz * 15);
+      camera.lookAt(eyeWorld.x - vx * 3, eyeWorld.y - 0.6, eyeWorld.z - vz * 3);
     }
   });
 

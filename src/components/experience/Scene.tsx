@@ -33,7 +33,7 @@ applyToonShading();
 import { useWorldReveal } from '@/hooks/useWorldReveal';
 import { useWorld } from '@/lib/store';
 import { smoothstep } from '@/lib/utils/math';
-import { PerformanceDebug, PerformanceGovernor } from './PerformanceGovernor';
+import { CoveredWorldPause, PerformanceDebug, PerformanceGovernor } from './PerformanceGovernor';
 import { AssetBoundary } from '@/components/world/AssetBoundary';
 import { preview } from '@/lib/preview';
 
@@ -142,6 +142,7 @@ export function Scene({ mobile }: { mobile: boolean }) {
     <>
       <CameraRig mobile={mobile} />
       <PerformanceGovernor mobile={mobile} />
+      <CoveredWorldPause />
       {process.env.NODE_ENV !== 'production' && <PerformanceDebug />}
       <Atmosphere />
       <Lighting shadows={!mobile} />

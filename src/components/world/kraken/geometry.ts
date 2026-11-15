@@ -171,7 +171,7 @@ export function eyeFrame(side: number) {
  * creusées avec un bourrelet et une arcade sourcilière. UV de sphère répétées (4 × 2).
  */
 export function headGeometry() {
-  const geometry = new SphereGeometry(1, 72, 44);
+  const geometry = new SphereGeometry(1, 96, 64);
   const position = geometry.getAttribute('position');
   const uv = geometry.getAttribute('uv');
   const n = new Vector3();
@@ -202,15 +202,16 @@ export function headGeometry() {
     for (const dir of eyes) {
       const angle = Math.acos(Math.max(-1, Math.min(1, n.dot(dir))));
       // Orbite creusée, bourrelet autour, arcade plus marquée au-dessus de l'œil.
-      radial -= (1 - Math.min(1, angle / 0.36)) * 1.6;
-      const brow = n.y > dir.y ? 1 + (n.y - dir.y) * 3.2 : 1;
-      radial += Math.exp(-Math.pow((angle - 0.42) / 0.08, 2)) * 0.95 * brow;
-      // Plis concentriques sous l'œil.
-      if (n.y < dir.y) radial += Math.exp(-Math.pow((angle - 0.58) / 0.045, 2)) * 0.3;
+      const socket = Math.min(1, angle / 0.38);
+      radial -= (1 - socket * socket) * 1.5;
+      const brow = n.y > dir.y ? 1 + (n.y - dir.y) * 2.6 : 1;
+      radial += Math.exp(-Math.pow((angle - 0.45) / 0.13, 2)) * 0.85 * brow;
+      // Pli sous l'œil.
+      if (n.y < dir.y) radial += Math.exp(-Math.pow((angle - 0.66) / 0.09, 2)) * 0.28;
     }
     const length = Math.hypot(x, y, z) || 1;
     position.setXYZ(i, x + (x / length) * radial, y + (y / length) * radial, z + (z / length) * radial);
-    uv.setXY(i, uv.getX(i) * 4, uv.getY(i) * 2);
+    uv.setXY(i, uv.getX(i) * 3, uv.getY(i) * 1.5);
   }
   geometry.computeVertexNormals();
   return geometry;

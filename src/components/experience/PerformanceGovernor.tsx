@@ -3,7 +3,9 @@
 import { useEffect, useRef } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import { Frustum, Matrix4, Sphere } from 'three';
+import { useLogbook } from '@/lib/logbook';
 import { forcedQuality, qualityDpr, useRenderDpr, type QualityLevel } from '@/lib/quality';
+import { useSheetCover } from '@/lib/sheet';
 import { useWorld } from '@/lib/store';
 
 const ORDER: QualityLevel[] = ['low', 'medium', 'high'];
@@ -37,8 +39,15 @@ export function PerformanceGovernor({ mobile }: { mobile: boolean }) {
   const upgradeTime = useRef(0);
   const forced = useRef(forcedQuality());
 
-  useFrame((_, delta) => {
+  useFrame((state, delta) => {
     if (forced.current) return;
+    // Monde masqué par une page (voir CoveredWorldPause) : des FPS sans rapport avec la
+    // scène, on ne les compte pas.
+    if (!state.scene.visible) {
+      elapsed.current = 0;
+      frames.current = 0;
+      return;
+    }
     const dt = Math.min(delta, 0.25);
     elapsed.current += dt;
     frames.current += 1;
@@ -96,6 +105,33 @@ export function PerformanceGovernor({ mobile }: { mobile: boolean }) {
   useEffect(() => {
     setRenderDpr(qualityDpr(quality));
   }, [quality]);
+
+  return null;
+}
+
+/**
+ * Téléphone : quand une page couvre tout l'écran (carnet de bord, feuille dépliée), le
+ * monde invisible derrière ne se dessine plus — plus aucun draw call pendant la lecture
+ * (batterie, chauffe, et donc des FPS stables au retour). La simulation continue (aucune
+ * horloge remise à zéro) ; le dessin reprend à l'instant où la page se replie.
+ */
+export function CoveredWorldPause() {
+  const getState = useThree((state) => state.get);
+  const logbookOpen = useLogbook((state) => state.open);
+  const sheetFull = useSheetCover((state) => state.full);
+
+  useEffect(() => {
+    const covered = sheetFull || (logbookOpen && window.matchMedia('(max-width: 640px)').matches);
+    if (!covered) return;
+    // Après l'animation d'ouverture : on ne fige jamais une page qui monte encore.
+    const timeout = setTimeout(() => {
+      getState().scene.visible = false;
+    }, 700);
+    return () => {
+      clearTimeout(timeout);
+      getState().scene.visible = true;
+    };
+  }, [getState, logbookOpen, sheetFull]);
 
   return null;
 }
