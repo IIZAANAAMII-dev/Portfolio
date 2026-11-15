@@ -12,8 +12,8 @@ Site : https://iizaanaamii-dev.github.io/Portfolio/
 installe les dépendances, lance `npm run build` et publie le dossier `out/`
 sur la branche `gh-pages`. Rien à faire à la main.
 
-Réglage unique dans **Settings → Pages** : *Deploy from a branch*, branche
-**gh-pages**, dossier **/(root)**, puis Save.
+Le site compilé est publié à la fois sur `gh-pages` et sur `codex/github-pages`
+(la branche actuellement servie par GitHub Pages). Le code source est sur `main`.
 
 ## Construire en local
 
