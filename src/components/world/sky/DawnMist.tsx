@@ -95,8 +95,8 @@ void main() {
   float n = valueNoise(vUv * vec2(2.4, 1.6) + vSeed * 13.0 + flow) * 0.62
     + valueNoise(vUv * vec2(5.5, 3.5) + vSeed * 7.0 - flow * 1.6) * 0.38;
   // Bord peint net (et rongé par le bruit), cœur dense plus clair, frange lavande.
-  float body = 1.0 - smoothstep(0.5, 0.95, length(vUv) + (n - 0.5) * 0.62);
-  float core = smoothstep(0.45, 0.8, body);
+  float body = 1.0 - smoothstep(0.6, 0.92, length(vUv) + (n - 0.5) * 0.62);
+  float core = smoothstep(0.3, 0.8, body);
   vec3 color = mix(uShade, uLit, 0.3 + core * 0.7);
   float avoid = smoothstep(uAvoid.z, uAvoid.z + uAvoid.w, distance(vWorld.xz, uAvoid.xy));
   float boat = smoothstep(3.0, 8.0, distance(vWorld.xz, uBoat.xz));
@@ -134,9 +134,11 @@ function buildBanks(count: number) {
       seeded(i * 5.13 + 2.6),
       high ? 2.6 + seeded(i * 1.3) * 0.8 : 0.9 + seeded(i * 1.9) * 0.5,
     ], i * 4);
+    // Demi-longueur, demi-largeur (m) et cap : des nappes allongées dans le sens de la brise,
+    // assez petites pour que leur silhouette se lise dans le cadre.
     shapes.set([
-      (high ? 14 : 22) + seeded(i * 7.7) * 16,
-      (high ? 5 : 8) + seeded(i * 8.3) * 5,
+      (high ? 8 : 12) + seeded(i * 7.7) * 10,
+      (high ? 3 : 4.5) + seeded(i * 8.3) * 3.5,
       0.25 + (seeded(i * 9.1) - 0.5) * 0.7,
     ], i * 3);
   }
@@ -156,7 +158,7 @@ function dawnMist() {
 export function DawnMist() {
   const quality = useWorld((state) => state.quality);
   const mesh = useRef<Mesh>(null);
-  const count = quality === 'high' ? 30 : quality === 'medium' ? 22 : 12;
+  const count = quality === 'high' ? 44 : quality === 'medium' ? 30 : 16;
   const geometry = useMemo(() => buildBanks(count), [count]);
   const material = useMemo(
     () =>

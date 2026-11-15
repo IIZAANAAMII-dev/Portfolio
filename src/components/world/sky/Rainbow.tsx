@@ -48,8 +48,8 @@ void main() {
   float secondary = smoothstep(0.0, 0.26, s) * (1.0 - smoothstep(0.74, 1.0, s)) * 0.3;
   vec3 secondaryColor = mix(vec3(1.0), hue(mix(0.0, 0.76, clamp(s, 0.0, 1.0))), 0.7);
   float inner = smoothstep(0.58, 0.86, r) * (1.0 - smoothstep(0.86, 0.9, r)) * 0.08;
-  float alpha = primary * 0.58 + secondary * 0.58 + inner;
-  vec3 color = (primaryColor * primary * 0.58 + secondaryColor * secondary * 0.58 + vec3(1.0) * inner) / max(alpha, 1e-4);
+  float alpha = primary * 0.52 + secondary * 0.52 + inner;
+  vec3 color = (primaryColor * primary * 0.52 + secondaryColor * secondary * 0.52 + vec3(1.0) * inner) / max(alpha, 1e-4);
   // Les pieds se fondent dans la mer.
   alpha *= uAlpha * smoothstep(0.0, 5.0, vHeight);
   if (alpha < 0.003) discard;

@@ -45,7 +45,7 @@ const CLOUD_TOP = new Color('#aab2c6');
 function buildCloud() {
   const parts = PUFFS.map(([x, y, z, r]) => {
     const puff = new IcosahedronGeometry(r, 1);
-    puff.scale(1, 0.78, 1);
+    puff.scale(1.08, 0.66, 1.08);
     puff.translate(x, y, z);
     return puff;
   });
@@ -233,7 +233,7 @@ void main() {
 }
 `;
 
-/** Quad de base (y de 0 à 1 si `fromTop`), instancié `count` fois avec l'attribut `name`. */
+/** Quad de base (y de 0 à 1 pour les gouttes), instancié `count` fois avec l'attribut `name`. */
 function instanced(count: number, name: string, size: number, fill: (i: number) => number[]) {
   const geometry = new InstancedBufferGeometry();
   const plane = new PlaneGeometry(1, 1);

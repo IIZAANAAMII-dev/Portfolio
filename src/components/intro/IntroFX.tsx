@@ -604,16 +604,16 @@ void main() {
   vec2 d = vPlane - uCenter;
   float r = length(d);
   float delta = atan(sin(atan(d.y, d.x) - uAngle), cos(atan(d.y, d.x) - uAngle));
-  float width = 0.07 + r * 0.0003;
-  float core = exp(-pow(delta / width, 2.0));
-  float glow = exp(-pow(delta / (width * 4.0), 2.0)) * 0.28;
+  float width = 0.085 + r * 0.00035;
+  float core = exp(-pow(delta / width, 2.0)) * 0.62;
+  float glow = exp(-pow(delta / (width * 3.5), 2.0)) * 0.22;
   // Sillage : la mer déjà balayée garde un instant un reflet chaud.
-  float wake = delta < 0.0 ? exp(delta / 0.55) * 0.16 : 0.0;
-  float radial = smoothstep(8.0, 22.0, r) * (1.0 - smoothstep(105.0, 175.0, r));
-  float shimmer = 0.72 + 0.28 * sin(r * 0.85 - uTime * 7.0);
+  float wake = delta < 0.0 ? exp(delta / 0.6) * 0.12 : 0.0;
+  float radial = smoothstep(12.0, 30.0, r) * (1.0 - smoothstep(110.0, 175.0, r));
+  float shimmer = 0.9 + 0.1 * sin(r * 0.32 - uTime * 4.0);
   float light = (core + glow + wake) * radial * shimmer * uStrength;
   if (light < 0.004) discard;
-  gl_FragColor = vec4(1.0, 0.84, 0.58, light);
+  gl_FragColor = vec4(1.0, 0.8, 0.5, light);
 }
 `;
 

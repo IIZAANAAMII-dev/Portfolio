@@ -61,7 +61,7 @@ const SPECS: Record<Shape, Spec> = {
   lifebuoy: { radius: 0.82, mass: 0.45, drag: 1, float: 0.07, bob: 46, right: 14, stable: 'up', hop: 3.6, spin: 4, twirl: 9, tiltDrag: 2.4, yawDrag: 0.45, moored: 0, idle: 0.25, span: 0.8, sound: 'soft', scale: 1, squash: 0.16, collides: true },
   duck: { radius: 2.5, mass: 3.2, drag: 0.8, float: -0.15, bob: 26, right: 4.5, stable: 'up', hop: 1.1, spin: 2.6, twirl: 2.4, tiltDrag: 1.3, yawDrag: 1.4, moored: 0, idle: 0.5, span: 2, sound: 'duck', scale: 1.65, squash: 0.12, collides: true },
   marker: { radius: 0.82, mass: 2.6, drag: 1.6, float: -0.25, bob: 30, right: 8.5, stable: 'up', hop: 0.9, spin: 1.8, twirl: 1, tiltDrag: 1.6, yawDrag: 1.4, moored: 1.6, idle: 0.3, span: 0.9, sound: 'soft', scale: 1, squash: 0.06, collides: true },
-  raft: { radius: 2.5, mass: 14, drag: 1.5, float: 0, bob: 24, right: 9, stable: 'up', hop: 0.35, spin: 1.2, twirl: 0.5, tiltDrag: 2.2, yawDrag: 1.6, moored: 0.45, idle: 0.12, span: 2.2, sound: 'wood', scale: 1, squash: 0, collides: false },
+  raft: { radius: 2.5, mass: 22, drag: 1.7, float: 0, bob: 24, right: 9, stable: 'up', hop: 0.35, spin: 1.6, twirl: 0.5, tiltDrag: 2.2, yawDrag: 1.6, moored: 0.65, idle: 0.12, span: 2.2, sound: 'wood', scale: 1, squash: 0, collides: false },
 };
 
 type Mode = 'free' | 'stacked' | 'flying';
@@ -472,7 +472,7 @@ function collideBoat(toy: Toy, time: number) {
   impact(toy.shape, toy.sound, strength, p.x - nx * toy.radius, p.z - nz * toy.radius, time);
   if (toy.mass >= 3) {
     // Les gros (cane, radeau) freinent un peu le bateau et le font cabrer.
-    boatState.speed *= 1 - 0.35 * Math.min(strength, 1) * (1 - share);
+    boatState.speed *= 1 - (toy.mass >= 10 ? 0.6 : 0.35) * Math.min(strength, 1) * (1 - share);
     jolt(0.16 + 0.32 * Math.min(strength, 1));
   }
 }
