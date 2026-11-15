@@ -131,10 +131,10 @@ function cursorAt(t: number, out: Vector3) {
   return out;
 }
 
-function brick(merger: Merger, color: string, at: Vec3, turn: number, columns: number, rows: number) {
+function brick(merger: Merger, color: string, at: Vec3, turn: number, columns: number, rows: number, size = 1.6) {
   const width = columns * 0.1;
   const depth = rows * 0.1;
-  merger.group(pose(at, [0, turn, 0]), () => {
+  merger.group(pose(at, [0, turn, 0], size), () => {
     merger.box([width, 0.12, depth], color, [0, 0.06, 0]);
     for (let column = 0; column < columns; column++) {
       for (let row = 0; row < rows; row++) {
@@ -171,11 +171,24 @@ function buildStatic(accent: string, pad: number) {
       glow.cylinder(0.036, 0.036, 0.02, 10, color, [-1.04 + index * 0.1, 1.52, 0.02], [Math.PI / 2, 0, 0], 0);
     });
   });
-  // Établi : des briques à tenons, les « composants » en attente.
-  brick(paint, '#e2553f', [1.2, 0, 0.85], 0.25, 4, 2);
-  brick(paint, '#ffc94a', [1.14, 0.12, 0.82], -0.35, 2, 2);
-  brick(paint, '#4f8fe0', [1.48, 0, 0.42], 1.15, 4, 2);
-  brick(paint, '#7bd88f', [0.92, 0, 1.25], 0.6, 2, 2);
+  // Établi : des briques à tenons, les « composants » en attente, en petit tas.
+  brick(paint, '#ec3f2c', [0.98, 0, 0.72], 0.25, 4, 2);
+  brick(paint, '#ffc21a', [0.92, 0.192, 0.7], -0.35, 2, 2);
+  brick(paint, '#1f8ff0', [1.38, 0, 0.18], 1.15, 4, 2);
+  brick(paint, '#2fc25a', [0.5, 0, 1.18], 0.6, 2, 2);
+  brick(paint, '#ff3d8b', [1.32, 0.192, 0.22], 0.9, 2, 1);
+  // Nuancier en éventail posé au sol : la palette de l'interface.
+  const swatches = ['#ec3f2c', '#ff8a1f', '#ffc21a', '#2fc25a', '#1f8ff0', '#8f5cf0'];
+  paint.group(pose([-0.62, 0, 0.92], [0, 0.35, 0]), () => {
+    swatches.forEach((color, index) => {
+      const turn = -0.85 + index * 0.3;
+      paint.group(pose([0, 0.025 + index * 0.012, 0], [0, turn, 0]), () => {
+        paint.box([0.17, 0.018, 0.62], color, [0, 0, -0.27], undefined, 0.05);
+        paint.box([0.17, 0.02, 0.1], '#fbf6ec', [0, 0.002, -0.53], undefined, 0);
+      });
+    });
+    paint.cylinder(0.035, 0.035, 0.12, 8, '#d9d3c8', [0, 0.07, 0], undefined, 0);
+  });
   return { paint: paint.build(), glow: glow.build(), screen: screen.build() };
 }
 

@@ -35,10 +35,13 @@ import { boatState } from '@/lib/boat-state';
 import { logbook } from '@/lib/logbook';
 import { useWorld } from '@/lib/store';
 import { damp, hash } from '@/lib/utils/math';
+import { exposeForDebug } from './debug';
 import { CHEST_SPOT } from './layout';
 import {
   at,
   cardStyles,
+  crabGeometry,
+  crabStride,
   createFoamMaterial,
   FoamCollar,
   foamRingGeometry,
@@ -402,6 +405,11 @@ const _chestMatrix = new Matrix4();
 const COIN_HEAP = 16;
 const COIN_SPILL = 7;
 const GEM_COLORS = ['#e8364f', '#2f8fe8', '#3fcf7a', '#b05ce8'];
+/** Les deux crabes gardiens du banc (repère du banc) : ils trottinent au bord de l'eau. */
+const CRABS = [
+  { x: 1.55, z: 2.05, span: 0.75, speed: 1.05, phase: 0.6, turn: 0.35 },
+  { x: -2.05, z: -1.6, span: 0.55, speed: 0.8, phase: 3.3, turn: -0.5 },
+];
 
 /* ---------------------------------------------------------------- composant */
 
@@ -412,6 +420,7 @@ export function TreasureChest() {
   const sparkles = useRef<Points>(null);
   const coins = useRef<InstancedMesh>(null);
   const gems = useRef<InstancedMesh>(null);
+  const crabs = useRef<InstancedMesh>(null);
   const [open, setOpen] = useState(false);
   const openRef = useRef(false);
   const anim = useRef({ angle: 0, velocity: 0, glow: 0, burstAt: -100, pendingBurst: false });
@@ -430,6 +439,7 @@ export function TreasureChest() {
   const shaftGeometry = useMemo(() => new CylinderGeometry(0.78, 0.42, 3.4, 18, 1, true).translate(0, 1.7, 0), []);
   const sparkleGeo = useMemo(() => sparkleGeometry(), []);
   const wood = useMemo(() => woodTextures(), []);
+  const crab = useMemo(() => crabGeometry(), []);
 
   const chestY = surface(CHEST_LOCAL[0], CHEST_LOCAL[2]) - 0.3;
 
@@ -482,6 +492,22 @@ export function TreasureChest() {
 
   useEffect(() => () => foamMaterial.dispose(), [foamMaterial]);
 
+  // Captures d'écran (développement) : coffre ouvert d'un coup, lumière comprise.
+  useEffect(
+    () => exposeForDebug('chest', {
+      open: () => {
+        openRef.current = true;
+        setOpen(true);
+        Object.assign(anim.current, { angle: LID_OPEN, velocity: 0, glow: 1 });
+      },
+      close: () => {
+        openRef.current = false;
+        setOpen(false);
+      },
+    }),
+    [],
+  );
+
   const toggle = () => {
     // Groupe masqué (hors de vue) : les maillages restent touchables par le rayon, on ignore.
     if (!root.current?.visible) return;
@@ -506,6 +532,8 @@ export function TreasureChest() {
   useFrame((state, delta) => {
     const group = root.current;
     if (!group) return;
+    // Le bateau s'est éloigné (ou a sauté vers une île) : la fiche se referme.
+    if (openRef.current && Math.hypot(boatState.position.x - CHEST_SPOT.x, boatState.position.z - CHEST_SPOT.z) > 75) close();
     const visible = inSight(state.camera, CHEST_SPOT.x, CHEST_SPOT.z);
     group.visible = visible;
     if (!visible) return;
@@ -552,8 +580,22 @@ export function TreasureChest() {
       sparkleMesh.visible = a.glow > 0.01 || burst < 2;
     }
 
-    // Le bateau s'éloigne : on referme la fiche (une seule fois).
-    if (isOpen && Math.hypot(boatState.position.x - CHEST_SPOT.x, boatState.position.z - CHEST_SPOT.z) > 75) close();
+    // Les crabes trottinent de côté ; le coffre ouvert les fait détaler plus vite.
+    const crabMesh = crabs.current;
+    if (crabMesh) {
+      CRABS.forEach((spot, index) => {
+        const stride = crabStride(reduced ? 0 : time, spot.speed * (1 + a.glow * 0.8), spot.phase, spot.span);
+        const x = spot.x + Math.cos(spot.turn) * stride.offset;
+        const z = spot.z - Math.sin(spot.turn) * stride.offset;
+        _dummy.position.set(x, surface(x, z) + 0.01 + stride.hop, z);
+        _dummy.rotation.set(0, Math.PI / 2 + spot.turn + stride.wobble, 0);
+        _dummy.scale.setScalar(1.2);
+        _dummy.updateMatrix();
+        crabMesh.setMatrixAt(index, _dummy.matrix);
+      });
+      crabMesh.instanceMatrix.needsUpdate = true;
+    }
+
   });
 
   return (
@@ -563,6 +605,7 @@ export function TreasureChest() {
       <FoamCollar shape={SHAPE} world={[CHEST_SPOT.x, CHEST_SPOT.z]} geometry={foam} material={foamMaterial} />
       <instancedMesh ref={coins} args={[coin, coinMaterial, COIN_HEAP + COIN_SPILL]} raycast={() => null} />
       <instancedMesh ref={gems} args={[gem, gemMaterial, GEM_COLORS.length]} raycast={() => null} />
+      <instancedMesh ref={crabs} args={[crab, paintMaterial(), CRABS.length]} raycast={() => null} />
 
       <Hotspot onActivate={toggle} hoverScale={1.05} position={[CHEST_LOCAL[0], chestY, CHEST_LOCAL[2]]} rotation={CHEST_ROTATION}>
         <mesh geometry={body} castShadow>

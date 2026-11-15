@@ -412,10 +412,11 @@ function fishingBoat() {
       else out.set('#2f6d9e');
     },
   });
-  // Pont, plat-bord, banc, mât et voile rouge ferlée sur sa bôme.
-  kit.add(CYL12, '#b98c5c', { position: [0, 0.0, 0], scale: [1.48, 0.04, 0.58] });
-  kit.add(RING, '#f3eee3', { position: [0, 0.03, 0], rotation: [Math.PI / 2, 0, 0], scale: [1.5, 0.6, 0.5] });
-  kit.add(BOX, '#a57a4f', { position: [-0.2, 0.1, 0], scale: [0.18, 0.06, 1.0] });
+  // Pont (bois sombre : il se détache du sable vu d'en haut), plat-bord bleu, banc, mât et
+  // voile rouge ferlée sur sa bôme.
+  kit.add(CYL12, '#7d5132', { position: [0, 0.0, 0], scale: [1.48, 0.04, 0.58] });
+  kit.add(RING, '#2c64a0', { position: [0, 0.03, 0], rotation: [Math.PI / 2, 0, 0], scale: [1.5, 0.6, 0.75] });
+  kit.add(BOX, '#c9a06a', { position: [-0.2, 0.1, 0], scale: [0.18, 0.06, 1.0] });
   kit.add(CYL6, '#8a6040', { position: [0.45, 1.15, 0], scale: [0.045, 2.3, 0.045] });
   kit.add(CYL6, '#8a6040', { position: [-0.15, 0.55, 0], rotation: [0, 0, Math.PI / 2 - 0.08], scale: [0.035, 1.3, 0.035] });
   kit.add(roughen(CYL8, 0.2, 3), '#b5502c', { position: [-0.15, 0.64, 0], rotation: [0, 0, Math.PI / 2 - 0.08], scale: [0.11, 1.25, 0.11] }, { jitter: 0.15, seed: 2 });

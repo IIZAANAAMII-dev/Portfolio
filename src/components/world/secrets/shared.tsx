@@ -7,6 +7,7 @@ import {
   BufferAttribute,
   BufferGeometry,
   Color,
+  CylinderGeometry,
   DoubleSide,
   Euler,
   IcosahedronGeometry,
@@ -14,6 +15,7 @@ import {
   MeshStandardMaterial,
   Quaternion,
   ShaderMaterial,
+  SphereGeometry,
   Vector3,
   type Camera,
   type ColorRepresentation,
@@ -147,6 +149,36 @@ export function rockGeometry(seed: number, detail = 1) {
   }
   rock.computeVertexNormals();
   return rock;
+}
+
+/** Crabe : carapace, pinces, yeux pédonculés, pattes (avant = +X, il marche de côté). */
+export function crabGeometry() {
+  const parts: BufferGeometry[] = [
+    piece(new SphereGeometry(1, 8, 5), '#e2552f', at([0, 0.09, 0], [0, 0, 0], [0.17, 0.08, 0.13]), 0.06, 1),
+    piece(new SphereGeometry(0.06, 6, 4), '#ef6a3a', at([0.16, 0.1, 0.11], [0, 0, 0], [1.3, 0.8, 1])),
+    piece(new SphereGeometry(0.06, 6, 4), '#ef6a3a', at([0.16, 0.1, -0.11], [0, 0, 0], [1.3, 0.8, 1])),
+    piece(new CylinderGeometry(0.01, 0.01, 0.08, 4), '#e2552f', at([0.1, 0.17, 0.04])),
+    piece(new CylinderGeometry(0.01, 0.01, 0.08, 4), '#e2552f', at([0.1, 0.17, -0.04])),
+    piece(new SphereGeometry(0.018, 5, 4), '#141414', at([0.1, 0.215, 0.04])),
+    piece(new SphereGeometry(0.018, 5, 4), '#141414', at([0.1, 0.215, -0.04])),
+  ];
+  for (const side of [1, -1]) {
+    for (let leg = 0; leg < 3; leg++) {
+      parts.push(piece(new CylinderGeometry(0.012, 0.01, 0.17, 4), '#c9472a', at([-0.06 + leg * 0.07, 0.05, side * 0.15], [side * 0.9, 0, 0])));
+    }
+  }
+  return merge(parts);
+}
+
+/** Trottinement latéral d'un crabe, avec des pauses : décalage le long de son axe (m). */
+export function crabStride(time: number, speed: number, phase: number, span: number) {
+  const cycle = time * speed + phase;
+  const pause = Math.min(1, Math.max(0, Math.sin(cycle * 0.37) * 3));
+  return {
+    offset: Math.sin(cycle) * span * (0.3 + 0.7 * pause),
+    hop: Math.abs(Math.sin(cycle * 6)) * 0.015,
+    wobble: Math.sin(cycle * 6) * 0.06,
+  };
 }
 
 /* ------------------------------------------------------------------ banc de sable */

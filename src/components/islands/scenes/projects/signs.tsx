@@ -1,9 +1,10 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { CanvasTexture, DoubleSide, MeshStandardMaterial, SRGBColorSpace } from 'three';
+import { CanvasTexture, DoubleSide, MeshStandardMaterial, PlaneGeometry, SRGBColorSpace } from 'three';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { signTexture, useHandFont } from '../../kit';
-import type { Maquette, V3 } from './builder';
+import { pose, type Maquette, type V3 } from './builder';
 
 /**
  * Signalétique de la ville : la plaque émaillée du numéro (« 01 »…) et l'enseigne peinte
@@ -131,6 +132,95 @@ export function wallSignFrame(m: Maquette, at: V3, width: number, wood = '#8a5d3
   const height = width / 2;
   m.box([width + 0.14, height + 0.14, 0.08], at, wood);
   return [at[0], at[1], at[2] + 0.045];
+}
+
+/* --------------------------------------------------------- panneau « travaux » */
+
+/** Panneau de danger « travaux » (triangle rouge, terrassier à la pelle) : un pictogramme. */
+function roadworksTexture() {
+  const canvas = document.createElement('canvas');
+  canvas.width = 256;
+  canvas.height = 256;
+  const ctx = canvas.getContext('2d')!;
+  const triangle = (inset: number) => {
+    ctx.beginPath();
+    ctx.moveTo(128, 14 + inset * 1.6);
+    ctx.lineTo(244 - inset * 1.4, 226 - inset * 0.8);
+    ctx.lineTo(12 + inset * 1.4, 226 - inset * 0.8);
+    ctx.closePath();
+  };
+  ctx.lineJoin = 'round';
+  ctx.fillStyle = '#d7262e';
+  ctx.strokeStyle = '#d7262e';
+  ctx.lineWidth = 18;
+  triangle(0);
+  ctx.fill();
+  ctx.stroke();
+  ctx.fillStyle = '#fbf7ec';
+  triangle(26);
+  ctx.fill();
+  // Terrassier : tête, buste penché, jambes, pelle plantée dans un tas de terre.
+  ctx.fillStyle = '#16181c';
+  ctx.strokeStyle = '#16181c';
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.arc(108, 104, 12, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.lineWidth = 15;
+  ctx.beginPath();
+  ctx.moveTo(112, 122);
+  ctx.lineTo(126, 160);
+  ctx.moveTo(126, 160);
+  ctx.lineTo(108, 196);
+  ctx.moveTo(126, 160);
+  ctx.lineTo(144, 194);
+  ctx.stroke();
+  ctx.lineWidth = 9;
+  ctx.beginPath();
+  ctx.moveTo(116, 130);
+  ctx.lineTo(146, 146);
+  ctx.moveTo(150, 116);
+  ctx.lineTo(166, 182);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(158, 178);
+  ctx.lineTo(176, 174);
+  ctx.lineTo(178, 192);
+  ctx.closePath();
+  ctx.fill();
+  ctx.beginPath();
+  ctx.ellipse(180, 200, 30, 12, 0, Math.PI, 0);
+  ctx.fill();
+  const texture = new CanvasTexture(canvas);
+  texture.colorSpace = SRGBColorSpace;
+  texture.anisotropy = 8;
+  return texture;
+}
+
+/** Panneaux « travaux » (face +Z de chaque pose), un seul maillage pour tous. */
+export function RoadworkSigns({ spots, size = 0.9 }: { spots: { at: V3; ry: number }[]; size?: number }) {
+  const texture = useMemo(() => roadworksTexture(), []);
+  const material = useMemo(() => new MeshStandardMaterial({ map: texture, alphaTest: 0.5, roughness: 0.6, side: DoubleSide }), [texture]);
+  const geometry = useMemo(() => {
+    const planes = spots.map(({ at, ry }) => {
+      const plane = new PlaneGeometry(size, size);
+      plane.applyMatrix4(pose(at, [0, ry, 0]));
+      return plane;
+    });
+    const merged = mergeGeometries(planes, false);
+    planes.forEach((plane) => plane.dispose());
+    return merged;
+  }, [size, spots]);
+  useEffect(
+    () => () => {
+      texture.dispose();
+      material.dispose();
+      geometry?.dispose();
+    },
+    [geometry, material, texture],
+  );
+  if (!geometry) return null;
+  return <mesh geometry={geometry} material={material} raycast={() => null} />;
 }
 
 /* ------------------------------------------------------------- ruban « Nouveau » */

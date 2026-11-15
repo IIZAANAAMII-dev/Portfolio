@@ -18,7 +18,7 @@ import {
 } from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { Merger, pose, topAndSides, flatRing, type Vec3 } from '../geometry';
-import { createCableMaterial, glowMaterial, labNight, labState, labTime, paintMaterial } from '../materials';
+import { createCableMaterial, glowMaterial, labNight, labState, labTime, paintMaterial, vivid } from '../materials';
 import { addPad, noRaycast, ZoneShell, type ZoneProps } from '../Zone';
 
 /**
@@ -31,11 +31,14 @@ import { addPad, noRaycast, ZoneShell, type ZoneProps } from '../Zone';
 const RACK_Z = -0.78;
 const RACK_FRONT = RACK_Z + 0.311;
 const RACKS = [-0.84, 0, 0.84];
+/** Hauteur des baies (les serveurs dominent la zone). */
+const RACK_H = 1.85;
 const DB: Vec3 = [0.95, 0, 0.62];
 const SPOOL: Vec3 = [-1.45, 0, -0.08];
-const REELS = [1.12, 0.66];
-/** Base de données en tour : six disques empilés, joints lumineux entre eux. */
-const DISCS = [0, 1, 2, 3, 4, 5].map((index) => 0.19 + index * 0.33);
+const REELS = [1.42, 0.92];
+/** Base de données en tour : sept disques empilés, joints lumineux entre eux. */
+const DB_R = 0.5;
+const DISCS = [0, 1, 2, 3, 4, 5, 6].map((index) => 0.19 + index * 0.33);
 const DISC_TOP = DISCS[DISCS.length - 1] + 0.13;
 
 const ledVertex = /* glsl */ `
@@ -78,9 +81,9 @@ void main() {
 
 function ledGeometry() {
   const panels: { at: Vec3; size: [number, number]; grid: [number, number] }[] = [
-    { at: [RACKS[0], 0.84, RACK_FRONT], size: [0.58, 1.22], grid: [4, 11] },
-    { at: [RACKS[2], 0.84, RACK_FRONT], size: [0.58, 1.22], grid: [4, 11] },
-    { at: [RACKS[1], 0.27, RACK_FRONT], size: [0.58, 0.2], grid: [7, 2] },
+    { at: [RACKS[0], 0.98, RACK_FRONT], size: [0.58, 1.5], grid: [4, 13] },
+    { at: [RACKS[2], 0.98, RACK_FRONT], size: [0.58, 1.5], grid: [4, 13] },
+    { at: [RACKS[1], 0.4, RACK_FRONT], size: [0.58, 0.42], grid: [6, 4] },
   ];
   const parts = panels.map(({ at, size, grid }, index) => {
     const plane = new PlaneGeometry(size[0], size[1]);
@@ -132,13 +135,13 @@ function cableGeometry(toHub: number, pad: number) {
     [[RACKS[0], 0.06, RACK_FRONT + 0.05], [-0.75, 0.05, 0.05], [0.1, 0.05, 0.45], [0.58, 0.07, 0.6]],
     [[RACKS[1], 0.06, RACK_FRONT + 0.05], [0.25, 0.05, 0.05], [0.7, 0.07, 0.3]],
     [[RACKS[2], 0.06, RACK_FRONT + 0.05], [0.98, 0.05, -0.05], [1.05, 0.07, 0.24]],
-    [[-1.0, 1.6, -0.95], [-0.65, 1.98, -0.97], [-0.3, 1.6, -0.95]],
-    [[0.3, 1.6, -0.6], [0.65, 2.02, -0.58], [1.0, 1.6, -0.6]],
+    [[-1.0, RACK_H + 0.1, -0.95], [-0.65, RACK_H + 0.5, -0.97], [-0.3, RACK_H + 0.1, -0.95]],
+    [[0.3, RACK_H + 0.1, -0.6], [0.65, RACK_H + 0.54, -0.58], [1.0, RACK_H + 0.1, -0.6]],
     [[DB[0] + 0.25, 0.06, DB[2] + 0.3], bend, end],
   ];
   const tubes = routes.map((route) => {
     const curve = new CatmullRomCurve3(route.map(([x, y, z]) => new Vector3(x, y, z)));
-    const tube = new TubeGeometry(curve, 28, 0.045, 6, false);
+    const tube = new TubeGeometry(curve, 28, 0.06, 6, false);
     const length = curve.getLength();
     const uv = tube.attributes.uv;
     const flow = new Float32Array(uv.count);
@@ -156,27 +159,30 @@ function buildStatic(accent: string, pad: number) {
   const paint = new Merger();
   const glow = new Merger();
   addPad(paint, glow, pad, accent);
+  const cap = vivid(accent, 0.95, 0.52);
   for (const x of RACKS) {
-    paint.box([0.74, 1.5, 0.62], '#2d3550', [x, 0.79, RACK_Z]);
+    paint.box([0.74, RACK_H, 0.62], '#2a3352', [x, RACK_H / 2 + 0.04, RACK_Z]);
     paint.box([0.78, 0.06, 0.66], '#48526e', [x, 0.03, RACK_Z]);
-    paint.box([0.8, 0.07, 0.68], '#48526e', [x, 1.575, RACK_Z]);
-    paint.box([0.03, 0.22, 0.03], '#aeb6c4', [x + 0.31, 0.84, RACK_FRONT + 0.01]);
+    paint.box([0.82, 0.1, 0.7], cap, [x, RACK_H + 0.07, RACK_Z]);
+    paint.box([0.76, 0.05, 0.64], cap, [x, RACK_H - 0.12, RACK_Z]);
+    paint.box([0.03, 0.26, 0.03], '#aeb6c4', [x + 0.31, 1.0, RACK_FRONT + 0.01]);
   }
   // Baie du milieu : logements des bobines, ventilateur sur le toit.
   for (const y of REELS) {
     paint.cylinder(0.205, 0.205, 0.02, 22, '#1a1f2d', [0, y, RACK_FRONT + 0.005], [Math.PI / 2, 0, 0], 0);
   }
-  paint.torus(0.22, 0.03, '#5d6883', [0, 1.63, RACK_Z], [Math.PI / 2, 0, 0]);
-  paint.cylinder(0.24, 0.24, 0.02, 16, '#1d2230', [0, 1.615, RACK_Z], undefined, 0);
+  paint.torus(0.24, 0.035, '#5d6883', [0, RACK_H + 0.14, RACK_Z], [Math.PI / 2, 0, 0]);
+  paint.cylinder(0.26, 0.26, 0.02, 16, '#1d2230', [0, RACK_H + 0.125, RACK_Z], undefined, 0);
   // Base de données : socle, trois disques, couvercle clair.
-  paint.octagon(0.56, 0.6, 0.08, '#cfc6b6', [DB[0], 0.04, DB[2]]);
+  paint.octagon(DB_R + 0.12, DB_R + 0.16, 0.08, '#5b6472', [DB[0], 0.04, DB[2]]);
+  const discSide = vivid(accent, 0.95, 0.56);
   for (const y of DISCS) {
-    paint.cylinder(0.44, 0.44, 0.26, 24, topAndSides('#fbf8f1', '#e6dfd0'), [DB[0], y, DB[2]], undefined, 0.05);
+    paint.cylinder(DB_R, DB_R, 0.26, 24, topAndSides('#fff4e2', discSide), [DB[0], y, DB[2]], undefined, 0.05);
   }
-  paint.add(flatRing(0.22, 0.36, 24), '#f0b066', pose([DB[0], DISC_TOP + 0.002, DB[2]]), 0);
+  paint.add(flatRing(DB_R * 0.5, DB_R * 0.8, 24), discSide, pose([DB[0], DISC_TOP + 0.002, DB[2]]), 0);
   // Couronne : petite antenne et voyant au sommet de la tour de données.
-  paint.cylinder(0.04, 0.06, 0.36, 8, '#3a4258', [DB[0], DISC_TOP + 0.18, DB[2]]);
-  glow.sphere(0.09, accent, [DB[0], DISC_TOP + 0.4, DB[2]], 1, [10, 8], 0);
+  paint.cylinder(0.045, 0.07, 0.4, 8, '#3a4258', [DB[0], DISC_TOP + 0.2, DB[2]]);
+  glow.sphere(0.14, accent, [DB[0], DISC_TOP + 0.48, DB[2]], 1, [10, 8], 0);
   // Touret de câble couché, câble orange enroulé.
   paint.group(pose(SPOOL, [0, 0.5, 0]), () => {
     for (const side of [-0.17, 0.17]) paint.cylinder(0.3, 0.3, 0.05, 14, '#b07a48', [side, 0.3, 0], [0, 0, Math.PI / 2], 0.05);
@@ -185,7 +191,7 @@ function buildStatic(accent: string, pad: number) {
     }, [0, 0.3, 0], [0, 0, Math.PI / 2], 0);
   });
   // Diodes d'état au-dessus des baies.
-  RACKS.forEach((x, index) => glow.box([0.05, 0.03, 0.02], index === 1 ? '#5ef2a0' : accent, [x - 0.24, 1.5, RACK_FRONT + 0.012], undefined, 0));
+  RACKS.forEach((x, index) => glow.box([0.07, 0.04, 0.02], index === 1 ? '#5ef2a0' : accent, [x - 0.24, RACK_H - 0.2, RACK_FRONT + 0.012], undefined, 0));
   return { paint: paint.build(), glow: glow.build() };
 }
 
@@ -205,7 +211,7 @@ export function BackZone({ zone, spot }: ZoneProps) {
     [],
   );
   const bandGeometry = useMemo(() => {
-    const parts = DISCS.slice(1).map((y) => new CylinderGeometry(0.433, 0.433, 0.08, 24, 1, true).translate(DB[0], y - 0.165, DB[2]));
+    const parts = DISCS.slice(1).map((y) => new CylinderGeometry(DB_R - 0.007, DB_R - 0.007, 0.08, 24, 1, true).translate(DB[0], y - 0.165, DB[2]));
     const merged = mergeGeometries(parts, false);
     parts.forEach((part) => part.dispose());
     return merged as BufferGeometry;
@@ -228,8 +234,10 @@ export function BackZone({ zone, spot }: ZoneProps) {
           uniform vec3 uColor;
           varying float vY;
           void main() {
+            // Respiration lente de toute la tour, et vagues qui montent d'un joint à l'autre.
+            float breath = 0.5 + 0.5 * sin(uTime * 1.7);
             float wave = pow(fract(vY * 0.62 - uTime * 0.45), 4.0);
-            gl_FragColor = vec4(uColor * (0.55 + uNight * 0.9 + wave * (2.2 + uNight * 1.5)), 1.0);
+            gl_FragColor = vec4(uColor * (0.7 + breath * 0.6 + uNight * 0.9 + wave * (2.2 + uNight * 1.5)), 1.0);
             #include <colorspace_fragment>
           }
         `,
@@ -284,13 +292,13 @@ export function BackZone({ zone, spot }: ZoneProps) {
   });
 
   return (
-    <ZoneShell zone={zone} spot={spot} sign={[-1.12, 1.3]}>
+    <ZoneShell zone={zone} spot={spot} sign={[-1.12, 1.3]} reach={3.1}>
       <mesh geometry={built.paint} material={paintMaterial} castShadow receiveShadow raycast={noRaycast} />
       <mesh geometry={built.glow} material={glowMaterial} raycast={noRaycast} />
       <mesh geometry={leds} material={ledMaterial} raycast={noRaycast} />
       <mesh geometry={cables} material={cableMaterial} castShadow raycast={noRaycast} />
       <instancedMesh ref={reels} args={[reel, paintMaterial, 2]} raycast={noRaycast} />
-      <mesh ref={fan} geometry={blades} material={paintMaterial} position={[0, 1.64, RACK_Z]} raycast={noRaycast} />
+      <mesh ref={fan} geometry={blades} material={paintMaterial} position={[0, RACK_H + 0.15, RACK_Z]} scale={1.15} raycast={noRaycast} />
       <mesh geometry={bandGeometry} material={bandMaterial} raycast={noRaycast} />
     </ZoneShell>
   );

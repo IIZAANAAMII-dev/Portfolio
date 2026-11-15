@@ -64,6 +64,18 @@ function glowTexture() {
   return texture;
 }
 
+/**
+ * Intérieur « éclairé de l'intérieur » : l'émissif est multiplié par la couleur de chaque
+ * objet. La nuit, la pièce ouverte rayonne de ses propres couleurs, réchauffées par la
+ * lampe et le feu — sans lumière temps réel (aucune recompilation du reste de l'île).
+ */
+function selfLit(shader: { fragmentShader: string }) {
+  shader.fragmentShader = shader.fragmentShader.replace(
+    '#include <emissivemap_fragment>',
+    '#include <emissivemap_fragment>\n\ttotalEmissiveRadiance *= diffuseColor.rgb;',
+  );
+}
+
 /** Vitres de la façade : leur propre matériau (lueur chaude, effacement avec le mur). */
 function FrontGlass({ specs, material }: { specs: GlassSpec[]; material: (instance: MeshStandardMaterial | null) => void }) {
   const mesh = useRef<InstancedMesh>(null);
@@ -137,6 +149,7 @@ export function Workshop({ sampler }: { sampler: HeightSampler }) {
   const glow = useRef<MeshBasicMaterial>(null);
   const screenMain = useRef<MeshBasicMaterial>(null);
   const embers = useRef<MeshBasicMaterial>(null);
+  const interiorPaint = useRef<MeshStandardMaterial>(null);
 
   useFrame((state, delta) => {
     const dt = Math.min(delta, 1 / 30);
@@ -173,6 +186,7 @@ export function Workshop({ sampler }: { sampler: HeightSampler }) {
       frontGlass.current.emissiveIntensity = 0.35 + breath + night * 1.9;
     }
     if (glow.current) glow.current.opacity = p * (0.25 + night * 0.65);
+    if (interiorPaint.current) interiorPaint.current.emissiveIntensity = p * (0.05 + night * 0.55);
     if (screenMain.current) screenMain.current.color.setScalar(0.85 + Math.sin(time * 3.1) * 0.03 + Math.sin(time * 0.7) * 0.04);
     if (embers.current) embers.current.color.setRGB(1, 0.75 + Math.sin(time * 9) * 0.1 + Math.sin(time * 5.3) * 0.08, 0.6);
   });
@@ -235,7 +249,9 @@ export function Workshop({ sampler }: { sampler: HeightSampler }) {
             )}
           </group>
           <group ref={interior} visible={false}>
-            <mesh geometry={built.interior.paint} material={materials.paint} receiveShadow castShadow />
+            <mesh geometry={built.interior.paint} receiveShadow castShadow>
+              <meshStandardMaterial ref={interiorPaint} vertexColors roughness={0.85} emissive="#ffc890" emissiveIntensity={0} onBeforeCompile={selfLit} />
+            </mesh>
             <mesh geometry={built.interior.glowing} raycast={() => null}>
               <meshBasicMaterial ref={embers} vertexColors toneMapped={false} />
             </mesh>

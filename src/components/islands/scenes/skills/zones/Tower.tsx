@@ -27,7 +27,7 @@ import { hash } from '@/lib/utils/math';
 import { windowMaterial } from '@/lib/windows';
 import { easeOut, span } from '../anim';
 import { flatRing, Merger, pose, topAndSides, type Vec3 } from '../geometry';
-import { flowMaterial, glowMaterial, labState, labTime, paintMaterial } from '../materials';
+import { flowMaterial, glowMaterial, labState, labTime, paintMaterial, vivid } from '../materials';
 import { addPad, noRaycast, ZoneShell, type ZoneProps } from '../Zone';
 
 /**
@@ -41,15 +41,19 @@ import { addPad, noRaycast, ZoneShell, type ZoneProps } from '../Zone';
 const TOWER: Vec3 = [-0.85, 0, -0.55];
 const PAD: Vec3 = [0.75, 0, 0.42];
 const PAD_TOP = 0.14;
+/** Rayon de l'aire de lancement. */
+const LAUNCH_R = 0.64;
+/** Hauteur du portique de service. */
+const GANTRY_H = 1.8;
 const GANTRY: Vec3 = [1.38, 0, 0.08];
 /** Hauteur du fût : la tour est le repère le plus haut de l'île. */
 const SHAFT = 3.0;
 const BALCONY_Y = 0.36 + SHAFT + 0.02;
 const CABIN_Y = BALCONY_Y + 0.32;
 const ROCKET_CYCLE = 15;
-const ROCKET_SCALE = 1.35;
+const ROCKET_SCALE = 1.75;
 const APEX = 7;
-const CHASE = 8;
+const CHASE = 12;
 const PUFFS = 18;
 
 /** Graphe git : ligne principale vers la fusée, deux branches qui en partent et y reviennent. */
@@ -109,7 +113,7 @@ function buildStatic(accent: string, pad: number) {
     // Socle, fût crème cerclé de jaune, porte.
     paint.octagon(0.62, 0.68, 0.36, topAndSides('#ddd5c6', '#bfb4a2'), [0, 0.18, 0]);
     paint.cylinder(0.3, 0.38, SHAFT, 14, '#f6efe1', [0, 0.36 + SHAFT / 2, 0], undefined, 0.06);
-    for (const y of [1.05, 1.95, 2.85]) paint.cylinder(0.335, 0.345, 0.16, 14, accent, [0, y, 0], undefined, 0);
+    for (const y of [1.05, 1.95, 2.85]) paint.cylinder(0.335, 0.345, 0.18, 14, vivid(accent, 0.95, 0.52), [0, y, 0], undefined, 0);
     paint.box([0.26, 0.42, 0.06], '#3d4658', [0, 0.57, 0.335]);
     // Balcon, garde-corps, cabine, toit.
     paint.cylinder(0.78, 0.74, 0.07, 16, '#8d97a6', [0, BALCONY_Y, 0]);
@@ -130,7 +134,7 @@ function buildStatic(accent: string, pad: number) {
 
   // Aire de lancement : bord à chevrons jaunes et noirs, cible au centre.
   paint.add(
-    new CylinderGeometry(0.55, 0.58, PAD_TOP, 24),
+    new CylinderGeometry(LAUNCH_R, LAUNCH_R + 0.03, PAD_TOP, 24),
     (point, normal, out) => {
       if (normal.y > 0.5) out.set('#4b5263');
       else out.set(Math.sin(Math.atan2(point.x - PAD[0], point.z - PAD[2]) * 8) > 0 ? '#ffd23f' : '#2b2f38');
@@ -138,18 +142,20 @@ function buildStatic(accent: string, pad: number) {
     pose([PAD[0], PAD_TOP / 2, PAD[2]]),
     0,
   );
-  paint.add(flatRing(0.3, 0.36, 24), '#ffd23f', pose([PAD[0], PAD_TOP + 0.003, PAD[2]]), 0);
+  paint.add(flatRing(0.34, 0.42, 24), '#ffd23f', pose([PAD[0], PAD_TOP + 0.003, PAD[2]]), 0);
   // Portique de service en treillis, et son bras.
   const corners: [number, number][] = [[-0.12, -0.12], [0.12, -0.12], [0.12, 0.12], [-0.12, 0.12]];
-  corners.forEach(([dx, dz]) => paint.rod([GANTRY[0] + dx, 0, GANTRY[2] + dz], [GANTRY[0] + dx, 1.35, GANTRY[2] + dz], 0.018, '#e2553f', 4));
-  for (const y of [0.3, 0.65, 1.0, 1.32]) {
+  corners.forEach(([dx, dz]) => paint.rod([GANTRY[0] + dx, 0, GANTRY[2] + dz], [GANTRY[0] + dx, GANTRY_H, GANTRY[2] + dz], 0.024, '#e8412c', 4));
+  for (const y of [0.3, 0.65, 1.0, 1.35, 1.7]) {
     corners.forEach(([dx, dz], index) => {
       const [ex, ez] = corners[(index + 1) % 4];
-      paint.rod([GANTRY[0] + dx, y, GANTRY[2] + dz], [GANTRY[0] + ex, y - 0.25, GANTRY[2] + ez], 0.011, '#c9483a', 3);
+      paint.rod([GANTRY[0] + dx, y, GANTRY[2] + dz], [GANTRY[0] + ex, y - 0.25, GANTRY[2] + ez], 0.014, '#c9372a', 3);
     });
   }
-  const armEnd = new Vector3(PAD[0] - GANTRY[0], 0, PAD[2] - GANTRY[2]).normalize().multiplyScalar(0.42);
-  paint.rod([GANTRY[0], 0.95, GANTRY[2]], [GANTRY[0] + armEnd.x, 0.95, GANTRY[2] + armEnd.z], 0.025, '#5b6472', 4);
+  const armEnd = new Vector3(PAD[0] - GANTRY[0], 0, PAD[2] - GANTRY[2]).normalize().multiplyScalar(0.36);
+  paint.rod([GANTRY[0], 1.3, GANTRY[2]], [GANTRY[0] + armEnd.x, 1.3, GANTRY[2] + armEnd.z], 0.03, '#5b6472', 4);
+  paint.box([0.3, 0.05, 0.3], '#5b6472', [GANTRY[0], GANTRY_H + 0.02, GANTRY[2]]);
+  glow.sphere(0.06, '#ff5a3c', [GANTRY[0], GANTRY_H + 0.1, GANTRY[2]], 1, [8, 6], 0);
   // Commits : perles lumineuses sur les branches.
   COMMITS.forEach(([x, z]) => glow.cylinder(0.05, 0.05, 0.02, 10, '#ffffff', [x, 0.014, z], undefined, 0));
   return { paint: paint.build(), glow: glow.build() };
@@ -245,7 +251,7 @@ export function TowerZone({ zone, spot }: ZoneProps) {
   const dish = useMemo(() => radarGeometry(), []);
   const flag = useMemo(() => flagMaterial(), []);
   const cloth = useMemo(() => new PlaneGeometry(0.42, 0.28, 8, 3).translate(0.21, 0, 0), []);
-  const bulb = useMemo(() => new Merger().sphere(0.035, '#ffffff', [0, 0, 0], 1, [8, 6], 0).build(), []);
+  const bulb = useMemo(() => new Merger().sphere(0.05, '#ffffff', [0, 0, 0], 1, [8, 6], 0).build(), []);
   const puff = useMemo(() => new IcosahedronGeometry(1, 0), []);
   const lamps = useMemo(
     () => new Merger().sphere(0.045, '#ffffff', [-0.5, 0, 0], 1, [8, 6], 0).sphere(0.045, '#ffffff', [0.5, 0, 0], 1, [8, 6], 0).build(),
@@ -266,7 +272,7 @@ export function TowerZone({ zone, spot }: ZoneProps) {
     if (lights) {
       for (let index = 0; index < CHASE; index++) {
         const angle = (index / CHASE) * Math.PI * 2;
-        dummy.position.set(PAD[0] + Math.sin(angle) * 0.5, PAD_TOP + 0.02, PAD[2] + Math.cos(angle) * 0.5);
+        dummy.position.set(PAD[0] + Math.sin(angle) * (LAUNCH_R - 0.06), PAD_TOP + 0.02, PAD[2] + Math.cos(angle) * (LAUNCH_R - 0.06));
         dummy.rotation.set(0, 0, 0);
         dummy.scale.setScalar(1);
         dummy.updateMatrix();
@@ -352,11 +358,11 @@ export function TowerZone({ zone, spot }: ZoneProps) {
           const sinceLanding = r - 13.6;
           const since = sinceLanding > 0 ? sinceLanding : sinceLaunch;
           life = since / 2.0;
-          const spread = 0.3 + Math.sqrt(Math.max(life, 0)) * 0.95;
+          const spread = 0.4 + Math.sqrt(Math.max(life, 0)) * 1.15;
           x = PAD[0] + Math.sin(angle) * spread;
           z = PAD[2] + Math.cos(angle) * spread;
           y = PAD_TOP + 0.08 + Math.max(life, 0) * 0.35;
-          size = 0.12 + Math.max(life, 0) * 0.28;
+          size = 0.17 + Math.max(life, 0) * 0.38;
         } else {
           const trail = index - 12;
           const born = 7.5 + trail * 0.4;
@@ -365,7 +371,7 @@ export function TowerZone({ zone, spot }: ZoneProps) {
           x = PAD[0] + (hash(index * 5.1) - 0.5) * 0.12;
           z = PAD[2] + (hash(index * 6.3) - 0.5) * 0.12;
           y = PAD_TOP + APEX * s * s + Math.max(life, 0) * 0.4;
-          size = 0.1 + Math.max(life, 0) * 0.22;
+          size = 0.14 + Math.max(life, 0) * 0.3;
         }
         const alive = life >= 0 && life < 1;
         dummy.position.set(x, alive ? y : -10, z);
@@ -385,7 +391,7 @@ export function TowerZone({ zone, spot }: ZoneProps) {
       <mesh geometry={windows} material={cabinGlass} raycast={noRaycast} />
       <mesh geometry={git} material={flowMaterial} raycast={noRaycast} />
 
-      <group ref={radar} position={[TOWER[0], CABIN_Y + 0.68, TOWER[2]]}>
+      <group ref={radar} position={[TOWER[0], CABIN_Y + 0.68, TOWER[2]]} scale={1.4}>
         <mesh geometry={dish} material={paintMaterial} raycast={noRaycast} />
       </group>
       <mesh geometry={lamps} position={[TOWER[0], CABIN_Y + 0.64, TOWER[2] - 0.25]} raycast={noRaycast}>

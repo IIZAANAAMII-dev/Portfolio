@@ -9,7 +9,7 @@ import type { SkillZone } from '@/types';
 import { Hotspot, PaintedSign, useClearing } from '../../kit';
 import { flatRing, Merger, pose, topAndSides } from './geometry';
 import { PAD_TOP, ZONE_SCALE, type ZoneSpot } from './layout';
-import { createBeamMaterial } from './materials';
+import { createBeamMaterial, vivid } from './materials';
 
 /** Ce que reçoit chaque zone du laboratoire. */
 export interface ZoneProps {
@@ -23,18 +23,22 @@ export interface ZoneProps {
  * Le dessus de la dalle est en y = 0.
  */
 export function addPad(paint: Merger, glow: Merger, radius: number, accent: string) {
-  const top = new Color('#f2e9d8').lerp(new Color(accent), 0.48).getStyle();
-  const rim = new Color('#efe6d4').lerp(new Color(accent), 0.18).getStyle();
-  const band = new Color(accent).multiplyScalar(0.82).getStyle();
+  const strong = new Color(vivid(accent));
+  const top = new Color('#f4ead6').lerp(strong, 0.68).getStyle();
+  const inner = new Color('#f4ead6').lerp(strong, 0.42).getStyle();
+  const rim = new Color('#fbf3e3').lerp(strong, 0.12).getStyle();
+  const band = vivid(accent, 0.9, 0.42);
   paint.add(
     new CylinderGeometry(radius, radius * 1.03, 0.8, 8, 1, false, Math.PI / 8),
     topAndSides(top, '#c9bdaa'),
     pose([0, -0.4, 0]),
     0.06,
   );
+  // Disque central plus clair : la scène de la zone, cernée d'un anneau franc.
+  paint.add(flatRing(0, radius * 0.58, 8, Math.PI / 8), inner, pose([0, 0.003, 0]), 0);
   paint.add(flatRing(radius * 0.9, radius * 0.985, 8, Math.PI / 8), rim, pose([0, 0.004, 0]), 0);
-  paint.add(new CylinderGeometry(radius * 1.034, radius * 1.034, 0.12, 8, 1, true, Math.PI / 8), band, pose([0, -0.08, 0]), 0);
-  glow.add(flatRing(radius * 0.83, radius * 0.87, 8, Math.PI / 8), accent, pose([0, 0.006, 0]), 0);
+  paint.add(new CylinderGeometry(radius * 1.034, radius * 1.034, 0.16, 8, 1, true, Math.PI / 8), band, pose([0, -0.09, 0]), 0);
+  glow.add(flatRing(radius * 0.82, radius * 0.875, 8, Math.PI / 8), vivid(accent, 0.95, 0.62), pose([0, 0.006, 0]), 0);
 }
 
 /** Les meshes décoratifs ne captent pas le pointeur : seul le volume de la zone le fait. */
@@ -103,7 +107,7 @@ export function ZoneShell({
         }}
       >
         {children}
-        <PaintedSign lines={[zone.label]} position={[sign[0], 0, sign[1]]} rotation={0} accent={zone.accent} width={1.45} post={0.42} />
+        <PaintedSign lines={[zone.label]} position={[sign[0], 0, sign[1]]} rotation={0} accent={vivid(zone.accent, 0.9, 0.45)} width={1.6} post={0.5} />
         {/* Volume de sélection : toute la zone répond au clic, sans lancer de rayon sur chaque pièce. */}
         <mesh visible={false} position-y={reach / 2 - 0.2}>
           <cylinderGeometry args={[spot.pad * 1.02, spot.pad * 1.02, reach, 8]} />

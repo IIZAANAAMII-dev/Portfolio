@@ -118,6 +118,34 @@ function propellerGeometry() {
   return merge(parts);
 }
 
+/**
+ * Le matelot du bord (repère de l'écoutille) : marinière rayée, bachi blanc à pompon rouge.
+ * Il sort la tête quand le sous-marin fait surface et salue le bateau.
+ */
+function sailorGeometry() {
+  const parts: BufferGeometry[] = [];
+  for (let stripe = 0; stripe < 5; stripe++) {
+    parts.push(piece(new CylinderGeometry(0.105, 0.115, 0.06, 10), stripe % 2 === 0 ? '#f4f1ea' : '#2b4f8c', at([0, 0.03 + stripe * 0.06, 0])));
+  }
+  parts.push(
+    piece(new SphereGeometry(0.095, 10, 8), '#f2c29a', at([0, 0.41, 0])),
+    piece(new SphereGeometry(0.014, 5, 4), '#1b1b1b', at([0.085, 0.43, 0.035])),
+    piece(new SphereGeometry(0.014, 5, 4), '#1b1b1b', at([0.085, 0.43, -0.035])),
+    piece(new CylinderGeometry(0.105, 0.1, 0.05, 12), '#f8f8f4', at([0, 0.5, 0])),
+    piece(new CylinderGeometry(0.098, 0.098, 0.018, 12), '#22365e', at([0, 0.47, 0])),
+    piece(new SphereGeometry(0.035, 6, 5), '#e23b2e', at([0, 0.545, 0])),
+  );
+  return merge(parts);
+}
+
+/** Bras qui salue (pivot à l'épaule, il pend le long de +Y négatif). */
+function armGeometry() {
+  return merge([
+    piece(new CylinderGeometry(0.032, 0.03, 0.22, 6), '#2b4f8c', at([0, -0.11, 0])),
+    piece(new SphereGeometry(0.036, 6, 5), '#f2c29a', at([0, -0.24, 0])),
+  ]);
+}
+
 // Laiton des hublots ; verre qui s'allume la nuit (quelqu'un est à bord).
 const ringMaterial = new MeshStandardMaterial({ color: '#d7a44a', roughness: 0.4, metalness: 0.2, emissive: '#3d2a0a', emissiveIntensity: 0.3, flatShading: true });
 const glassMaterial = new MeshStandardMaterial({ color: '#9fe0f0', roughness: 0.15, emissive: '#ffcf7a', emissiveIntensity: 0.15 });
@@ -133,12 +161,16 @@ export function Submarine() {
   const body = useRef<Group>(null);
   const periscope = useRef<Group>(null);
   const propeller = useRef<Group>(null);
+  const sailor = useRef<Group>(null);
+  const arm = useRef<Group>(null);
   const rings = useRef<InstancedMesh>(null);
   const glass = useRef<InstancedMesh>(null);
   const hull = useMemo(() => hullGeometry(), []);
   const parts = useMemo(() => fittings(), []);
   const scope = useMemo(() => periscopeGeometry(), []);
   const prop = useMemo(() => propellerGeometry(), []);
+  const sailorShape = useMemo(() => sailorGeometry(), []);
+  const armShape = useMemo(() => armGeometry(), []);
   const ring = useMemo(() => new TorusGeometry(0.15, 0.04, 6, 14), []);
   const pane = useMemo(() => new SphereGeometry(0.13, 10, 6, 0, Math.PI * 2, 0, Math.PI / 2), []);
   const sim = useRef({
@@ -263,6 +295,17 @@ export function Submarine() {
     }
     if (propeller.current) propeller.current.rotation.x = time * 9;
 
+    // Le matelot sort de l'écoutille une fois en surface, se tourne vers le bateau et salue.
+    const crew = sailor.current;
+    if (crew) {
+      const out = smoothstep(0.82, 1, surfaced);
+      crew.position.y = RADIUS + 0.2 + out * 0.42;
+      crew.visible = out > 0.01;
+      const toBoat = Math.atan2(boatState.position.z - z, boatState.position.x - x);
+      crew.rotation.y = shortestAngle(0, -toBoat + heading) * out;
+      if (arm.current) arm.current.rotation.x = 0.25 + out * (2.3 + Math.sin(time * 7.5) * 0.45);
+    }
+
     // Petits ronds dans l'eau derrière le périscope (sillage de croisière).
     const scopeTop = s.depth + RADIUS + 0.8 + 1.5;
     if (scopeTop > wave + 0.2 && time - s.lastRipple > 0.75 && s.mode !== 'dive') {
@@ -287,6 +330,12 @@ export function Submarine() {
             <mesh visible={false} position={[0, 1.2, 0]}>
               <sphereGeometry args={[1.25, 8, 6]} />
             </mesh>
+          </group>
+          <group ref={sailor} position={[0.18, RADIUS + 0.2, 0]} visible={false}>
+            <mesh geometry={sailorShape} material={paintMaterial()} raycast={() => null} />
+            <group ref={arm} position={[0, 0.27, -0.12]}>
+              <mesh geometry={armShape} material={paintMaterial()} raycast={() => null} />
+            </group>
           </group>
           <group ref={propeller} position={[-LENGTH / 2 - 0.1, 0, 0]}>
             <mesh geometry={prop} material={paintMaterial()} raycast={() => null} />

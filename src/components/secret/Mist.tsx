@@ -185,7 +185,9 @@ function mistKit() {
 
 const DAY = new Color('#c9ccb3');
 const GOLDEN = new Color('#d9bc98');
-const NIGHT = new Color('#253238');
+// La nuit, une brume pâle « éclairée par la lune » : elle se lit sur la mer sombre au lieu
+// de faire un anneau sale autour de l'île.
+const NIGHT = new Color('#44535b');
 const GLOW_NIGHT = new Color('#6f5d18');
 
 function puffGeometry(count: number) {

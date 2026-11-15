@@ -24,7 +24,7 @@ import {
 import { useWorld } from '@/lib/store';
 import { hash } from '@/lib/utils/math';
 import { erlenmeyerGeometry, flatRing, flipFaces, liquidGeometry, Merger, pose, topAndSides, type Vec3 } from '../geometry';
-import { createBeamMaterial, glassMaterial, glowMaterial, labNight, labState, labTime, paintMaterial } from '../materials';
+import { createBeamMaterial, glassMaterial, glowMaterial, labNight, labState, labTime, paintMaterial, vivid } from '../materials';
 import { addPad, noRaycast, ZoneShell, type ZoneProps } from '../Zone';
 
 /**
@@ -37,7 +37,10 @@ import { addPad, noRaycast, ZoneShell, type ZoneProps } from '../Zone';
  */
 
 const PROJECTOR: Vec3 = [-0.12, 0, -0.55];
-const HOLOGRAM_Y = 2.35;
+/** Hauteur de l'hologramme : zone du premier rang, il ne doit pas masquer la Station IA. */
+const HOLOGRAM_Y = 2.2;
+/** Dessus de l'émetteur du projecteur. */
+const PROJ_TOP = 0.46;
 const BASIN: Vec3 = [1.0, 0, 0.55];
 const BASIN_INNER = 0.58;
 const WATER_Y = 0.245;
@@ -58,10 +61,10 @@ void main() {
   float rise = fract(uTime * (0.16 + aSeed.w * 0.12) + aSeed.z);
   float angle = aSeed.x * 6.2831 + uTime * (0.35 + aSeed.w * 0.3);
   float radius = aSeed.y * (0.18 + rise * 0.42);
-  vec3 p = vec3(cos(angle) * radius * 1.25, 0.42 + rise * 2.25, sin(angle) * radius * 1.25);
+  vec3 p = vec3(cos(angle) * radius * 1.5, 0.5 + rise * 2.25, sin(angle) * radius * 1.5);
   vAlpha = smoothstep(0.0, 0.12, rise) * (1.0 - smoothstep(0.7, 1.0, rise));
   vec4 mv = modelViewMatrix * vec4(p, 1.0);
-  gl_PointSize = clamp(7.0 * (60.0 / max(1.0, -mv.z)), 1.5, 6.0);
+  gl_PointSize = clamp(9.0 * (60.0 / max(1.0, -mv.z)), 2.0, 8.0);
   gl_Position = projectionMatrix * mv;
 }
 `;
@@ -141,18 +144,18 @@ function fishGeometry() {
 /** Icosaèdre en fil de lumière : une tige par arête, une perle par sommet. */
 function wireGeometry(color: string) {
   const merger = new Merger();
-  const edges = new EdgesGeometry(new IcosahedronGeometry(0.7, 0));
+  const edges = new EdgesGeometry(new IcosahedronGeometry(0.8, 0));
   const positions = edges.attributes.position;
   const nodes = new Map<string, Vec3>();
   for (let index = 0; index < positions.count; index += 2) {
     const a: Vec3 = [positions.getX(index), positions.getY(index), positions.getZ(index)];
     const b: Vec3 = [positions.getX(index + 1), positions.getY(index + 1), positions.getZ(index + 1)];
-    merger.rod(a, b, 0.018, color, 4);
+    merger.rod(a, b, 0.026, color, 4);
     nodes.set(a.map((v) => v.toFixed(3)).join(','), a);
     nodes.set(b.map((v) => v.toFixed(3)).join(','), b);
   }
   edges.dispose();
-  nodes.forEach((node) => merger.sphere(0.045, '#ffffff', node, 1, [6, 4], 0));
+  nodes.forEach((node) => merger.sphere(0.065, '#ffffff', node, 1, [6, 4], 0));
   return merger.build();
 }
 
@@ -174,15 +177,15 @@ function buildStatic(accent: string, pad: number) {
 
   // Projecteur : socle à pans, platine, ailettes, émetteur lumineux.
   paint.group(pose(PROJECTOR), () => {
-    paint.octagon(0.36, 0.48, 0.32, topAndSides('#5a5078', '#3e3656'), [0, 0.16, 0]);
-    paint.cylinder(0.34, 0.36, 0.05, 16, '#2f2944', [0, 0.345, 0], undefined, 0);
+    paint.octagon(0.46, 0.6, PROJ_TOP - 0.06, topAndSides('#7451c9', '#4b3590'), [0, (PROJ_TOP - 0.06) / 2, 0]);
+    paint.cylinder(0.42, 0.45, 0.06, 16, '#2f2944', [0, PROJ_TOP - 0.03, 0], undefined, 0);
     for (let index = 0; index < 3; index++) {
       const angle = (index / 3) * Math.PI * 2 + 0.4;
-      paint.box([0.06, 0.26, 0.2], '#6c62a0', [Math.sin(angle) * 0.47, 0.13, Math.cos(angle) * 0.47], [0, angle, 0]);
+      paint.box([0.08, 0.34, 0.26], vivid(accent, 0.9, 0.6), [Math.sin(angle) * 0.6, 0.17, Math.cos(angle) * 0.6], [0, angle, 0]);
     }
   });
-  glow.add(flatRing(0.16, 0.27, 16), accent, pose([PROJECTOR[0], 0.372, PROJECTOR[2]]), 0);
-  glow.cylinder(0.12, 0.12, 0.02, 14, '#f3e6ff', [PROJECTOR[0], 0.37, PROJECTOR[2]], undefined, 0);
+  glow.add(flatRing(0.2, 0.34, 16), accent, pose([PROJECTOR[0], PROJ_TOP + 0.002, PROJECTOR[2]]), 0);
+  glow.cylinder(0.15, 0.15, 0.02, 14, '#f3e6ff', [PROJECTOR[0], PROJ_TOP, PROJECTOR[2]], undefined, 0);
 
   // Bassin octogonal : fond plein, margelle, parois intérieure et extérieure.
   paint.group(pose(BASIN), () => {
@@ -228,7 +231,7 @@ export function Lab3DZone({ zone, spot }: ZoneProps) {
   const wire = useMemo(() => wireGeometry(zone.accent), [zone.accent]);
   const fishShape = useMemo(() => fishGeometry(), []);
   const duckShape = useMemo(() => duckGeometry(), []);
-  const beam = useMemo(() => createBeamMaterial(zone.accent, 0.3), [zone.accent]);
+  const beam = useMemo(() => createBeamMaterial(zone.accent, 0.42), [zone.accent]);
   const fishMaterial = useMemo(
     () =>
       new MeshStandardMaterial({
@@ -326,7 +329,7 @@ export function Lab3DZone({ zone, spot }: ZoneProps) {
     }
     if (scan.current) {
       const sweep = Math.sin(t * 1.4);
-      scan.current.position.y = HOLOGRAM_Y + sweep * 0.68;
+      scan.current.position.y = HOLOGRAM_Y + sweep * 0.76;
       scan.current.scale.setScalar(Math.sqrt(Math.max(0.05, 1 - sweep * sweep)) * 0.95 + 0.05);
     }
     // Canard : il fait le tour du bassin en dodelinant ; ses ondes suivent (shader).
@@ -362,16 +365,16 @@ export function Lab3DZone({ zone, spot }: ZoneProps) {
       <mesh geometry={built.glass} material={glassMaterial} raycast={noRaycast} />
 
       {/* Faisceau, hologramme, particules. */}
-      <mesh position={[PROJECTOR[0], 0.38 + 0.85, PROJECTOR[2]]} material={beam} raycast={noRaycast}>
-        <cylinderGeometry args={[0.88, 0.26, 1.7, 24, 1, true]} />
+      <mesh position={[PROJECTOR[0], PROJ_TOP + 0.8, PROJECTOR[2]]} material={beam} raycast={noRaycast}>
+        <cylinderGeometry args={[1.0, 0.3, 1.6, 24, 1, true]} />
       </mesh>
       <group position={[PROJECTOR[0], 0, PROJECTOR[2]]}>
         <group ref={spinner} position-y={HOLOGRAM_Y}>
           <mesh geometry={wire} material={glowMaterial} raycast={noRaycast} />
         </group>
-        <mesh ref={fish} geometry={fishShape} material={fishMaterial} position-y={HOLOGRAM_Y} scale={1.35} raycast={noRaycast} />
+        <mesh ref={fish} geometry={fishShape} material={fishMaterial} position-y={HOLOGRAM_Y} scale={1.6} raycast={noRaycast} />
         <mesh ref={scan} position-y={HOLOGRAM_Y} rotation-x={Math.PI / 2} raycast={noRaycast}>
-          <torusGeometry args={[0.82, 0.014, 4, 44]} />
+          <torusGeometry args={[0.94, 0.02, 4, 48]} />
           <meshBasicMaterial color={zone.accent} toneMapped={false} transparent opacity={0.85} />
         </mesh>
         {!lite && <points geometry={particles} material={particleMaterial} frustumCulled={false} raycast={noRaycast} />}

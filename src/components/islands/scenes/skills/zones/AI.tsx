@@ -19,8 +19,8 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 import { useWorld } from '@/lib/store';
 import { damp, hash } from '@/lib/utils/math';
 import { bump, easeInOut, mix } from '../anim';
-import { erlenmeyerGeometry, liquidGeometry, Merger, pose, type Vec3 } from '../geometry';
-import { glassMaterial, glowMaterial, labNight, labState, labTime, paintMaterial } from '../materials';
+import { erlenmeyerGeometry, flatRing, flipFaces, liquidGeometry, Merger, pose, type Vec3 } from '../geometry';
+import { glassMaterial, glowMaterial, labNight, labState, labTime, paintMaterial, vivid } from '../materials';
 import { addPad, noRaycast, ZoneShell, type ZoneProps } from '../Zone';
 
 /**
@@ -32,22 +32,22 @@ import { addPad, noRaycast, ZoneShell, type ZoneProps } from '../Zone';
  */
 
 const CENTER: Vec3 = [0.15, 0, 0.05];
-const RING = 0.9;
+const RING = 1.0;
 /** Les robots sont la vedette de la zone : un peu plus grands que nature. */
-const ROBOT_SCALE = 1.3;
+const ROBOT_SCALE = 1.6;
 const ROBOTS = [0, 1, 2].map((index) => {
   const angle = Math.PI / 2 + (index * Math.PI * 2) / 3;
   return { x: CENTER[0] + Math.cos(angle) * RING, z: CENTER[2] + Math.sin(angle) * RING };
 });
-const ROBOT_COLORS = ['#ff6fa8', '#5ec8ff', '#ffd23f'];
+const ROBOT_COLORS = ['#ff3d8b', '#1fa9ff', '#ffbf1a'];
 const CUBE_COLORS = ['#ff6fa8', '#b48cff', '#5ec8ff'];
 const HOP = 1.5;
 const HOLD = 0.6;
 const CUBES = 2;
 const MAST: Vec3 = [-1.2, 0, -0.85];
-const MAST_TOP = 3.0;
+const MAST_TOP = 3.6;
 const CRATE: Vec3 = [1.3, 0, 0.72];
-const BUBBLE_Y = 1.95;
+const BUBBLE_Y = 2.25;
 
 /** Corps d'un robot (sans bras, yeux ni pièces colorées), face vers +Z. */
 function robotGeometry() {
@@ -110,7 +110,7 @@ void main() {
 
 function ringsGeometry() {
   const parts = [0, 1, 2].map((index) => {
-    const ring = new TorusGeometry(0.5, 0.022, 4, 36).rotateX(Math.PI / 2);
+    const ring = new TorusGeometry(0.66, 0.032, 4, 40).rotateX(Math.PI / 2);
     const count = ring.attributes.position.count;
     ring.setAttribute('aPhase', new BufferAttribute(new Float32Array(count).fill(index / 3), 1));
     ring.deleteAttribute('uv');
@@ -128,24 +128,29 @@ function buildStatic(accent: string, pad: number) {
   const glass = new Merger();
   addPad(paint, glow, pad, accent);
   // Plateau de travail : cercle clair sous les robots.
-  paint.cylinder(RING + 0.36, RING + 0.4, 0.04, 28, '#d9d3e6', [CENTER[0], 0.02, CENTER[2]], undefined, 0.04);
+  paint.cylinder(RING + 0.36, RING + 0.4, 0.04, 28, '#efe4f0', [CENTER[0], 0.02, CENTER[2]], undefined, 0.04);
+  paint.add(flatRing(RING - 0.12, RING + 0.12, 28), vivid(accent, 0.9, 0.62), pose([CENTER[0], 0.042, CENTER[2]]), 0);
   // Antenne en treillis.
   const legs: Vec3[] = [0, 1, 2].map((index) => {
     const angle = (index / 3) * Math.PI * 2;
-    return [MAST[0] + Math.cos(angle) * 0.24, 0, MAST[2] + Math.sin(angle) * 0.24];
+    return [MAST[0] + Math.cos(angle) * 0.3, 0, MAST[2] + Math.sin(angle) * 0.3];
   });
   const apex: Vec3 = [MAST[0], MAST_TOP, MAST[2]];
-  legs.forEach((leg) => paint.rod(leg, apex, 0.022, '#c9d2dc', 5));
-  [0.45, 0.95, 1.45].forEach((height) => {
+  legs.forEach((leg) => paint.rod(leg, apex, 0.032, '#e8edf2', 5));
+  [0.45, 0.95, 1.45, 1.95, 2.45].forEach((height) => {
     const shrink = 1 - height / MAST_TOP;
     legs.forEach((leg, index) => {
       const next = legs[(index + 1) % 3];
       const a: Vec3 = [MAST[0] + (leg[0] - MAST[0]) * shrink, height, MAST[2] + (leg[2] - MAST[2]) * shrink];
       const b: Vec3 = [MAST[0] + (next[0] - MAST[0]) * shrink, height, MAST[2] + (next[2] - MAST[2]) * shrink];
-      paint.rod(a, b, 0.014, '#aeb8c4', 4);
+      paint.rod(a, b, 0.02, vivid(accent, 0.9, 0.5), 4);
     });
   });
-  paint.cylinder(0.05, 0.05, 0.12, 8, '#5b6472', [MAST[0], MAST_TOP + 0.02, MAST[2]]);
+  paint.cylinder(0.07, 0.07, 0.14, 8, '#5b6472', [MAST[0], MAST_TOP + 0.02, MAST[2]]);
+  // Parabole tournée vers les robots, à mi-hauteur de l'antenne.
+  const dish = pose([MAST[0] + 0.14, 2.05, MAST[2] + 0.14], [-1.1, 0.75, 0]);
+  paint.add(new SphereGeometry(0.3, 14, 6, 0, Math.PI * 2, 0, 0.9), '#eef2f6', dish, 0.05);
+  paint.add(flipFaces(new SphereGeometry(0.3, 14, 6, 0, Math.PI * 2, 0, 0.9)), '#cfd8e2', dish, 0);
   // Caisse et fiole d'expérience.
   paint.box([0.36, 0.3, 0.36], '#b98a55', [CRATE[0], 0.15, CRATE[2]], [0, 0.3, 0]);
   paint.box([0.38, 0.04, 0.38], '#8c5d36', [CRATE[0], 0.3, CRATE[2]], [0, 0.3, 0]);
@@ -217,7 +222,7 @@ export function AIZone({ zone, spot }: ZoneProps) {
       }),
     [zone.accent],
   );
-  const bulbShape = useMemo(() => new Merger().sphere(0.14, '#ffffff', [0, 0, 0], 1, [12, 8], 0).build(), []);
+  const bulbShape = useMemo(() => new Merger().sphere(0.2, '#ffffff', [0, 0, 0], 1, [12, 8], 0).build(), []);
   const accentColor = useMemo(() => new Color(zone.accent), [zone.accent]);
 
   useEffect(
@@ -280,10 +285,10 @@ export function AIZone({ zone, spot }: ZoneProps) {
           dummy.rotation.set(t * 1.5, t * 2.2, 0);
         } else {
           const u = easeInOut((s - HOLD) / (HOP - HOLD));
-          dummy.position.set(mix(from[0], to[0], u), mix(from[1], to[1], u) + 0.05 + Math.sin(u * Math.PI) * 0.5, mix(from[2], to[2], u));
+          dummy.position.set(mix(from[0], to[0], u), mix(from[1], to[1], u) + 0.05 + Math.sin(u * Math.PI) * 0.65, mix(from[2], to[2], u));
           dummy.rotation.set(t * 4, t * 3, u * Math.PI);
         }
-        const pop = (1 + bump(s, 0, 0.3) * 0.35) * 1.3;
+        const pop = (1 + bump(s, 0, 0.3) * 0.35) * 1.55;
         dummy.scale.setScalar(pop);
         dummy.updateMatrix();
         mesh.setMatrixAt(index, dummy.matrix);
@@ -348,7 +353,7 @@ export function AIZone({ zone, spot }: ZoneProps) {
     // 4. Lampe de l'antenne : respiration lente, « en pleine réflexion ».
     if (bulb.current) {
       const think = 0.5 + 0.5 * Math.sin(t * 1.2);
-      dummy.position.set(MAST[0], MAST_TOP + 0.13, MAST[2]);
+      dummy.position.set(MAST[0], MAST_TOP + 0.2, MAST[2]);
       dummy.rotation.set(0, 0, 0);
       dummy.scale.setScalar(0.85 + think * 0.3);
       dummy.updateMatrix();
@@ -361,7 +366,7 @@ export function AIZone({ zone, spot }: ZoneProps) {
   });
 
   return (
-    <ZoneShell zone={zone} spot={spot} sign={[-1.05, 1.25]} reach={3.4}>
+    <ZoneShell zone={zone} spot={spot} sign={[-1.05, 1.25]} reach={4.0}>
       <mesh geometry={built.paint} material={paintMaterial} castShadow receiveShadow raycast={noRaycast} />
       <mesh geometry={built.glow} material={glowMaterial} raycast={noRaycast} />
       <mesh geometry={built.glass} material={glassMaterial} raycast={noRaycast} />
@@ -372,9 +377,9 @@ export function AIZone({ zone, spot }: ZoneProps) {
       <instancedMesh ref={cubes} args={[cube, glowMaterial, CUBES]} frustumCulled={false} raycast={noRaycast} />
       <instancedMesh ref={bulb} args={[bulbShape, glowMaterial, 1]} frustumCulled={false} raycast={noRaycast} />
       {!lite && (
-        <mesh geometry={rings} material={ringMaterial} position={[MAST[0], MAST_TOP + 0.13, MAST[2]]} frustumCulled={false} raycast={noRaycast} />
+        <mesh geometry={rings} material={ringMaterial} position={[MAST[0], MAST_TOP + 0.2, MAST[2]]} frustumCulled={false} raycast={noRaycast} />
       )}
-      <group ref={bubble} position={[CENTER[0], BUBBLE_Y, CENTER[2]]} scale={1.35}>
+      <group ref={bubble} position={[CENTER[0], BUBBLE_Y, CENTER[2]]} scale={1.7}>
         <mesh geometry={speech} material={paintMaterial} raycast={noRaycast} />
         <instancedMesh ref={dots} args={[dot, glowMaterial, 3]} frustumCulled={false} raycast={noRaycast} />
       </group>

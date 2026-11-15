@@ -15,6 +15,7 @@ import { Prop } from '@/components/islands/decor';
 import { WRECK_SITES } from '@/data/biomes';
 import { boatState } from '@/lib/boat-state';
 import { MODEL } from '@/lib/models';
+import { skyState } from '@/lib/sky';
 import { useWorld } from '@/lib/store';
 import { hash } from '@/lib/utils/math';
 
@@ -46,7 +47,11 @@ function WreckSite({ index }: { index: number }) {
   useFrame(() => {
     if (!group.current) return;
     const quality = useWorld.getState().quality;
-    group.current.visible = quality !== 'low' && nearBoat(site.center, quality === 'high' ? 78 : 58);
+    // La nuit, l'eau devient presque opaque (alpha ≈ 0,92) : l'épave ne se voit plus, on
+    // économise ses ~8 draw calls.
+    group.current.visible = quality !== 'low'
+      && skyState.dayNight < 0.6
+      && nearBoat(site.center, quality === 'high' ? 78 : 58);
   });
   return (
     <group ref={group} position={[site.center[0], -2.05, site.center[1]]} rotation={[0.08, site.rotation, -0.13]}>

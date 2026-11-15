@@ -29,7 +29,7 @@ import { hash } from '@/lib/utils/math';
 import type { Project } from '@/types';
 import { Hotspot, useHandFont } from '../../kit';
 import { Maquette, type V3 } from './builder';
-import { DAIS, PLAZA, ROAD, SITES, STAIRS, TOWN, VIEWPOINT, WALK, faceToward, type SiteId } from './layout';
+import { DAIS, PLAZA, ROAD, SITES, STAIRS, TOWN, VIEWPOINT, WALK, YARD_STAIR, faceToward, type SiteId } from './layout';
 import { glow, paint } from './materials';
 import { Screen } from './Screens';
 import { Plaque, SignText, signFrame } from './signs';
@@ -726,7 +726,8 @@ function NetworkLines() {
   );
   const geometry = useMemo(() => {
     const targets: SiteId[] = ['tech-center', 'gallery', 'medical', 'workshops'];
-    const angles = [...targets.map((id) => SITES[id].angle), STAIRS.angle, SITES.shipyard.angle + 0.25];
+    // Le dernier fil file vers le palier de l'escalier du chantier naval (courbure +0,12 comprise).
+    const angles = [...targets.map((id) => SITES[id].angle), STAIRS.angle, YARD_STAIR.from - 0.1];
     const positions: number[] = [];
     const uvs: number[] = [];
     const dists: number[] = [];

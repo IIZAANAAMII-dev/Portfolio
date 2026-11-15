@@ -1,9 +1,21 @@
-import { AdditiveBlending, Color, DoubleSide, MeshBasicMaterial, MeshStandardMaterial, ShaderMaterial } from 'three';
+import { AdditiveBlending, Color, DoubleSide, MeshBasicMaterial, MeshStandardMaterial, ShaderMaterial, SRGBColorSpace } from 'three';
 
 /**
  * Matières partagées du laboratoire. Toutes sont créées une fois (le décor n'est chargé
  * qu'une fois) et animées par `updateLabMaterials`, appelé une seule fois par image.
  */
+
+const hsl = { h: 0, s: 0, l: 0 };
+
+/**
+ * Version franche d'un accent des données (souvent pastel) pour la peinture du décor :
+ * même teinte, saturation poussée, clarté ramenée — des couleurs de jouet, comme sur
+ * l'île Parcours.
+ */
+export function vivid(accent: string, saturation = 0.9, lightness = 0.55) {
+  new Color(accent).getHSL(hsl, SRGBColorSpace);
+  return new Color().setHSL(hsl.h, Math.max(hsl.s, saturation), lightness, SRGBColorSpace).getStyle();
+}
 
 /** Horloge et facteur nuit, partagés par tous les shaders du labo. */
 export const labTime = { value: 0 };

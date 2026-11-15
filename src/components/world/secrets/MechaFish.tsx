@@ -15,6 +15,7 @@ import {
   Object3D,
   SphereGeometry,
   TorusGeometry,
+  Vector3,
 } from 'three';
 import { ripple } from '@/components/world/Flotsam';
 import { Hotspot } from '@/components/islands/kit';
@@ -39,7 +40,10 @@ import { at, inSight, merge, paintMaterial, piece, rockGeometry, sandbankGeometr
  */
 
 const POOL = 3.5;
-const SWIM = 2.2;
+const SWIM = 2.1;
+/** Hauteur de flottaison du centre du corps (mer calme). */
+const FLOAT = -0.04;
+const FISH_SCALE = 1.65;
 
 /** Orientation de la piscine : l'îlot ferme le côté ouvert du croissant de rochers. */
 const tech = islets.find((islet) => islet.id === 'tech');
@@ -150,18 +154,31 @@ function lagoonFloor() {
     const x = Math.cos(angle) * radius;
     const z = Math.sin(angle) * radius;
     const color = corals[index % corals.length];
-    for (let branch = 0; branch < 4; branch++) {
+    for (let branch = 0; branch < 5; branch++) {
       const lean = (hash(index * 7.1 + branch) - 0.5) * 0.9;
-      const height = 0.25 + hash(index + branch * 2.3) * 0.3;
-      parts.push(piece(
-        new CylinderGeometry(0.025, 0.045, height, 5).translate(0, height / 2, 0),
-        color,
-        at([x + (branch - 1.5) * 0.06, -0.9, z], [lean, branch * 1.6, lean * 0.6]),
-        0.1,
-        index * 4 + branch,
-      ));
+      const height = 0.4 + hash(index + branch * 2.3) * 0.38;
+      const matrix = at([x + (branch - 2) * 0.07, -0.9, z + (branch % 2) * 0.05], [lean, branch * 1.6, lean * 0.6]);
+      // Bout arrondi plus clair de chaque branche (calculé avant que `piece` ne consomme la matrice).
+      const tip = _tip.set(0, height, 0).applyMatrix4(matrix).toArray() as [number, number, number];
+      parts.push(piece(new CylinderGeometry(0.035, 0.06, height, 5).translate(0, height / 2, 0), color, matrix, 0.1, index * 5 + branch));
+      parts.push(piece(new SphereGeometry(0.06, 5, 4), '#fff0e0', at(tip), 0.05, index * 5 + branch));
     }
   }
+  // Anémones : pied trapu et couronne de tentacules, couleurs vives (on les voit à travers l'eau).
+  const anemones: [number, number, string][] = [[1.1, -1.6, '#ff5fa2'], [-1.9, -0.6, '#b65cff'], [0.4, 2.2, '#ff8a3d'], [2.3, 0.6, '#ff5fa2']];
+  anemones.forEach(([x, z, color], index) => {
+    parts.push(piece(new CylinderGeometry(0.16, 0.2, 0.22, 8).translate(0, 0.11, 0), '#f2d3a8', at([x, -0.9, z]), 0.06, index));
+    for (let tentacle = 0; tentacle < 9; tentacle++) {
+      const angle = (tentacle / 9) * Math.PI * 2 + index;
+      parts.push(piece(
+        new ConeGeometry(0.035, 0.32, 4).translate(0, 0.16, 0),
+        color,
+        at([x + Math.cos(angle) * 0.12, -0.7, z + Math.sin(angle) * 0.12], [Math.sin(angle) * 0.6, 0, -Math.cos(angle) * 0.6]),
+        0.1,
+        index * 9 + tentacle,
+      ));
+    }
+  });
   for (let index = 0; index < 9; index++) {
     const angle = index * 1.37 + 0.2;
     const radius = 2.4 + hash(index * 5.1) * 1.2;
@@ -193,6 +210,7 @@ const brassMaterial = new MeshStandardMaterial({
 const eyeMaterial = new MeshStandardMaterial({ vertexColors: true, roughness: 0.2, emissive: '#5ef2ff', emissiveIntensity: 0 });
 
 const _dummy = new Object3D();
+const _tip = new Vector3();
 
 /** Programme des tic-tac (identifiants de minuterie à annuler au démontage). */
 const ticks: number[] = [];
@@ -212,6 +230,7 @@ export function MechaFish() {
   const key = useRef<Group>(null);
   const gears = useRef<Group>(null);
   const rocks = useRef<InstancedMesh>(null);
+  const mossCaps = useRef<InstancedMesh>(null);
   const front = useMemo(() => frontGeometry(), []);
   const tailShape = useMemo(() => tailGeometry(), []);
   const keyShape = useMemo(() => keyGeometry(), []);
@@ -220,11 +239,24 @@ export function MechaFish() {
   const gear = useMemo(() => gearGeometry(), []);
   const floor = useMemo(() => lagoonFloor(), []);
   const rock = useMemo(() => rockGeometry(9, 1), []);
-  const sim = useRef({ phase: 0, keyAngle: 0, keyTarget: 0, nextTick: 0, jumpAt: -100, pendingJump: false, splashed: true, wound: -100 });
+  const sim = useRef({
+    phase: 0,
+    keyAngle: 0,
+    keyTarget: 0,
+    nextTick: 0,
+    jumpAt: -100,
+    pendingJump: false,
+    splashed: true,
+    wound: -100,
+    lastWake: 0,
+    /** Débogage : fige le saut à cette fraction (0 → 1) pour les captures ; -1 sinon. */
+    hold: -1,
+  });
 
   // Croissant de rochers du côté du large ; l'îlot ferme l'autre côté.
   useEffect(() => {
     const mesh = rocks.current;
+    const caps = mossCaps.current;
     if (!mesh) return;
     const color = new Color();
     for (let index = 0; index < ROCK_COUNT; index++) {
@@ -238,10 +270,23 @@ export function MechaFish() {
       _dummy.scale.set(size * 1.25, size * (0.9 + hash(index * 6.1) * 0.5), size);
       _dummy.updateMatrix();
       mesh.setMatrixAt(index, _dummy.matrix);
-      mesh.setColorAt(index, color.set(index % 3 === 1 ? '#7684ad' : '#93a0c6').multiplyScalar(0.88 + hash(index * 9.1) * 0.2));
+      mesh.setColorAt(index, color.set(index % 3 === 1 ? '#a8889c' : '#cf9a86').multiplyScalar(0.9 + hash(index * 9.1) * 0.18));
+      // Coiffe de mousse ou de lichen orangé (granite breton) sur les gros blocs.
+      if (caps && index % 2 === 0) {
+        const cap = index / 2;
+        _dummy.position.y += _dummy.scale.y * 0.78;
+        _dummy.scale.set(_dummy.scale.x * 0.8, _dummy.scale.y * 0.34, _dummy.scale.z * 0.8);
+        _dummy.updateMatrix();
+        caps.setMatrixAt(cap, _dummy.matrix);
+        caps.setColorAt(cap, color.set(cap % 3 === 1 ? '#e2a23c' : cap % 3 === 2 ? '#86ab52' : '#6f9a48').multiplyScalar(0.92 + hash(cap * 4.1) * 0.16));
+      }
     }
     mesh.instanceMatrix.needsUpdate = true;
     if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+    if (caps) {
+      caps.instanceMatrix.needsUpdate = true;
+      if (caps.instanceColor) caps.instanceColor.needsUpdate = true;
+    }
   }, []);
 
   useEffect(() => exposeForDebug('mechafish', sim.current), []);
@@ -292,8 +337,9 @@ export function MechaFish() {
     const wave = waveHeight(worldX, worldZ, time);
 
     // Saut : arc au-dessus de l'eau, nez qui suit la trajectoire, tonneau complet.
-    const jump = time - s.jumpAt;
-    let y = -0.13 + wave * 0.75 + Math.sin(time * 2.3) * 0.04;
+    const jump = s.hold >= 0 ? s.hold * 1.25 : time - s.jumpAt;
+    // Il flotte comme un jouet de bain : le dos, la clé et les yeux hors de l'eau.
+    let y = FLOAT + wave * 0.85 + Math.sin(time * 2.3) * 0.035;
     let pitch = Math.sin(time * 1.7) * 0.05;
     let roll = Math.sin(time * 1.3) * 0.06;
     if (jump >= 0 && jump < 1.25 && !reduced) {
@@ -311,6 +357,11 @@ export function MechaFish() {
       ripple(worldX, worldZ, time, 1.3);
       emitBubbles(worldX, -0.5, worldZ, 16, 0.8);
       s.jumpAt = -100;
+    } else if (time - s.lastWake > 1.1 / boost && !reduced) {
+      // Sillage : petits ronds à la tête, quelques bulles qui s'échappent de la queue.
+      s.lastWake = time;
+      ripple(worldX + Math.cos(heading) * 0.9, worldZ + Math.sin(heading) * 0.9, time, 0.55);
+      emitBubbles(worldX - Math.cos(heading) * 1.1, -0.35, worldZ - Math.sin(heading) * 1.1, 2, 0.25, 0.7);
     }
     body.position.set(lx, y, lz);
     body.rotation.set(roll, -heading + Math.sin(time * 7) * 0.06, pitch, 'YZX');
@@ -342,8 +393,11 @@ export function MechaFish() {
       <instancedMesh ref={rocks} args={[rock, undefined, ROCK_COUNT]} castShadow receiveShadow raycast={() => null}>
         <meshStandardMaterial roughness={0.95} flatShading />
       </instancedMesh>
+      <instancedMesh ref={mossCaps} args={[rock, undefined, Math.ceil(ROCK_COUNT / 2)]} receiveShadow raycast={() => null}>
+        <meshStandardMaterial roughness={1} flatShading />
+      </instancedMesh>
       <group ref={fish}>
-        <Hotspot onActivate={activate} hoverScale={1.08} scale={1.4}>
+        <Hotspot onActivate={activate} hoverScale={1.08} scale={FISH_SCALE}>
           <mesh geometry={front} material={paintMaterial()} castShadow />
           <group ref={tail} position={[-0.42, 0, 0]}>
             <mesh geometry={tailShape} material={paintMaterial()} />
@@ -354,7 +408,7 @@ export function MechaFish() {
             <mesh geometry={gear} material={brassMaterial} position={[0.08, -0.02, 0.2]} raycast={() => null} />
             <mesh geometry={gear} material={brassMaterial} position={[0.08, -0.02, -0.2]} raycast={() => null} />
           </group>
-          <group ref={key} position={[0.04, 0.3, 0]}>
+          <group ref={key} position={[0.04, 0.3, 0]} scale={1.3}>
             <mesh geometry={keyShape} material={brassMaterial} />
           </group>
           {/* Zone de clic : le dos et la clé qui dépassent de l'eau. */}

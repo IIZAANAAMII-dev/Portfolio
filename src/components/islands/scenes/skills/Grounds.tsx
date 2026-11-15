@@ -55,7 +55,9 @@ interface Route {
 }
 
 /** Hauteur de vol des boules de lumière au-dessus des allées. */
-const ORB_HEIGHT = 0.32;
+const ORB_HEIGHT = 0.4;
+/** Largeur de la ligne de lumière incrustée dans les allées. */
+const LINE_WIDTH = 0.22;
 
 function makeRoute(flat: number[], color: Color): Route {
   const points = new Float32Array(flat);
@@ -137,13 +139,13 @@ function buildGrounds(sampler: HeightSampler, specs: PathSpec[]): Built {
           ribbonColors.push(tint.r, tint.g, tint.b);
         }
       }
-      pushStrip(a, b, ya + 0.052, yb + 0.052, 0.15, flow, flow + length, color);
+      pushStrip(a, b, ya + 0.052, yb + 0.052, LINE_WIDTH, flow, flow + length, color);
       route.push(a.x, ya + ORB_HEIGHT, a.z);
       flow += length;
     }
     const last = points[points.length - 1];
     route.push(last.x, sampler(last.x, last.z) + ORB_HEIGHT, last.z);
-    pushStrip(outer, inner, plazaY, plazaY, 0.15, flow, flow + (HUB.radius - 1.38), color);
+    pushStrip(outer, inner, plazaY, plazaY, LINE_WIDTH, flow, flow + (HUB.radius - 1.38), color);
     route.push(outer.x, plazaY + ORB_HEIGHT, outer.z, inner.x, plazaY + ORB_HEIGHT + 0.2, inner.z);
     routes.push(makeRoute(route, color));
   });
@@ -165,12 +167,14 @@ function buildGrounds(sampler: HeightSampler, specs: PathSpec[]): Built {
     const direction = new Vector3(next.x - point.x, 0, next.z - point.z).normalize();
     for (const sideSign of [-1, 1]) lamps.push([point.x - direction.z * 0.95 * sideSign, point.z + direction.x * 0.95 * sideSign]);
   }
+  // Réverbères en fonte vert sombre, ampoule chaude (le mobilier commun à toutes les îles).
   for (const [x, z] of lamps) {
     const y = sampler(x, z) - 0.04;
-    paint.cylinder(0.09, 0.12, 0.08, 8, '#7a8396', [x, y + 0.04, z]);
-    paint.cylinder(0.026, 0.034, 1.1, 6, '#5f6879', [x, y + 0.58, z], undefined, 0);
-    paint.cylinder(0.02, 0.13, 0.08, 8, '#e2553f', [x, y + 1.31, z], undefined, 0);
-    glow.box([0.13, 0.17, 0.13], '#ffd98a', [x, y + 1.19, z], undefined, 0);
+    paint.cylinder(0.1, 0.13, 0.1, 8, '#24392d', [x, y + 0.05, z]);
+    paint.cylinder(0.03, 0.04, 1.2, 6, '#2f4a3a', [x, y + 0.65, z], undefined, 0);
+    paint.cylinder(0.05, 0.05, 0.05, 8, '#24392d', [x, y + 1.25, z], undefined, 0);
+    paint.cylinder(0.03, 0.15, 0.1, 8, '#2f4a3a', [x, y + 1.5, z], undefined, 0);
+    glow.box([0.15, 0.2, 0.15], '#ffd98a', [x, y + 1.36, z], undefined, 0);
   }
 
   // Escalier de bois : du plancher du ponton jusqu'au bord du plateau.
@@ -295,9 +299,31 @@ function Scattered({ spots, geometry, material, castShadow }: { spots: Scatter[]
 
 /* ------------------------------------------------------------- boules de lumière */
 
-const ORBS_PER_ROUTE = 2;
-const ORB_SPEED = 1.3;
+const ORBS_PER_ROUTE = 3;
+const ORB_SPEED = 1.5;
+/** Chaque boule traîne deux échos plus petits : une comète lisible depuis le ponton. */
+const TRAIL: { gap: number; size: number; glow: number }[] = [
+  { gap: 0, size: 1, glow: 1.6 },
+  { gap: 0.26, size: 0.66, glow: 1.15 },
+  { gap: 0.5, size: 0.4, glow: 0.8 },
+];
 const orbTint = new Color();
+const orbPoint = new Vector3();
+
+/** Point de la route à la distance `distance` (bornée), écrit dans `out`. */
+function routePoint(route: Route, distance: number, out: Vector3) {
+  const { cumulative, points } = route;
+  const d = Math.min(Math.max(distance, 0), route.length);
+  let segment = 1;
+  while (segment < cumulative.length - 1 && cumulative[segment] < d) segment++;
+  const from = segment - 1;
+  const k = Math.min(1, Math.max(0, (d - cumulative[from]) / (cumulative[segment] - cumulative[from] || 1)));
+  return out.set(
+    points[from * 3] + (points[segment * 3] - points[from * 3]) * k,
+    points[from * 3 + 1] + (points[segment * 3 + 1] - points[from * 3 + 1]) * k,
+    points[from * 3 + 2] + (points[segment * 3 + 2] - points[from * 3 + 2]) * k,
+  );
+}
 
 /**
  * Des boules de lumière remontent chaque allée jusqu'au noyau, à la couleur de leur zone,
@@ -305,15 +331,18 @@ const orbTint = new Color();
  */
 function Orbs({ routes }: { routes: Route[] }) {
   const mesh = useRef<InstancedMesh>(null);
-  const geometry = useMemo(() => new Merger().sphere(0.1, '#ffffff', [0, 0, 0], 1, [10, 8], 0).build(), []);
-  const count = routes.length * ORBS_PER_ROUTE;
+  const geometry = useMemo(() => new Merger().sphere(0.15, '#ffffff', [0, 0, 0], 1, [10, 8], 0).build(), []);
+  const orbs = routes.length * ORBS_PER_ROUTE;
+  const count = orbs * TRAIL.length;
   useEffect(() => () => geometry.dispose(), [geometry]);
 
   useLayoutEffect(() => {
     const target = mesh.current;
     if (!target) return;
     for (let index = 0; index < count; index++) {
-      target.setColorAt(index, orbTint.copy(routes[Math.floor(index / ORBS_PER_ROUTE)].color).multiplyScalar(1.5));
+      const orb = Math.floor(index / TRAIL.length);
+      const echo = TRAIL[index % TRAIL.length];
+      target.setColorAt(index, orbTint.copy(routes[Math.floor(orb / ORBS_PER_ROUTE)].color).multiplyScalar(echo.glow));
     }
     if (target.instanceColor) target.instanceColor.needsUpdate = true;
   }, [count, routes]);
@@ -323,27 +352,24 @@ function Orbs({ routes }: { routes: Route[] }) {
     if (!target || !labState.awake) return;
     const t = state.clock.elapsedTime;
     let flash = 0;
-    for (let index = 0; index < count; index++) {
-      const route = routes[Math.floor(index / ORBS_PER_ROUTE)];
-      const phase = (index % ORBS_PER_ROUTE) / ORBS_PER_ROUTE + hash(index * 1.37) * 0.25;
+    for (let orb = 0; orb < orbs; orb++) {
+      const route = routes[Math.floor(orb / ORBS_PER_ROUTE)];
+      const phase = (orb % ORBS_PER_ROUTE) / ORBS_PER_ROUTE + hash(orb * 1.37) * 0.2;
       const s = (((t * ORB_SPEED) / route.length + phase) % 1 + 1) % 1;
-      const distance = s * route.length;
-      const { cumulative, points } = route;
-      let segment = 1;
-      while (segment < cumulative.length - 1 && cumulative[segment] < distance) segment++;
-      const from = segment - 1;
-      const k = Math.min(1, Math.max(0, (distance - cumulative[from]) / (cumulative[segment] - cumulative[from] || 1)));
-      dummy.position.set(
-        points[from * 3] + (points[segment * 3] - points[from * 3]) * k,
-        points[from * 3 + 1] + (points[segment * 3 + 1] - points[from * 3 + 1]) * k + Math.sin(t * 3.1 + index) * 0.05,
-        points[from * 3 + 2] + (points[segment * 3 + 2] - points[from * 3 + 2]) * k,
-      );
       const appear = Math.min(1, s / 0.05);
       const vanish = s > 0.9 ? Math.max(0, 1 - (s - 0.9) / 0.1) : 1;
-      dummy.rotation.set(0, 0, 0);
-      dummy.scale.setScalar(Math.max(0.001, appear * vanish) * (1 + Math.sin(t * 6 + index * 2) * 0.12));
-      dummy.updateMatrix();
-      target.setMatrixAt(index, dummy.matrix);
+      const pulse = 1 + Math.sin(t * 6 + orb * 2) * 0.12;
+      const bob = Math.sin(t * 3.1 + orb) * 0.05;
+      for (let echo = 0; echo < TRAIL.length; echo++) {
+        const { gap, size } = TRAIL[echo];
+        const along = s * route.length - gap;
+        routePoint(route, along, orbPoint);
+        dummy.position.set(orbPoint.x, orbPoint.y + bob, orbPoint.z);
+        dummy.rotation.set(0, 0, 0);
+        dummy.scale.setScalar(along < 0 ? 0.001 : Math.max(0.001, appear * vanish * size * pulse));
+        dummy.updateMatrix();
+        target.setMatrixAt(orb * TRAIL.length + echo, dummy.matrix);
+      }
       if (s > 0.92) flash = Math.max(flash, 1 - Math.abs(s - 0.97) / 0.05);
     }
     target.instanceMatrix.needsUpdate = true;

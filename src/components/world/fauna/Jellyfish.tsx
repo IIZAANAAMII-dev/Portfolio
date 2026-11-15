@@ -46,18 +46,15 @@ function jellyGeometry() {
       const a1 = ((segment + 1) / segments) * Math.PI * 2;
       builder.set('aAngle', a0);
       if (ring < rings.length - 1) {
-        builder.set('aAlong', rings[ring] * 0.25);
         const r0 = rings[ring];
         const r1 = rings[ring + 1];
         const p00 = bell(r0, a0);
         const p01 = bell(r0, a1);
         const p10 = bell(r1, a0);
         const p11 = bell(r1, a1);
-        builder.set('aAlong', ((r0 + r1) / 2) * 0.25);
         builder.tri(p00, p11, p10, shade(1 - ring * 0.06)).tri(p00, p01, p11, shade(1 - ring * 0.06));
       } else {
         // Voile : petite lèvre festonnée qui rentre sous la cloche.
-        builder.set('aAlong', 0.26);
         const mid = (a0 + a1) / 2;
         builder.tri(
           bell(1, a0),
@@ -87,7 +84,6 @@ function jellyGeometry() {
           Math.sin(twist) * radius + Math.cos(twist) * width,
         ];
       };
-      builder.set('aAlong', 0.25 + t0 * 0.5);
       builder.tri(ribbon(t0, -1), ribbon(t0, 1), ribbon(t1, 1), shade(0.85));
       builder.tri(ribbon(t0, -1), ribbon(t1, 1), ribbon(t1, -1), shade(0.85));
     }
@@ -110,12 +106,28 @@ function jellyGeometry() {
           Math.sin(angle) * radius + Math.cos(angle) * width,
         ];
       };
-      builder.set('aAlong', 0.26 + t0 * 0.74);
       builder.tri(point(t0, -1), point(t0, 1), point(t1, 1), shade(0.72));
       builder.tri(point(t0, -1), point(t1, 1), point(t1, -1), shade(0.72));
     }
   }
-  return builder.build();
+  const geometry = builder.build();
+  // `aAlong` par SOMMET (et non par face) : la cloche se contracte d'un seul tenant et les
+  // filaments ondulent sans se rompre en tronçons. On le déduit de la forme elle-même.
+  const positions = geometry.getAttribute('position');
+  const parts = geometry.getAttribute('aPart');
+  const along = geometry.getAttribute('aAlong');
+  for (let index = 0; index < positions.count; index++) {
+    const x = positions.getX(index);
+    const y = positions.getY(index);
+    const z = positions.getZ(index);
+    const part = parts.getX(index);
+    let value: number;
+    if (part < 0.5) value = y < -0.01 ? 0.26 : Math.min(1, Math.hypot(x, z) / 0.5) * 0.25;
+    else if (part < 1.5) value = 0.25 + Math.min(1, Math.max(0, (0.02 - y) / 0.95)) * 0.5;
+    else value = 0.26 + Math.min(1, Math.max(0, (-0.03 - y) / 1.45)) * 0.74;
+    along.setX(index, value);
+  }
+  return geometry;
 }
 
 /** Position, contraction et teinte : communes au corps et au halo (mêmes formules). */
@@ -195,11 +207,15 @@ vec3 jellyAt = jellyCenter(jellyP, jellyNear);
 float jellyTilt = sin(uTime * 0.3 + aJelly.w * 9.0) * 0.14;
 jellyQ.xy = vec2(jellyQ.x * cos(jellyTilt) - jellyQ.y * sin(jellyTilt), jellyQ.x * sin(jellyTilt) + jellyQ.y * cos(jellyTilt));
 vec3 transformed = jellyQ * aJelly2.x + jellyAt;
-// Onde de lumière : de l'apex jusqu'au bout des filaments à chaque contraction.
-float jellyWave = exp(-pow((aAlong - jellyP * 1.35) * 5.0, 2.0));
+// Onde de lumière : de l'apex jusqu'au bout des filaments à chaque contraction
+// (gaussienne écrite d*d : pow() d'une base négative n'est pas défini en GLSL).
+float jellyD = (aAlong - jellyP * 1.35) * 5.0;
+float jellyWave = exp(-jellyD * jellyD);
 float jellyRimGlow = aPart < 0.5 ? smoothstep(0.17, 0.25, aAlong) : 0.0;
+// L'eau absorbe un peu la lumière des filaments profonds (ils restent sous la surface).
+float jellyWater = mix(1.0, 0.5, smoothstep(0.3, 2.2, -transformed.y));
 vJellyGlow = (0.32 + jellyS * 0.55 + jellyWave * 1.5 + jellyRimGlow * 0.75 + jellyNear * 1.3)
-  * (1.0 - aAlong * 0.42) * uNight;
+  * (1.0 - aAlong * 0.42) * jellyWater * uNight;
 vJellyTint = jellyTint(aJelly2.y);`);
     shader.fragmentShader = shader.fragmentShader
       .replace('#include <common>', `#include <common>
@@ -208,7 +224,7 @@ varying float vJellyGlow;`)
       .replace('#include <color_fragment>', `#include <color_fragment>
 diffuseColor.rgb = vJellyTint * vJellyGlow * diffuseColor.rgb;`);
   };
-  material.customProgramCacheKey = () => 'fauna-jelly-v1';
+  material.customProgramCacheKey = () => 'fauna-jelly-v2';
   return material;
 }
 

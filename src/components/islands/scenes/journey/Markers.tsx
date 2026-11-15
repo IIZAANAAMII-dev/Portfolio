@@ -49,12 +49,14 @@ const NOTES = [523.25, 587.33, 659.25, 783.99, 880];
 const POST = 1.05;
 const SIGN_W = 2.0;
 const BOARD_TOP = POST + SIGN_W / 2 - 0.04;
-const BADGE_R = 0.66;
-const BADGE_Y = BOARD_TOP + 0.98;
-const BADGE_TILT = -0.24;
-const ICON_Y = BADGE_Y + BADGE_R + 0.62;
-const ICON_SCALE = 1.75;
+// Badge large et basculé vers la caméra à quai (vue plongeante) : le chiffre se lit de loin.
+const BADGE_R = 0.78;
+const BADGE_Y = BOARD_TOP + 1.1;
+const BADGE_TILT = -0.38;
+const ICON_Y = BADGE_Y + BADGE_R + 0.66;
+const ICON_SCALE = 1.95;
 const LANTERN_X = 1.27;
+const PENNANT_X = -0.95;
 
 /* ------------------------------------------------------------- pictogrammes */
 
@@ -76,10 +78,10 @@ function anchorIcon() {
 function codeIcon() {
   const kit = new Kit();
   const green = '#3fc07f';
-  // « </> » en bâtons.
+  // « </> » en bâtons : les deux chevrons pointent vers l'extérieur.
   for (const side of [-1, 1]) {
-    kit.add(BOX, green, { position: [side * 0.21, 0.065, 0], rotation: [0, 0, side * -0.75], scale: [0.07, 0.21, 0.07] });
-    kit.add(BOX, green, { position: [side * 0.21, -0.065, 0], rotation: [0, 0, side * 0.75], scale: [0.07, 0.21, 0.07] });
+    kit.add(BOX, green, { position: [side * 0.21, 0.065, 0], rotation: [0, 0, side * 0.75], scale: [0.07, 0.21, 0.07] });
+    kit.add(BOX, green, { position: [side * 0.21, -0.065, 0], rotation: [0, 0, side * -0.75], scale: [0.07, 0.21, 0.07] });
   }
   kit.add(BOX, '#f6f8f4', { position: [0, 0, 0], rotation: [0, 0, -0.42], scale: [0.065, 0.38, 0.07] });
   return kit.build();
@@ -132,9 +134,9 @@ const ICONS = [anchorIcon, codeIcon, sunIcon, monitorIcon, rocketIcon];
 function markerFrame(accent: string) {
   const kit = new Kit();
   const iron = '#24302b';
-  // Le poteau s'arrête sous le badge (il ne doit jamais masquer le chiffre).
-  const postTop = BADGE_Y - BADGE_R + 0.04;
-  kit.add(CYL6, '#6e4a33', { position: [0, (BOARD_TOP - 0.05 + postTop) / 2, -0.02], scale: [0.075, postTop - BOARD_TOP + 0.05, 0.075] });
+  // Le poteau monte derrière le badge (en retrait : il ne doit jamais masquer le chiffre).
+  const postTop = BADGE_Y - 0.2;
+  kit.add(CYL6, '#6e4a33', { position: [0, (BOARD_TOP - 0.05 + postTop) / 2, -0.13], scale: [0.075, postTop - BOARD_TOP + 0.05, 0.075] });
   const badge = { position: [0, BADGE_Y, -0.03] as [number, number, number], rotation: [Math.PI / 2 + BADGE_TILT, 0, 0] as [number, number, number] };
   kit.add(CYL12, '#3b2a1e', { ...badge, scale: [BADGE_R + 0.06, 0.07, BADGE_R + 0.06] });
   kit.add(RING, accent, { position: [0, BADGE_Y, 0.0], rotation: [BADGE_TILT, 0, 0], scale: [BADGE_R + 0.03, BADGE_R + 0.03, 0.5] });
@@ -150,7 +152,7 @@ function markerFrame(accent: string) {
     kit.add(BOX, iron, { position: [LANTERN_X + x * 0.075, arm - 0.4, z * 0.075], scale: [0.02, 0.32, 0.02] });
   }
   // Hampe du fanion, à gauche du badge.
-  kit.add(CYL6, '#d8d2c6', { position: [-0.86, BOARD_TOP + 0.42, 0], scale: [0.018, 0.8, 0.018] });
+  kit.add(CYL6, '#d8d2c6', { position: [PENNANT_X + 0.01, BOARD_TOP + 0.42, 0], scale: [0.018, 0.8, 0.018] });
   return kit.build();
 }
 
@@ -322,7 +324,7 @@ function StepMarker({
           <group ref={iconGroup} position={[0, ICON_Y, 0]} scale={ICON_SCALE}>
             <mesh geometry={icon} material={flatPaint} castShadow />
           </group>
-          <group ref={pennant} position={[-0.87, BOARD_TOP + 0.14, 0]}>
+          <group ref={pennant} position={[PENNANT_X, BOARD_TOP + 0.14, 0]}>
             <mesh geometry={PENNANT} scale-x={-1}>
               <meshStandardMaterial color={accent} roughness={0.8} side={DoubleSide} />
             </mesh>

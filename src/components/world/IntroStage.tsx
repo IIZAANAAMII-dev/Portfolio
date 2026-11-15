@@ -6,7 +6,7 @@ import { useFrame, useThree } from '@react-three/fiber';
 import { Mesh, ShaderMaterial, Vector2, Vector3 } from 'three';
 import { placeIntroCamera } from '@/components/camera/CameraRig';
 import { boatState } from '@/lib/boat-state';
-import { INTRO_RING_RADIUS } from '@/lib/cinematic';
+import { INTRO_RADIUS_END, INTRO_RING_RADIUS } from '@/lib/cinematic';
 import { useWorld } from '@/lib/store';
 import { damp } from '@/lib/utils/math';
 
@@ -99,8 +99,26 @@ void main() {
 `;
 
 const center = new Vector3();
-const edge = new Vector3();
+const probe = new Vector3();
 const right = new Vector3();
+const forward = new Vector3();
+
+/** Marge minimale entre l'anneau et les bords de l'écran (px, et part de la largeur). */
+const RING_MARGIN_PX = 22;
+const RING_MARGIN_RATIO = 0.075;
+
+/**
+ * Rayon affiché pour un rayon « monde » de la cinématique. Sur un écran étroit (téléphone
+ * en portrait), l'anneau est réduit d'un facteur `fit` pour tenir dans la largeur ; pendant
+ * le dévoilement, l'écart se résorbe progressivement jusqu'au rayon final (le trou
+ * rejoint exactement le cercle qui fait surgir les îles, loin du bateau).
+ */
+function displayedRadius(radius: number, fit: number) {
+  if (fit >= 0.999) return radius;
+  if (radius <= INTRO_RING_RADIUS) return radius * fit;
+  const start = INTRO_RING_RADIUS * fit;
+  return start + ((radius - INTRO_RING_RADIUS) * (INTRO_RADIUS_END - start)) / (INTRO_RADIUS_END - INTRO_RING_RADIUS);
+}
 
 export function IntroStage({ mobile }: { mobile: boolean }) {
   const mesh = useRef<Mesh>(null);
@@ -108,6 +126,7 @@ export function IntroStage({ mobile }: { mobile: boolean }) {
   const anchorKey = useRef('');
   const material = useRef<ShaderMaterial>(null);
   const shownProgress = useRef(0);
+  const fit = useRef(1);
   const size = useThree((state) => state.size);
 
   const uniforms = useMemo(
@@ -134,13 +153,33 @@ export function IntroStage({ mobile }: { mobile: boolean }) {
     const visible = phase === 'loading' || phase === 'intro' || phase === 'transitioning';
     target.visible = visible;
     if (!visible) return;
+    const camera = state.camera;
 
     // Tant que la scène n'est pas montée, c'est ce plan qui tient la caméra d'intro.
-    if (!sceneReady) placeIntroCamera(state.camera, mobile, size.width / Math.max(size.height, 1));
+    if (!sceneReady) placeIntroCamera(camera, mobile, size.width / Math.max(size.height, 1));
+
+    // Ajustement à l'écran, caméra immobile (hors dévoilement) : l'anneau garde une marge
+    // de chaque côté, même en portrait où il déborderait de la largeur. Le point « à
+    // droite » du cercle est à la même profondeur que son centre : sa projection est
+    // linéaire en rayon, d'où un simple facteur d'échelle.
+    let baseRx = 0;
+    if (phase !== 'transitioning') {
+      camera.updateMatrixWorld();
+      right.setFromMatrixColumn(camera.matrixWorld, 0).setY(0).normalize();
+      center.set(introCenter[0], 0.06, introCenter[1]).project(camera);
+      probe.set(introCenter[0] + right.x * INTRO_RING_RADIUS, 0.06, introCenter[1] + right.z * INTRO_RING_RADIUS).project(camera);
+      baseRx = Math.abs(probe.x - center.x) * 0.5 * size.width;
+      const maxRx = size.width * 0.5 - Math.max(RING_MARGIN_PX, size.width * RING_MARGIN_RATIO);
+      fit.current = baseRx > 1 ? Math.min(1, Math.max(0.45, maxRx / baseRx)) : 1;
+    }
+    const ring = displayedRadius(introRadius, fit.current);
+    const ringRest = INTRO_RING_RADIUS * fit.current;
 
     // Lu dans le store de drei sans s'y abonner : aucun rendu React par fichier chargé.
+    // La jauge avance avec le temps réel (borné) : même à quelques images par seconde
+    // (appareil modeste, rendu logiciel), l'anneau se referme bien une fois prêt.
     const loaded = sceneReady ? 1 : Math.min(useProgress.getState().progress / 100, 0.94);
-    shownProgress.current = damp(shownProgress.current, loaded, 3.2, dt);
+    shownProgress.current = damp(shownProgress.current, loaded, 3.2, Math.min(delta, 0.25));
     const u = shader.uniforms;
     u.uTime.value = state.clock.elapsedTime;
     u.uCenter.value.set(introCenter[0], introCenter[1]);
@@ -148,28 +187,33 @@ export function IntroStage({ mobile }: { mobile: boolean }) {
     u.uProgress.value = shownProgress.current > 0.995 ? 1.02 : shownProgress.current;
     u.uStart.value = boatState.heading;
     u.uReady.value = damp(u.uReady.value, phase === 'intro' ? 1 : 0, 3, dt);
-    u.uRing.value = Math.max(INTRO_RING_RADIUS, introRadius);
-    u.uHole.value = phase === 'transitioning' ? introRadius : 0;
+    u.uRing.value = Math.max(ringRest, ring);
+    u.uHole.value = phase === 'transitioning' ? ring : 0;
     u.uWave.value = phase === 'transitioning' ? Math.sin(Math.min(gameTransition * 1.6, 1) * Math.PI) : 0;
     // La carte s'efface à la fin du dévoilement.
     u.uOpacity.value = phase === 'transitioning' ? 1 - Math.max(0, (gameTransition - 0.82) / 0.18) : 1;
 
-    // Ancre DOM : le texte d'intro se place au centre de l'anneau, quel que soit l'écran.
+    // Ancre DOM : le texte d'intro se place au centre VISUEL de l'ellipse (milieu entre
+    // ses bords proche et lointain, pas le centre projeté du cercle), avec ses deux
+    // demi-axes en variables CSS pour que le texte respire à toutes les tailles d'écran.
     if (phase === 'transitioning') return;
     if (!anchor.current?.isConnected) anchor.current = document.getElementById('intro-anchor');
     if (!anchor.current) return;
-    state.camera.updateMatrixWorld();
-    center.set(introCenter[0], 0.06, introCenter[1]).project(state.camera);
-    right.setFromMatrixColumn(state.camera.matrixWorld, 0).setY(0).normalize().multiplyScalar(INTRO_RING_RADIUS);
-    edge.set(introCenter[0] + right.x, 0.06, introCenter[1] + right.z).project(state.camera);
+    forward.setFromMatrixColumn(camera.matrixWorld, 2).setY(0).normalize().negate();
+    probe.set(introCenter[0] + forward.x * ringRest, 0.06, introCenter[1] + forward.z * ringRest).project(camera);
+    const far = (-probe.y * 0.5 + 0.5) * size.height;
+    probe.set(introCenter[0] - forward.x * ringRest, 0.06, introCenter[1] - forward.z * ringRest).project(camera);
+    const near = (-probe.y * 0.5 + 0.5) * size.height;
     const x = (center.x * 0.5 + 0.5) * size.width;
-    const y = (-center.y * 0.5 + 0.5) * size.height;
-    const rx = Math.abs(edge.x - center.x) * 0.5 * size.width;
-    const key = `${x.toFixed(1)}|${y.toFixed(1)}|${rx.toFixed(1)}`;
+    const y = (far + near) * 0.5;
+    const rx = baseRx * fit.current;
+    const ry = Math.abs(near - far) * 0.5;
+    const key = `${x.toFixed(1)}|${y.toFixed(1)}|${rx.toFixed(1)}|${ry.toFixed(1)}`;
     if (key === anchorKey.current) return;
     anchorKey.current = key;
     anchor.current.style.transform = `translate3d(${x.toFixed(1)}px, ${y.toFixed(1)}px, 0)`;
     anchor.current.style.setProperty('--ring-rx', `${rx.toFixed(1)}px`);
+    anchor.current.style.setProperty('--ring-ry', `${ry.toFixed(1)}px`);
   });
 
   return (

@@ -47,7 +47,7 @@ const BUOYS: BuoySpec[] = [
   { at: [13, -20], hue: '#d9483b', band: '#f5efe3', lamp: '#ff5a4a', mark: 'can', hint: 'Ouvre ton carnet de bord : chaque île a son tampon.' },
   { at: [-20, -3], hue: '#2f9a6e', band: '#f5efe3', lamp: '#5dff9a', mark: 'cone', hint: 'La maison bretonne cache un atelier.' },
   { at: [36, 20], hue: '#f2c14e', band: '#2f343c', lamp: '#ffd36a', mark: 'cross', hint: 'Psst… quelque chose grésille dans la brume, au sud-est.' },
-  { at: [-2, 28], hue: '#d9483b', band: '#f5efe3', lamp: '#ffffff', mark: 'sphere', hint: 'Un vieux chalutier s’est échoué quelque part…' },
+  { at: [-2, 28], hue: '#d9483b', band: '#f5efe3', lamp: '#ffffff', mark: 'sphere', hint: 'Un vieux chalutier dort sur les rochers, au-delà de l’île Parcours…' },
   { at: [-31, 6], hue: '#2f9a6e', band: '#f2c14e', lamp: '#5dff9a', mark: 'can', hint: 'Les étoiles d’or brillent aussi la nuit.' },
 ];
 
@@ -224,7 +224,7 @@ function Buoy({ spec, index, talking, onTalk }: { spec: BuoySpec; index: number;
     // Bulle « … » au-dessus des bouées pas encore écoutées.
     if (bubble.current) {
       bubble.current.visible = !heard.has(index) && !talking;
-      bubble.current.position.y = 3.35 + Math.sin(time * 2.2 + index) * 0.12;
+      bubble.current.position.y = 3.6 + Math.sin(time * 2.2 + index) * 0.12;
       // Toujours de face pour la caméra (rotation autour de la verticale seulement).
       bubble.current.rotation.y = Math.atan2(state.camera.position.x - x, state.camera.position.z - z);
       const pulse = 1 + Math.sin(time * 3.1 + index) * 0.05;
@@ -252,12 +252,13 @@ function Buoy({ spec, index, talking, onTalk }: { spec: BuoySpec; index: number;
               <mesh geometry={LAMP_GEOMETRY} material={LAMPS[index]} />
             </group>
           </group>
-          <mesh position={[0, 1.2, 0]} visible={false}>
-            <cylinderGeometry args={[0.85, 0.85, 3.2, 8]} />
+          {/* Volume de clic : il s'arrête sous la bulle « … » (l'éclat doré se pose au-dessus). */}
+          <mesh position={[0, 1.15, 0]} visible={false}>
+            <cylinderGeometry args={[0.85, 0.85, 2.9, 8]} />
           </mesh>
         </Hotspot>
       </group>
-      <group ref={bubble} position={[0, 3.35, 0]}>
+      <group ref={bubble} position={[0, 3.6, 0]}>
         <mesh geometry={chatter} material={PAINTED} position={[0.15, 0, 0]} raycast={() => null} />
       </group>
       {talking && (

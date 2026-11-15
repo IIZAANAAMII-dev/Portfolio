@@ -230,6 +230,8 @@ const STOREY = 1.02;
 const STOREYS = 4;
 const ROOF = STOREY * STOREYS;
 const MAST = 2.3;
+/** Enseigne de toit, au bord avant, entre le pylône et l'édicule. */
+const SIGN = { x: 0.08, y: ROOF + 0.6, z: TECH_D / 2 - 0.12 };
 
 function buildTechFrame() {
   const kit = new Kit();
@@ -261,6 +263,10 @@ function buildTechFrame() {
     kit.add(BOX, '#c9ced3', { position: [mastX + 0.09, y + 0.15, mastZ], rotation: [k % 2 ? 0.8 : -0.8, 0, 0], scale: [0.018, 0.018, 0.25] });
   }
   kit.add(CYL6, '#e4e7ea', { position: [mastX, ROOF + MAST + 0.25, mastZ], scale: [0.02, 0.5, 0.02] });
+  // Enseigne de toit (le « </> » en néon est dans buildNeon) : panneau sombre sur deux pieds.
+  kit.add(BOX, '#222a36', { position: [SIGN.x, SIGN.y, SIGN.z - 0.04], scale: [1.3, 0.66, 0.06] });
+  kit.add(BOX, '#9aa3ab', { position: [SIGN.x, SIGN.y, SIGN.z - 0.075], scale: [1.36, 0.72, 0.02] });
+  for (const x of [-0.42, 0.42]) kit.add(BOX, '#9aa3ab', { position: [SIGN.x + x, ROOF + 0.16, SIGN.z - 0.06], scale: [0.05, 0.22, 0.05] });
   // Place devant : banc, jardinière et son olivier.
   kit.add(BOX, '#d8cbb2', { position: [0, -0.04, TECH_D / 2 + 0.75], scale: [TECH_W + 0.6, 0.08, 1.4] });
   kit.add(BOX, '#8a6142', { position: [-0.7, 0.24, TECH_D / 2 + 1.1], scale: [0.8, 0.06, 0.26] });
@@ -279,6 +285,17 @@ function buildNeon() {
     kit.add(BOX, '#ffffff', { position: [0, y, TECH_D / 2 + 0.065], scale: [TECH_W + 0.1, 0.035, 0.02] });
     for (const side of [-1, 1]) kit.add(BOX, '#ffffff', { position: [side * (TECH_W / 2 + 0.065), y, 0], scale: [0.02, 0.035, TECH_D + 0.1] });
   }
+  // « </> » de l'enseigne de toit : deux chevrons tournés vers l'extérieur et une barre.
+  for (const side of [-1, 1]) {
+    for (const half of [-1, 1]) {
+      kit.add(BOX, '#ffffff', {
+        position: [SIGN.x + side * 0.36, SIGN.y + half * 0.1, SIGN.z],
+        rotation: [0, 0, side * half * 0.78],
+        scale: [0.06, 0.27, 0.03],
+      });
+    }
+  }
+  kit.add(BOX, '#ffffff', { position: [SIGN.x, SIGN.y, SIGN.z], rotation: [0, 0, -0.42], scale: [0.06, 0.52, 0.03] });
   return kit.build();
 }
 

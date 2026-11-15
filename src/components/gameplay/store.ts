@@ -64,6 +64,8 @@ interface GameplayState {
   nibbles: number[];
   strikeWindow: number;
   result: Catch | null;
+  /** La prise est nouvelle dans la bourriche (sinon : « déjà pêché »). */
+  fresh: boolean;
   miss: MissKind | null;
   joke: string;
   /** Nombre de lancers (varie les blagues, relance les animations). */
@@ -159,6 +161,7 @@ export const useGameplay = create<GameplayState>((set, get) => ({
   nibbles: [],
   strikeWindow: STRIKE_WINDOW,
   result: null,
+  fresh: false,
   miss: null,
   joke: '',
   casts: 0,
@@ -277,12 +280,13 @@ export const useGameplay = create<GameplayState>((set, get) => ({
     } else if (phase === 'reel' && now >= state.phaseAt + REEL_SECONDS && state.result) {
       const { zone, name } = state.result;
       const list = state.basket[zone] ?? [];
-      const basket: Basket = list.includes(name) ? state.basket : { ...state.basket, [zone]: [...list, name] };
+      const fresh = !list.includes(name);
+      const basket: Basket = fresh ? { ...state.basket, [zone]: [...list, name] } : state.basket;
       const stock = state.stock.slice();
       const refillAt = state.refillAt.slice();
       stock[state.spot] = Math.max(0, stock[state.spot] - 1);
       if (stock[state.spot] === 0) refillAt[state.spot] = now + REFILL_SECONDS;
-      set({ phase: 'caught', phaseAt: now, basket, stock, refillAt });
+      set({ phase: 'caught', phaseAt: now, basket, stock, refillAt, fresh });
       saveBasket(basket);
       ambience.bump('wood', 0.5);
       ambience.chime([784, 988, 1175, 1568], 0.08);

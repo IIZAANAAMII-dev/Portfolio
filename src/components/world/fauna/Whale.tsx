@@ -307,7 +307,9 @@ const euler = new Euler(0, 0, 0, 'YZX');
 
 export function Whale() {
   const group = useRef<Group>(null);
-  const timer = useRef({ sailing: 0, next: 70 + hash(91.7) * 40, prevLocal: -1e9, lastAct: -1 });
+  const timer = useRef({
+    sailing: 0, next: 70 + hash(91.7) * 40, prevLocal: -1e9, lastAct: -1, hitX: 1e9, hitZ: 1e9, placedAt: 0,
+  });
 
   useFrame((state, delta) => {
     const target = group.current;
@@ -322,14 +324,18 @@ export function Whale() {
       const act = DEMO_ACTS[DEMO_ACT as string];
       const period = act === 'roll' ? 9 : ACT_LENGTH[act] + 3;
       const index = Math.floor(time / period);
-      if (index !== memo.lastAct) {
+      const camera = state.camera;
+      camera.getWorldDirection(local);
+      const reach = -camera.position.y / Math.min(local.y, -0.08);
+      const flat = Math.hypot(local.x, local.z) || 1;
+      const hitX = camera.position.x + local.x * reach;
+      const hitZ = camera.position.z + local.z * reach;
+      // Replacée tant que la caméra se cale (chargement, mode photo) : utile en capture figée.
+      if (index !== memo.lastAct || Math.hypot(hitX - memo.hitX, hitZ - memo.hitZ) > 1.5) {
         memo.lastAct = index;
-        const camera = state.camera;
-        camera.getWorldDirection(local);
-        const reach = -camera.position.y / Math.min(local.y, -0.08);
-        const flat = Math.hypot(local.x, local.z) || 1;
-        const hitX = camera.position.x + local.x * reach;
-        const hitZ = camera.position.z + local.z * reach;
+        memo.hitX = hitX;
+        memo.hitZ = hitZ;
+        memo.placedAt = state.clock.elapsedTime;
         visit.act = act;
         visit.start = index * period;
         visit.heading = Math.atan2(local.x / flat, -local.z / flat);
@@ -409,6 +415,12 @@ export function Whale() {
       ambience.whale();
     }
 
+    // Démonstration : gerbes émises seulement une fois le cadrage stable (avec une horloge
+    // figée, une gerbe lancée au mauvais endroit resterait suspendue dans l'image).
+    if (DEMO && state.clock.elapsedTime - memo.placedAt < 0.6) {
+      memo.prevLocal = -1e9;
+      return;
+    }
     const start = visit.start;
     if (visit.act === 'roll') {
       if (crossed(prev, u, 1.45)) {

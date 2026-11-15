@@ -174,6 +174,9 @@ interface PodState {
   slowTime: number;
   lastTime: number;
   whistled: boolean;
+  /** Capture figée : position du bateau pour laquelle la scène a été rejouée. */
+  replayX: number;
+  replayZ: number;
 }
 
 const DEPTH = -0.6;
@@ -209,7 +212,27 @@ const podState: PodState = {
   slowTime: 0,
   lastTime: -1,
   whistled: false,
+  replayX: 0,
+  replayZ: 0,
 };
+
+/** Remet le pod à zéro (capture figée rejouée depuis l'instant 0, mêmes tirages). */
+function resetPod() {
+  podState.mode = 'idle';
+  podState.wait = DEMO ? 0 : 32 + hash(55.3) * 40;
+  podState.modeTime = 0;
+  podState.slowTime = 0;
+  podState.lastTime = -1;
+  podState.whistled = false;
+  pod.forEach((dolphin, index) => {
+    dolphin.counter = 0;
+    dolphin.beat = hash(index * 3.3) * 6.28;
+    dolphin.leapStart = -100;
+    dolphin.nextLeap = 0;
+    dolphin.nextBreath = 0;
+    dolphin.breathStart = -100;
+  });
+}
 
 /** Aléa propre à chaque dauphin : une suite déterministe (captures reproductibles). */
 function draw(dolphin: Dolphin) {
@@ -566,7 +589,13 @@ export function DolphinPod() {
     const s = podState;
     const time = faunaClock(frame.clock.elapsedTime);
     if (faunaDemo.freeze !== null) {
-      // Capture figée : la scène est rejouée depuis l'instant 0, à pas fixes.
+      // Capture figée : la scène est rejouée depuis l'instant 0, à pas fixes (et de nouveau
+      // si le bateau a été déplacé entre-temps, par exemple en accostant via `?section=`).
+      if (Math.hypot(boatState.position.x - s.replayX, boatState.position.z - s.replayZ) > 6) {
+        resetPod();
+        s.replayX = boatState.position.x;
+        s.replayZ = boatState.position.z;
+      }
       if (s.lastTime < 0) s.lastTime = 0;
       while (s.lastTime + STEP <= time) {
         s.lastTime += STEP;

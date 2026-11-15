@@ -19,6 +19,8 @@ export interface SecretSpot {
 }
 
 export const CHEST_SPOT: SecretSpot = { x: 88, z: -6 };
+/** Le sable sec du banc (≈ 3,2 × 2,4 m) : le bateau s'arrête au bord au lieu de l'enjamber. */
+export const CHEST_SOLID_RADIUS = 3.4;
 
 /** Le chalutier repose sur des rochers : un petit cercle de collision l'entoure. */
 export const WRECK_SPOT: SecretSpot = { x: -92, z: 54 };

@@ -31,13 +31,27 @@ export const STAIRS = {
   halfWidth: 1.15,
 };
 
-/** Terre-plein du chantier naval, en contrebas au sud. */
+/**
+ * Terre-plein du chantier naval, en contrebas au sud-sud-ouest : assez près de l'axe des
+ * caméras d'accostage (≈ 2,25 rad le jour, ≈ 3 rad le soir) pour que la réplique du bateau
+ * entre tout entière dans le cadre — de trois quarts le jour, de profil le soir.
+ */
 export const SHIPYARD = {
-  angle: 1.45,
-  halfAngle: 0.3,
+  angle: 1.72,
+  halfAngle: 0.26,
   inner: 14.4,
   outer: 16.4,
   level: 0.82,
+};
+
+/**
+ * Escalier de bois accroché à la falaise, de la ville au chantier : angles (depuis le
+ * centre) du palier en haut et du pied, côté ouest du terre-plein.
+ */
+export const YARD_STAIR = {
+  from: SHIPYARD.angle + SHIPYARD.halfAngle + 0.4,
+  to: SHIPYARD.angle + SHIPYARD.halfAngle + 0.03,
+  radius: 15.0,
 };
 
 export const PLAZA = { radius: 6.45 };

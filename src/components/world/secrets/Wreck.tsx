@@ -12,10 +12,12 @@ import {
   CylinderGeometry,
   DoubleSide,
   Group,
+  IcosahedronGeometry,
   InstancedMesh,
   MeshStandardMaterial,
   Object3D,
   PlaneGeometry,
+  RepeatWrapping,
   SphereGeometry,
   SRGBColorSpace,
   TorusGeometry,
@@ -27,12 +29,15 @@ import { boatState } from '@/lib/boat-state';
 import { logbook } from '@/lib/logbook';
 import { clothClock } from '@/lib/substance-models';
 import { useWorld } from '@/lib/store';
-import { clamp, hash, shortestAngle, smoothstep } from '@/lib/utils/math';
+import { hash, shortestAngle, smoothstep } from '@/lib/utils/math';
+import { exposeForDebug } from './debug';
 import { WRECK_SPOT } from './layout';
 import { gullCries, woodCreak } from './sfx';
 import {
   at,
   cardStyles,
+  crabGeometry,
+  crabStride,
   createFoamMaterial,
   FoamCollar,
   foamRingGeometry,
@@ -250,6 +255,10 @@ function deckworks() {
   }
   parts.push(piece(new BoxGeometry(0.12, 0.12, 1.9), '#8f4c33', at([-3.17, sternDeck + 1.88, 0]), 0.15, 9));
   parts.push(piece(new BoxGeometry(0.18, 0.26, 0.14), '#5c5550', at([-3.17, sternDeck + 1.66, 0.4])));
+  // Flotteurs de la ralingue du chalut, accrochés sous le portique.
+  for (const z of [-0.62, -0.2, 0.22, 0.64]) {
+    parts.push(piece(new SphereGeometry(0.09, 7, 5), '#f08a2c', at([-3.24, sternDeck + 1.76, z]), 0.08, z * 3));
+  }
   // Treuil sur le pont.
   parts.push(piece(new CylinderGeometry(0.2, 0.2, 0.7, 10), '#7b8a8f', at([-0.2, deckAt(0.48) + 0.25, 0], [Math.PI / 2, 0, 0]), 0.1, 10));
   // Bouée couronne rouge et blanche sur la timonerie.
@@ -388,25 +397,6 @@ function gullWing() {
   return geometry;
 }
 
-/** Crabe : carapace, pinces, yeux pédonculés, pattes. */
-function crabGeometry() {
-  const parts: BufferGeometry[] = [
-    piece(new SphereGeometry(1, 8, 5), '#e2552f', at([0, 0.09, 0], [0, 0, 0], [0.17, 0.08, 0.13]), 0.06, 1),
-    piece(new SphereGeometry(0.06, 6, 4), '#ef6a3a', at([0.16, 0.1, 0.11], [0, 0, 0], [1.3, 0.8, 1])),
-    piece(new SphereGeometry(0.06, 6, 4), '#ef6a3a', at([0.16, 0.1, -0.11], [0, 0, 0], [1.3, 0.8, 1])),
-    piece(new CylinderGeometry(0.01, 0.01, 0.08, 4), '#e2552f', at([0.1, 0.17, 0.04])),
-    piece(new CylinderGeometry(0.01, 0.01, 0.08, 4), '#e2552f', at([0.1, 0.17, -0.04])),
-    piece(new SphereGeometry(0.018, 5, 4), '#141414', at([0.1, 0.215, 0.04])),
-    piece(new SphereGeometry(0.018, 5, 4), '#141414', at([0.1, 0.215, -0.04])),
-  ];
-  for (const side of [1, -1]) {
-    for (let leg = 0; leg < 3; leg++) {
-      parts.push(piece(new CylinderGeometry(0.012, 0.01, 0.17, 4), '#c9472a', at([-0.06 + leg * 0.07, 0.05, side * 0.15], [side * 0.9, 0, 0])));
-    }
-  }
-  return merge(parts);
-}
-
 const CRABS = [
   { x: 1.2, z: 3.1, span: 0.9, speed: 0.9, phase: 0 },
   { x: -2.4, z: 2.9, span: 0.7, speed: 1.2, phase: 2.1 },
@@ -428,6 +418,130 @@ function sandAt(x: number, z: number) {
   const angle = Math.atan2(z / SHAPE.rz, x / SHAPE.rx);
   const t = Math.hypot(x / SHAPE.rx, z / SHAPE.rz) / shoreNoise(angle, SHAPE.seed);
   return SHAPE.top - (SHAPE.top + SHAPE.depth) * Math.pow(Math.min(t, 1.2), 2.4);
+}
+
+/**
+ * Le matériel tombé de l'épave, sur le sable (repère du banc) : casiers à homards (l'un
+ * renversé), vieille ancre à moitié enfouie, glène de cordage, flotteurs, filet emmêlé.
+ */
+function sandGear() {
+  const parts: BufferGeometry[] = [];
+  const pot = (x: number, z: number, turn: number, tip: number, seed: number) => {
+    const base = new Object3D();
+    base.position.set(x, sandAt(x, z) + 0.02, z);
+    base.rotation.set(tip, turn, tip * 0.3);
+    base.updateMatrixWorld();
+    const place = (local: [number, number, number], rotation: [number, number, number] = [0, 0, 0]) =>
+      base.matrixWorld.clone().multiply(at(local, rotation));
+    parts.push(piece(new BoxGeometry(0.64, 0.05, 0.46), '#8b6a4a', place([0, 0.025, 0]), 0.12, seed));
+    // Nasse : demi-cylindre de filet sombre, trois arceaux de bois clair, goulot.
+    const net = new CylinderGeometry(0.22, 0.22, 0.6, 9, 1, false, -Math.PI / 2, Math.PI);
+    parts.push(piece(net, '#3f5a50', place([0, 0.05, 0], [0, 0, Math.PI / 2]), 0.08, seed + 1));
+    for (const hoop of [-0.26, 0, 0.26]) {
+      parts.push(piece(new TorusGeometry(0.225, 0.018, 4, 10, Math.PI), '#c9a46c', place([hoop, 0.05, 0], [0, Math.PI / 2, 0])));
+    }
+    parts.push(piece(new TorusGeometry(0.07, 0.02, 4, 8), '#c9a46c', place([0, 0.27, 0], [Math.PI / 2, 0, 0])));
+  };
+  pot(-0.35, 2.3, 0.35, 0, 20);
+  pot(0.75, 2.55, -0.8, 1.35, 23);
+  // Ancre à jas, à moitié enfouie, et sa chaîne rouillée.
+  const anchor = new Object3D();
+  anchor.position.set(-3.05, sandAt(-3.05, 2.05) - 0.12, 2.05);
+  anchor.rotation.set(0.25, 0.6, 1.05);
+  anchor.updateMatrixWorld();
+  const onAnchor = (local: [number, number, number], rotation: [number, number, number] = [0, 0, 0]) =>
+    anchor.matrixWorld.clone().multiply(at(local, rotation));
+  parts.push(piece(new CylinderGeometry(0.045, 0.05, 1.3, 6), '#6e5a52', onAnchor([0, 0.65, 0]), 0.12, 30));
+  parts.push(piece(new TorusGeometry(0.42, 0.05, 5, 10, Math.PI), '#6e5a52', onAnchor([0, 0.32, 0], [0, 0, Math.PI]), 0.12, 31));
+  parts.push(piece(new ConeGeometry(0.09, 0.2, 4), '#6e5a52', onAnchor([0.42, 0.36, 0], [0, 0, 0.5])));
+  parts.push(piece(new ConeGeometry(0.09, 0.2, 4), '#6e5a52', onAnchor([-0.42, 0.36, 0], [0, 0, -0.5])));
+  parts.push(piece(new CylinderGeometry(0.035, 0.035, 0.9, 5), '#8a6a44', onAnchor([0, 1.2, 0], [Math.PI / 2, 0, 0])));
+  parts.push(piece(new TorusGeometry(0.09, 0.025, 4, 8), '#7a4a32', onAnchor([0, 1.36, 0])));
+  for (let link = 0; link < 6; link++) {
+    const x = -2.6 + link * 0.2;
+    const z = 2.25 + Math.sin(link * 1.3) * 0.08;
+    parts.push(piece(new TorusGeometry(0.06, 0.018, 4, 7), '#7a4a32', at([x, sandAt(x, z) + 0.02, z], [Math.PI / 2 + (link % 2) * 0.9, link * 0.4, 0])));
+  }
+  // Glène de cordage (anneaux empilés) et flotteurs orange échoués.
+  for (let turn = 0; turn < 3; turn++) {
+    parts.push(piece(new TorusGeometry(0.2 - turn * 0.035, 0.035, 4, 12), '#d9c08f', at([1.9, sandAt(1.9, 2.15) + 0.035 + turn * 0.05, 2.15], [Math.PI / 2, 0, 0]), 0.06, 40 + turn));
+  }
+  for (const [x, z, size] of [[-1.75, 2.75, 0.16], [2.6, 2.75, 0.13], [-2.2, 1.55, 0.12]] as const) {
+    parts.push(piece(new SphereGeometry(size, 8, 6), '#f08a2c', at([x, sandAt(x, z) + size * 0.7, z]), 0.08, x));
+  }
+  // Bout de filet emmêlé contre un rocher.
+  parts.push(piece(new IcosahedronGeometry(1, 0), '#4f6f5f', at([-3.55, sandAt(-3.55, 1.95) + 0.08, 1.95], [0.3, 0.8, 0.1], [0.55, 0.16, 0.38]), 0.12, 50));
+  return merge(parts);
+}
+
+/** Maille de chalut (losanges) : texture répétée, trous découpés par alphaTest. */
+function netTexture() {
+  const canvas = document.createElement('canvas');
+  canvas.width = 64;
+  canvas.height = 64;
+  const ctx = canvas.getContext('2d')!;
+  ctx.clearRect(0, 0, 64, 64);
+  ctx.strokeStyle = '#33473d';
+  ctx.lineWidth = 7;
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(-8, 32);
+  ctx.lineTo(32, -8);
+  ctx.lineTo(72, 32);
+  ctx.lineTo(32, 72);
+  ctx.closePath();
+  ctx.stroke();
+  ctx.fillStyle = '#33473d';
+  for (const [x, y] of [[0, 32], [32, 0], [64, 32], [32, 64]]) {
+    ctx.beginPath();
+    ctx.arc(x, y, 5, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  const texture = new CanvasTexture(canvas);
+  texture.colorSpace = SRGBColorSpace;
+  texture.wrapS = RepeatWrapping;
+  texture.wrapT = RepeatWrapping;
+  texture.repeat.set(9, 8);
+  return texture;
+}
+
+/**
+ * Chalut pendu au portique arrière (repère de la coque) : un pan de filet qui retombe en
+ * poche, lesté vers le bas ; son ondulation est faite dans le vertex shader.
+ */
+function netGeometry() {
+  const width = 1.75;
+  const height = 1.65;
+  const plane = new PlaneGeometry(width, height, 8, 8);
+  const position = plane.getAttribute('position');
+  for (let index = 0; index < position.count; index++) {
+    const u = position.getX(index) / width + 0.5;
+    const v = 0.5 - position.getY(index) / height;
+    // Poche : le bas du filet se gonfle vers l'arrière, les bords pincés par les funes.
+    const bag = Math.sin(u * Math.PI) * Math.pow(v, 1.4) * 0.55;
+    position.setXYZ(index, -bag - 0.02, -v * height, (u - 0.5) * width * (1 - v * 0.28));
+  }
+  plane.computeVertexNormals();
+  return plane;
+}
+
+function netMaterial(map: CanvasTexture) {
+  const material = new MeshStandardMaterial({ map, side: DoubleSide, roughness: 0.95, alphaTest: 0.45 });
+  material.onBeforeCompile = (shader) => {
+    shader.uniforms.uClothTime = clothClock;
+    shader.vertexShader = shader.vertexShader
+      .replace('#include <common>', '#include <common>\nuniform float uClothTime;')
+      .replace(
+        '#include <begin_vertex>',
+        /* glsl */ `#include <begin_vertex>
+        // Le bas du filet se balance dans le vent, le haut reste accroché au portique.
+        float netFree = clamp(-position.y / 1.65, 0.0, 1.0);
+        transformed.x += sin(uClothTime * 1.3 + position.z * 1.7) * 0.07 * netFree * netFree;
+        transformed.z += sin(uClothTime * 0.9) * 0.04 * netFree;`,
+      );
+  };
+  material.customProgramCacheKey = () => 'wreck-net-v1';
+  return material;
 }
 
 const _dummy = new Object3D();
@@ -558,6 +672,10 @@ export function Wreck() {
   const flagTexture = useMemo(() => tatteredFlag(), []);
   const flag = useMemo(() => flagMaterial(flagTexture), [flagTexture]);
   const flagGeometry = useMemo(() => new PlaneGeometry(1.05, 0.7, 10, 4).translate(0.525, 0, 0), []);
+  const gear = useMemo(() => sandGear(), []);
+  const netShape = useMemo(() => netGeometry(), []);
+  const netMap = useMemo(() => netTexture(), []);
+  const net = useMemo(() => netMaterial(netMap), [netMap]);
   // Plaque d'immatriculation tangente à l'étrave (bâbord et tribord).
   const plates = useMemo(() => {
     const t = 0.84;
@@ -575,6 +693,22 @@ export function Wreck() {
   useEffect(() => {
     openRef.current = open;
   }, [open]);
+
+  // Captures d'écran (développement) : ouvrir la fiche et faire s'envoler les goélands.
+  useEffect(
+    () => exposeForDebug('wreck', {
+      open: () => {
+        openRef.current = true;
+        setOpen(true);
+        takeoff.requested = true;
+      },
+      close: () => {
+        openRef.current = false;
+        setOpen(false);
+      },
+    }),
+    [],
+  );
 
   // Rochers de granit rose (instanciés), posés dans le sable.
   useEffect(() => {
@@ -599,8 +733,10 @@ export function Wreck() {
       flag.dispose();
       flagTexture.dispose();
       plateTexture.dispose();
+      net.dispose();
+      netMap.dispose();
     },
-    [flag, flagTexture, foamMaterial, plateTexture],
+    [flag, flagTexture, foamMaterial, net, netMap, plateTexture],
   );
 
   const activate = () => {
@@ -623,6 +759,8 @@ export function Wreck() {
   useFrame((state) => {
     const group = root.current;
     if (!group) return;
+    // Le bateau s'est éloigné (ou a sauté vers une île) : la fiche se referme.
+    if (openRef.current && Math.hypot(boatState.position.x - WRECK_SPOT.x, boatState.position.z - WRECK_SPOT.z) > 75) close();
     const visible = inSight(state.camera, WRECK_SPOT.x, WRECK_SPOT.z);
     group.visible = visible;
     if (!visible) return;
@@ -638,20 +776,17 @@ export function Wreck() {
       const reduced = useWorld.getState().reducedMotion;
       CRABS.forEach((crabSpot, index) => {
         // Trottinement latéral, avec des pauses.
-        const cycle = time * crabSpot.speed + crabSpot.phase;
-        const pause = clamp(Math.sin(cycle * 0.37) * 3, 0, 1);
-        const go = reduced ? 0 : Math.sin(cycle) * crabSpot.span * (0.3 + 0.7 * pause);
-        const x = crabSpot.x + go;
+        const stride = crabStride(reduced ? 0 : time, crabSpot.speed, crabSpot.phase, crabSpot.span);
+        const x = crabSpot.x + stride.offset;
         const z = crabSpot.z;
-        _dummy.position.set(x, sandAt(x, z) + 0.01 + Math.abs(Math.sin(cycle * 6)) * 0.015, z);
-        _dummy.rotation.set(0, Math.PI / 2 + Math.sin(cycle * 6) * 0.06, 0);
+        _dummy.position.set(x, sandAt(x, z) + 0.01 + stride.hop, z);
+        _dummy.rotation.set(0, Math.PI / 2 + stride.wobble, 0);
         _dummy.scale.setScalar(1.15);
         _dummy.updateMatrix();
         mesh.setMatrixAt(index, _dummy.matrix);
       });
       mesh.instanceMatrix.needsUpdate = true;
     }
-    if (openRef.current && Math.hypot(boatState.position.x - WRECK_SPOT.x, boatState.position.z - WRECK_SPOT.z) > 75) close();
   });
 
   return (
@@ -663,9 +798,11 @@ export function Wreck() {
           <meshStandardMaterial roughness={0.95} flatShading />
         </instancedMesh>
         <instancedMesh ref={crabs} args={[crab, paintMaterial(), CRABS.length]} raycast={() => null} />
+        <mesh geometry={gear} material={paintMaterial()} castShadow={false} raycast={() => null} />
         <Hotspot onActivate={activate} hoverScale={1.02}>
           <group position-y={SINK} rotation={[ROLL, 0, PITCH]}>
             <mesh geometry={hull} material={paintDoubleMaterial()} castShadow receiveShadow />
+            <mesh geometry={netShape} material={net} position={[-3.2, deckAt(0.04) + 1.8, 0]} raycast={() => null} />
             <mesh geometry={works} material={paintMaterial()} castShadow />
             {plates.map((plateSpot, index) => (
               <mesh key={index} geometry={plate} position={plateSpot.position} rotation={plateSpot.rotation} raycast={() => null}>

@@ -47,12 +47,14 @@ function HomeHarbor() {
     const d = Math.hypot(home[0] - introCenter[0], home[1] - introCenter[1]);
     const raw = smoothstep(d - 4.5, d, introRadius);
     const goal = raw * (1 + 0.09 * Math.sin(raw * Math.PI) * (1 - raw));
-    const scale = damp(target.scale.x, goal, 7.5, Math.min(delta, 1 / 30));
+    // Jamais tout à fait 0 : l'éclat du chat (Hotspot) se place au premier rendu en
+    // inversant la matrice du groupe, qui doit rester inversible.
+    const scale = Math.max(0.001, damp(target.scale.x, goal, 7.5, Math.min(delta, 1 / 30)));
     target.scale.setScalar(scale);
     target.visible = scale > 0.006;
   });
   return (
-    <group ref={group} position={[home[0], 0, home[1]]} scale={0} visible={false}>
+    <group ref={group} position={[home[0], 0, home[1]]} scale={0.001} visible={false}>
       <group position={[-home[0], 0, -home[1]]}>
         <Fisherman position={FISHERMAN} yaw={facing(0, -1)} water={[FLOAT[0], FLOAT[2]]} />
         <HarborCat position={CAT} yaw={facing(0.45, -0.9)} />
