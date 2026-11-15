@@ -2,7 +2,18 @@
 
 import { useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useFrame, type ThreeEvent } from '@react-three/fiber';
-import { CanvasTexture, Group, SRGBColorSpace } from 'three';
+import {
+  AdditiveBlending,
+  Box3,
+  CanvasTexture,
+  Group,
+  Mesh,
+  MeshBasicMaterial,
+  Shape,
+  ShapeGeometry,
+  SRGBColorSpace,
+  Vector3,
+} from 'three';
 import { hash, damp } from '@/lib/utils/math';
 import { windowMaterial } from '@/lib/windows';
 import type { IslandConfig } from '@/types';
@@ -192,21 +203,83 @@ export function WindowPane({
  * Objet cliquable d'un décor : curseur main, léger rebond au survol, clic qui ne se
  * propage pas à l'île (sinon le bateau repartirait). `onActivate` reçoit l'événement.
  */
+/* ---------------------------------------------------------------- scintillement */
+
+// Étoile à quatre branches (deux losanges croisés), partagée par tous les objets cliquables.
+const GLINT_GEOMETRY = (() => {
+  const shape = new Shape();
+  shape.moveTo(0, 0.5);
+  shape.lineTo(0.09, 0.09);
+  shape.lineTo(0.5, 0);
+  shape.lineTo(0.09, -0.09);
+  shape.lineTo(0, -0.5);
+  shape.lineTo(-0.09, -0.09);
+  shape.lineTo(-0.5, 0);
+  shape.lineTo(-0.09, 0.09);
+  shape.closePath();
+  return new ShapeGeometry(shape);
+})();
+const GLINT_MATERIAL = new MeshBasicMaterial({
+  color: '#ffe7a3',
+  transparent: true,
+  depthWrite: false,
+  blending: AdditiveBlending,
+  toneMapped: false,
+});
+const glintBox = new Box3();
+
+/**
+ * Petit éclat doré qui scintille de temps en temps au-dessus d'un objet cliquable :
+ * le même signe sur toutes les îles dit « ici, on peut cliquer ».
+ */
+function Glint({ host, seed, hovered }: { host: React.RefObject<Group | null>; seed: number; hovered: React.RefObject<boolean> }) {
+  const mesh = useRef<Mesh>(null);
+  const placed = useRef(false);
+  useFrame((state) => {
+    const star = mesh.current;
+    const target = host.current;
+    if (!star || !target) return;
+    if (!placed.current) {
+      // Posé une fois, au-dessus du centre de l'objet (repère local de l'objet).
+      glintBox.setFromObject(target);
+      if (glintBox.isEmpty()) return;
+      const top = target.worldToLocal(glintBox.getCenter(new Vector3()).setY(glintBox.max.y + 0.35));
+      star.position.copy(top);
+      placed.current = true;
+    }
+    const t = state.clock.elapsedTime * 0.21 + seed * 7.13;
+    const cycle = t - Math.floor(t);
+    const flash = Math.pow(Math.max(0, Math.sin(cycle * Math.PI * 6)), 6) * (cycle < 0.17 ? 1 : 0);
+    const shown = hovered.current ? 0 : flash;
+    star.visible = shown > 0.01;
+    star.scale.setScalar(0.25 + shown * 0.55);
+    star.quaternion.copy(state.camera.quaternion);
+    star.rotateZ(state.clock.elapsedTime * 0.8);
+  });
+  return <mesh ref={mesh} geometry={GLINT_GEOMETRY} material={GLINT_MATERIAL} visible={false} raycast={() => null} renderOrder={8} />;
+}
+
+let glintSeed = 0;
+
 export function Hotspot({
   children,
   onActivate,
   hoverScale = 1.06,
+  glint = true,
   ...props
 }: {
   children: ReactNode;
   onActivate: (event: ThreeEvent<MouseEvent>) => void;
   hoverScale?: number;
+  /** Éclat doré périodique (affordance commune à toutes les îles). */
+  glint?: boolean;
   position?: [number, number, number];
   rotation?: [number, number, number];
   scale?: number;
 }) {
   const inner = useRef<Group>(null);
   const hovered = useRef(false);
+  const [seed] = useState(() => (glintSeed += 1) * 0.618);
   useFrame((_, delta) => {
     const target = inner.current;
     if (!target) return;
@@ -231,6 +304,7 @@ export function Hotspot({
       }}
     >
       <group ref={inner}>{children}</group>
+      {glint && <Glint host={inner} seed={seed} hovered={hovered} />}
     </group>
   );
 }

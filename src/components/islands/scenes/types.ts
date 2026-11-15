@@ -24,4 +24,9 @@ export interface IslandSceneConfig {
    * moitiés… Le maillage, l'herbe, les arbres et `on()` suivent automatiquement.
    */
   sculpt?: (x: number, z: number, height: number, features: TerrainFeatures) => number;
+  /**
+   * Cadrage de la caméra à quai : `zoom` éloigne (> 1) ou rapproche (< 1) la caméra,
+   * `lift` relève la visée (en mètres) pour garder un monument haut dans le cadre.
+   */
+  camera?: { zoom?: number; lift?: number };
 }

@@ -33,7 +33,9 @@ export type StampId =
   | 'serpent'
   | 'cat'
   | 'radio'
-  | 'buoy';
+  | 'buoy'
+  | 'fishing'
+  | 'postcard';
 
 export interface StampInfo {
   id: StampId;
@@ -74,6 +76,8 @@ export const STAMPS: StampInfo[] = [
   { id: 'mechafish', title: 'Poisson à remontoir', hint: 'Attraper le poisson mécanique', glyph: '⚙' },
   { id: 'serpent', title: 'Serpent de mer', hint: 'Apercevoir le serpent au bout du monde', glyph: '∿' },
   { id: 'static', title: 'Signal jaune', hint: 'Trouver ce qui grésille dans la brume', glyph: '▦' },
+  { id: 'fishing', title: 'Pêche miraculeuse', hint: 'Pêcher un poisson de chaque zone du labo', glyph: '❦' },
+  { id: 'postcard', title: 'Carte postale', hint: 'Développer une carte postale de l’archipel', glyph: '✉' },
 ];
 
 const STORAGE_KEY = 'kyliann-logbook-v1';

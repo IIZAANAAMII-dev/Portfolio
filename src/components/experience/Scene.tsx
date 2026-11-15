@@ -51,6 +51,7 @@ const Archipelago = dynamic(
 // Secrets du monde : chunk séparé, isolé par une boundary.
 const Secrets = dynamic(() => import('@/components/world/secrets/Secrets'), { ssr: false });
 const HarborLife = dynamic(() => import('@/components/world/harbor/HarborLife'), { ssr: false });
+const Gameplay3D = dynamic(() => import('@/components/gameplay/Gameplay3D'), { ssr: false });
 const MarineLife = dynamic(
   () => import('@/components/world/MarineLife').then((module) => module.MarineLife),
   { ssr: false },
@@ -168,6 +169,9 @@ export function Scene({ mobile }: { mobile: boolean }) {
           </AssetBoundary>
           <AssetBoundary>
             <HarborLife />
+          </AssetBoundary>
+          <AssetBoundary>
+            <Gameplay3D />
           </AssetBoundary>
         </>
       )}

@@ -57,6 +57,7 @@ function sculpt(x: number, z: number, height: number) {
 }
 
 const config: IslandSceneConfig = {
+  camera: { zoom: 1.55 },
   // Pas de flamboyants : des pins tordus par le vent et la lande sont posés par le décor.
   trees: 0,
   grass: 0.85,

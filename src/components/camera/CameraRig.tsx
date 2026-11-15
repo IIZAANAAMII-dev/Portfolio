@@ -5,6 +5,7 @@ import { useFrame, useThree } from '@react-three/fiber';
 import { CatmullRomCurve3, PerspectiveCamera, Vector3, type Camera } from 'three';
 import { splashState } from '@/components/boat/Splash';
 import { homeIsland, islandById } from '@/data/islands';
+import { sceneConfigs } from '@/components/islands/scenes/registry';
 import { boatState } from '@/lib/boat-state';
 import { ecologyState } from '@/lib/ecology';
 import { skyState } from '@/lib/sky';
@@ -222,8 +223,10 @@ export function CameraRig({ mobile }: { mobile: boolean }) {
       return;
     } else if (phase === 'docked' && activeIsland) {
       const island = islandById[activeIsland];
-      // « À propos » recule et monte : ses îlots de personnalité entrent dans le cadre.
-      const zoomOut = (mobile ? 1.35 : 1) * (activeIsland === 'about' ? 1.55 : 1);
+      // Cadrage propre à chaque île (scenes/<île>/config.ts) : « À propos » recule pour
+      // montrer ses îlots de personnalité, La Ciotat relève la visée vers son portique…
+      const framing = sceneConfigs[activeIsland].camera;
+      const zoomOut = (mobile ? 1.35 : 1) * (framing?.zoom ?? 1);
       const distance = (island.radius + 26) * zoomOut;
       // La caméra se place entre le ponton et le soleil : l'île est éclairée de face
       // (couleurs franches, ombres derrière les objets) et le bateau reste au premier plan.
@@ -240,7 +243,7 @@ export function CameraRig({ mobile }: { mobile: boolean }) {
         island.position[1] + viewZ * distance * 0.78,
       );
       // Visée relevée selon le relief : les monuments (clocher, maison…) restent dans le cadre.
-      desiredTarget.set(island.position[0], 2.2 + island.elevation * 0.45, island.position[1]);
+      desiredTarget.set(island.position[0], 2.2 + island.elevation * 0.45 + (framing?.lift ?? 0), island.position[1]);
       lambda = 1.6;
     } else {
       gameplayPose(mobile);
