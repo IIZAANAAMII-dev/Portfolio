@@ -219,9 +219,14 @@ export function buildHouse(
     else parts.walls.box(size, position);
   };
   const inner = width - WALL * 2;
-  // Façade articulée (l'atelier) : pas de fondation, elle pivote sur son pied.
-  if (options.hinged) addWall(facade, [inner, wall + 0.05, WALL], [0, (wall - 0.05) / 2, front - WALL / 2]);
-  else addWall(facade, [inner, wall + PLINTH, WALL], [0, (wall - PLINTH) / 2, front - WALL / 2]);
+  // Façade articulée (l'atelier) : elle pivote sur son pied ; sa fondation, elle, reste en
+  // place (un seuil de granit), et aucun jour n'apparaît sous le mur sur un terrain imparfait.
+  if (options.hinged) {
+    addWall(facade, [inner, wall + 0.05, WALL], [0, (wall - 0.05) / 2, front - WALL / 2]);
+    addWall(body, [inner, PLINTH, WALL], [0, -PLINTH / 2 - 0.06, front - WALL / 2]);
+  } else {
+    addWall(facade, [inner, wall + PLINTH, WALL], [0, (wall - PLINTH) / 2, front - WALL / 2]);
+  }
   addWall(body, [inner, wall + PLINTH, WALL], [0, (wall - PLINTH) / 2, -front + WALL / 2]);
   const gable = gableGeometry(depth, wall, rise, WALL);
   for (const side of [-1, 1]) {

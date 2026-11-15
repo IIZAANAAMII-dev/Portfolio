@@ -39,6 +39,8 @@ export default function Gameplay3D() {
   useEffect(() => {
     probe.live = true;
     useGameplay.getState().set3D(true);
+    // Tests et captures (développement seulement), comme `__world` et `__boat`.
+    if (process.env.NODE_ENV !== 'production') (window as unknown as Record<string, unknown>).__gameplay = useGameplay;
     return () => {
       probe.live = false;
       useGameplay.getState().set3D(false);

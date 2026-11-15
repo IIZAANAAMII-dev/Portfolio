@@ -474,7 +474,7 @@
 .btn:active {
   transform: scale(0.93);
 }
-.btn[aria-pressed='true'] {
+.btn[data-on='true'] {
   color: var(--dawn);
 }
 .btn svg {

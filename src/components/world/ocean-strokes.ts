@@ -170,7 +170,8 @@ vec2 shoreFoam(float coast, vec2 p, float t, float px) {
   float reach = smoothstep(0.5, 1.2, coast) * (1.0 - smoothstep(2.6, 5.6, coast));
   float halfWidth = mix(0.16, 0.05, smoothstep(0.7, 5.2, coast));
   float ring = smoothstep(-px, px, halfWidth - d) * clamp(halfWidth / px, 0.0, 1.0);
-  float arcs = smoothstep(0.26, 0.42, valueNoise(p * 0.42 + id * 7.31));
+  // Décalage borné (l'indice d'anneau grandit sans fin avec le temps).
+  float arcs = smoothstep(0.26, 0.42, valueNoise(p * 0.42 + fract(id * 0.1371) * 61.7));
   return vec2(lace, ring * reach * arcs);
 }
 `;

@@ -243,6 +243,21 @@ class Ambience {
   }
 
   /**
+   * Nuance du ressac généré (1 = niveau d'origine) : le paysage sonore adoucit la mer la
+   * nuit et à l'abri des ports. Sans effet tant que le son est coupé. Appeler à cadence
+   * réduite ; la transition est lente (constante de temps ≈ 0,9 s).
+   */
+  setSeaShade(level: number) {
+    const context = this.context;
+    if (!context || !this.ambientGain || !this.enabled) return;
+    const now = context.currentTime;
+    const gain = this.ambientGain.gain;
+    gain.cancelScheduledValues(now);
+    gain.setValueAtTime(gain.value, now);
+    gain.setTargetAtTime(0.22 * Math.max(0.3, Math.min(1.2, level)), now, 0.9);
+  }
+
+  /**
    * Accès au mixeur pour les couches sonores des décors (bourdon de l'île secrète,
    * stations de radio…) : brancher ses nœuds sur `destination`. Null tant que le son
    * n'a jamais été activé par le visiteur (aucun AudioContext avant un geste).

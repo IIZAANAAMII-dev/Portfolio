@@ -99,7 +99,7 @@ export function FishingGear() {
     const reduced = useWorld.getState().reducedMotion;
 
     const out = phase !== 'idle';
-    anim.deploy = damp(anim.deploy, out ? 1 : 0, out ? 7 : 5, dt);
+    anim.deploy = reduced ? (out ? 1 : 0) : damp(anim.deploy, out ? 1 : 0, out ? 7 : 5, dt);
     if (!out && anim.deploy < 0.02) {
       anim.deploy = 0;
       anim.phase = 'idle';
@@ -172,7 +172,7 @@ export function FishingGear() {
     } else if (phase === 'missed') {
       elevation = 0.95;
     }
-    anim.elevation = snap ? elevation : damp(anim.elevation, elevation, phase === 'reel' ? 18 : 9, dt);
+    anim.elevation = snap || reduced ? elevation : damp(anim.elevation, elevation, phase === 'reel' ? 18 : 9, dt);
     const reach = ROD_LENGTH * anim.deploy;
     const cosE = Math.cos(anim.elevation);
     tip.set(

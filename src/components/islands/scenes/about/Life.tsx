@@ -133,7 +133,7 @@ function Gulls({ perches }: { perches: Perch[] }) {
  */
 function sheepBody(dark: boolean) {
   const mesh = new Mesher(true, false);
-  const fleece = new IcosahedronGeometry(1, 2);
+  const fleece = new IcosahedronGeometry(1, 1);
   const wool = dark ? '#3b3330' : '#f4f0e6';
   const curl = dark ? '#4a403b' : '#fbf8f1';
   mesh.add(fleece, pose([0, 0.4, 0], [0, 0, 0], [0.34, 0.2, 0.19]), wool);

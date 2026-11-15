@@ -214,9 +214,10 @@ const ZONES: Zone[] = [
     calm: 0.3,
   }),
   ...[
-    // Îlots de personnalité : Bretagne (vent, bouée), high-tech (bips), design (carillon).
+    // Îlots de personnalité : Bretagne (goélands, bouée), high-tech (bips), design (carillon).
+    // L'îlot breton n'a pas de nappe : il est tout près du ponton de Parcours, dont il
+    // fausserait le panoramique de la lande.
     isletZone('breizh', 20, {
-      beds: [BED.breton, 0.45, ALL],
       events: [EVENT.gull, 2.5, HUSHED_NIGHT, EVENT.bellBuoy, 1.5, ALL],
       crickets: 0.4,
     }),

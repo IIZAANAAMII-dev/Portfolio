@@ -293,10 +293,12 @@ export const useGameplay = create<GameplayState>((set, get) => ({
       set({ phase: 'wait', phaseAt: state.landAt });
       ambience.splash(0.16);
     } else if (phase === 'wait' && now >= state.biteAt) {
-      set({ phase: 'bite', phaseAt: state.biteAt });
+      // La fenêtre pour ferrer part de l'image où la touche est montrée : une image lente
+      // (téléphone chargé, onglet qui revient) ne la mange pas.
+      set({ phase: 'bite', phaseAt: now });
       ambience.splash(0.42);
       ambience.cue(988, 0.14);
-    } else if (phase === 'bite' && now >= state.biteAt + state.strikeWindow) {
+    } else if (phase === 'bite' && now >= state.phaseAt + state.strikeWindow) {
       set({ phase: 'missed', phaseAt: now, miss: 'late', joke: pickJoke('late', state.casts) });
       ambience.cue(196, 0.32);
     } else if (phase === 'reel' && now >= state.phaseAt + REEL_SECONDS && state.result) {

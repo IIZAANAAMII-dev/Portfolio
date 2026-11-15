@@ -155,11 +155,15 @@ const SHORE_GLSL = /* glsl */ `
   float edge = 1e4;
   for (int i = 0; i < ${SHOAL_COUNT}; i++) {
     vec2 delta = vWorld.xz - uShoals[i].xy;
+    float reach = length(delta);
+    // La côte ondule d'au plus 8 % : une île trop loin pour compter (au-delà des 22 m du
+    // dégradé, ou derrière une plus proche) n'a pas besoin de son angle.
+    if (reach - uShoals[i].z * 1.08 > min(edge, 23.0)) continue;
     float angle = atan(delta.y, delta.x);
     float brokenCoast = sin(angle * 5.0 + float(i) * 1.7) * 0.055
                       + sin(angle * 9.0 - float(i) * 0.9) * 0.025;
     float radius = uShoals[i].z * (1.0 + brokenCoast);
-    edge = min(edge, length(delta) - radius);
+    edge = min(edge, reach - radius);
   }
 
   float shallow = 1.0 - smoothstep(0.0, 22.0, max(edge, 0.0));
@@ -241,11 +245,10 @@ ${SHORE_GLSL}
   // descend sur le sable). Le sable affleure en clair juste devant la plage.
   float coastD = 40.0;
   if (uCoastRect.w > 0.001) coastD = texture2D(uCoast, (p - uCoastRect.xy) / uCoastRect.z).r;
-  coastD = mix(40.0, coastD, uCoastRect.w);
   float coastDyn = coastD + height * 1.3;
   float coastPx = max(fwidth(coastDyn), 1e-4);
   vec2 shore = shoreFoam(coastDyn, p, uTime, coastPx) * uCoastRect.w;
-  float shelf = 1.0 - smoothstep(0.3, 3.6, coastD);
+  float shelf = (1.0 - smoothstep(0.3, 3.6, coastD)) * uCoastRect.w;
   water = mix(water, uLagoon, shelf * 0.22);
 
   vec3 viewDir = normalize(uCameraPos - vWorld);
@@ -350,9 +353,12 @@ ${SHORE_GLSL}
   water = mix(water, lineColor, lines * 0.72);
 
   // Remous au large, plus visibles près de la caméra, absents des lagons.
-  float swirl = swirlFoam(p + vec2(uTime * 0.25, uTime * 0.1), uTime)
-    * (1.0 - shallow) * (1.0 - smoothstep(60.0, 115.0, cameraDistance)) * step(0.25, uQuality)
-    * (1.0 - wakeLane) * (1.0 - nearShore);
+  float swirl = 0.0;
+  if (uQuality > 0.25 && cameraDistance < 115.0 && shallow < 0.999) {
+    swirl = swirlFoam(p + vec2(uTime * 0.25, uTime * 0.1), uTime)
+      * (1.0 - shallow) * (1.0 - smoothstep(60.0, 115.0, cameraDistance))
+      * (1.0 - wakeLane) * (1.0 - nearShore);
+  }
   water = mix(water, uFoam, swirl * 0.8);
   float extraAlpha = lines * 0.18;
 
@@ -368,7 +374,7 @@ ${SHORE_GLSL}
     * uDayNight * (1.0 - uStormColor);
 
   // Ombres de nuages qui glissent sur la mer (de jour).
-  water *= 1.0 - cloudShadow(vWorld.xz, uCloudTime) * 0.2 * (1.0 - uDayNight);
+  if (uDayNight < 0.995) water *= 1.0 - cloudShadow(vWorld.xz, uCloudTime) * 0.2 * (1.0 - uDayNight);
   // Assombrissement nocturne : l'eau devient très sombre, l'écume reste claire.
   water *= mix(vec3(1.0), vec3(0.18, 0.24, 0.32), uDayNight);
   water += bioLight;
@@ -380,20 +386,26 @@ ${SHORE_GLSL}
   // Une légère absorption vers le grand fond renforce la sensation de volume sans réfraction coûteuse.
   water *= mix(0.92, 1.03, shallow);
 
-  // Une bande fine sur les crêtes, pas de grandes nappes turquoise pleines.
-  float stormHeight = smoothstep(0.16, 0.72, height);
-  float stormRidge = 0.5 + 0.5 * sin(
-    vWorld.x * 0.42 + vWorld.z * 0.19 - uTime * 1.35
-    + valueNoise(vWorld.xz * 0.11) * 4.2
-  );
-  float stormCrest = smoothstep(0.88, 0.965, stormRidge) * stormHeight;
-  float stormBreakup = smoothstep(0.36, 0.68,
-    valueNoise(vWorld.xz * 0.34 + vec2(uTime * 0.09, -uTime * 0.04)));
-  float stormFoam = stormCrest * stormBreakup * uStorm * 0.042;
-  float monsterDistance = segmentDistance(vWorld.xz, uMonsterFrom, uMonsterTo);
-  float monsterBreakup = valueNoise(vWorld.xz * 0.42 + vec2(uTime * 0.18, -uTime * 0.11));
-  float monsterFoam = (1.0 - smoothstep(1.4, 5.8 + monsterBreakup * 2.4, monsterDistance))
-    * uMonsterWake * smoothstep(0.18, 0.78, monsterBreakup + 0.2);
+  // Tempête : une bande fine sur les crêtes, pas de grandes nappes turquoise pleines.
+  float stormFoam = 0.0;
+  if (uStorm > 0.001) {
+    float stormHeight = smoothstep(0.16, 0.72, height);
+    float stormRidge = 0.5 + 0.5 * sin(
+      vWorld.x * 0.42 + vWorld.z * 0.19 - uTime * 1.35
+      + valueNoise(vWorld.xz * 0.11) * 4.2
+    );
+    float stormCrest = smoothstep(0.88, 0.965, stormRidge) * stormHeight;
+    float stormBreakup = smoothstep(0.36, 0.68,
+      valueNoise(vWorld.xz * 0.34 + vec2(uTime * 0.09, -uTime * 0.04)));
+    stormFoam = stormCrest * stormBreakup * uStorm * 0.042;
+  }
+  float monsterFoam = 0.0;
+  if (uMonsterWake > 0.001) {
+    float monsterDistance = segmentDistance(vWorld.xz, uMonsterFrom, uMonsterTo);
+    float monsterBreakup = valueNoise(vWorld.xz * 0.42 + vec2(uTime * 0.18, -uTime * 0.11));
+    monsterFoam = (1.0 - smoothstep(1.4, 5.8 + monsterBreakup * 2.4, monsterDistance))
+      * uMonsterWake * smoothstep(0.18, 0.78, monsterBreakup + 0.2);
+  }
   // Écume du rivage : liseré presque blanc, anneaux un peu plus légers.
   float shoreAmt = max(shore.x * 0.94, shore.y * 0.8) * (1.0 - forbidden);
   float foamAmt = clamp(crest * 1.6 + stormFoam + monsterFoam * 0.48 + shoreAmt, 0.0, 0.94);
