@@ -183,7 +183,8 @@ export function introRadiusFromGameTransition(t: number) {
 /** Intensité du halo au bord du cercle : un éclat à l'impact, puis la lisière s'apaise. */
 export function introGlowFromGameTransition(t: number) {
   const seconds = introSeconds(t);
-  if (seconds < SPLASH_SECONDS) return 0.9 * smoothstep(0.1, 0.45, seconds);
+  // Avant l'impact, une lisière discrète : le diaphragme ouvert ne doit pas voiler l'eau.
+  if (seconds < SPLASH_SECONDS) return 0.32 * smoothstep(0.1, 0.45, seconds);
   const since = seconds - SPLASH_SECONDS;
   return (0.85 + 1.15 * Math.exp(-since * 1.8)) * (1 - smoothstep(4.4, 6.2, seconds));
 }

@@ -107,9 +107,10 @@ void main() {
   vec2 chartPoint = uCenter + dir * rippled;
 
   // Bord du trou : diaphragme à sept lames pendant l'ouverture, puis rivage d'écume irrégulier.
+  // Heptagone inscrit dans l'anneau : ses sommets touchent le cercle, ses lames mordent dedans.
   float sector = TAU / 7.0;
   float blade = mod(angle - uIrisTurn, sector) - sector * 0.5;
-  float edge = uHole * mix(1.0, 1.0 / cos(blade), uIris);
+  float edge = uHole * mix(1.0, cos(sector * 0.5) / cos(blade), uIris);
   edge += (chartNoise(dir * 3.5 + vec2(uTime * 0.45, -uTime * 0.3)) - 0.5) * 3.4 * uRagged * smoothstep(8.0, 22.0, uHole);
 
   // Mer de nuit, un peu plus claire autour de l'anneau.
@@ -189,7 +190,8 @@ void main() {
 
   // Le monde apparaît dans le trou ; dehors, la carte reste. Sur son bord, un liseré de
   // lanterne (diaphragme) puis d'écume (rivage qui avance).
-  float alpha = smoothstep(edge - 3.0, edge + 0.4, r);
+  // Lames nettes pendant l'ouverture, rivage fondu ensuite.
+  float alpha = smoothstep(edge - mix(3.0, 0.45, uIris), edge + 0.3, r);
   float rim = exp(-pow((r - edge) / (0.5 + uRagged * 0.7), 2.0)) * uRim * step(0.01, uHole);
   color = mix(color, mix(lantern, vec3(0.9, 0.98, 1.0), uRagged), rim * 0.85);
   alpha = max(alpha, rim * 0.9);
