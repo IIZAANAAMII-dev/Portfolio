@@ -583,33 +583,33 @@ export function TreasureChest() {
       </Hotspot>
       {/* Lumière du trésor : hors du Hotspot, pour que l'éclat « cliquable » se pose sur le coffre. */}
       <group position={[CHEST_LOCAL[0], chestY, CHEST_LOCAL[2]]} rotation={CHEST_ROTATION}>
-          <mesh geometry={shaftGeometry} position={[0, H - 0.1, 0]} renderOrder={6} raycast={() => null}>
-            <shaderMaterial
-              ref={shaft}
-              uniforms={{ uTime: { value: 0 }, uIntensity: { value: 0 } }}
-              vertexShader={shaftVertex}
-              fragmentShader={shaftFragment}
-              transparent
-              depthWrite={false}
-              blending={AdditiveBlending}
-              side={DoubleSide}
-            />
-          </mesh>
-          <points ref={sparkles} geometry={sparkleGeo} position={[0, H - 0.05, 0]} frustumCulled={false} renderOrder={7} raycast={() => null}>
-            <shaderMaterial
-              uniforms={{ uTime: { value: 0 }, uIntensity: { value: 0 }, uBurst: { value: 10 }, uScale: { value: 800 } }}
-              vertexShader={sparkleVertex}
-              fragmentShader={sparkleFragment}
-              transparent
-              depthWrite={false}
-              blending={AdditiveBlending}
-            />
-          </points>
+        <mesh geometry={shaftGeometry} position={[0, H - 0.1, 0]} renderOrder={6} raycast={() => null}>
+          <shaderMaterial
+            ref={shaft}
+            uniforms={{ uTime: { value: 0 }, uIntensity: { value: 0 } }}
+            vertexShader={shaftVertex}
+            fragmentShader={shaftFragment}
+            transparent
+            depthWrite={false}
+            blending={AdditiveBlending}
+            side={DoubleSide}
+          />
+        </mesh>
+        <points ref={sparkles} geometry={sparkleGeo} position={[0, H - 0.05, 0]} frustumCulled={false} renderOrder={7} raycast={() => null}>
+          <shaderMaterial
+            uniforms={{ uTime: { value: 0 }, uIntensity: { value: 0 }, uBurst: { value: 10 }, uScale: { value: 800 } }}
+            vertexShader={sparkleVertex}
+            fragmentShader={sparkleFragment}
+            transparent
+            depthWrite={false}
+            blending={AdditiveBlending}
+          />
+        </points>
       </group>
 
       {open && (
         <SecretCard
-          position={[CHEST_LOCAL[0], 3.3, CHEST_LOCAL[2]]}
+          position={[CHEST_LOCAL[0], 2.7, CHEST_LOCAL[2]]}
           eyebrow="Expérience perso · trouvée dans le coffre"
           glyph="◈"
           ink="#c9901c"

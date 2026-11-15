@@ -2,50 +2,43 @@
 
 import { useFrame } from '@react-three/fiber';
 import { projects } from '@/data/projects';
-import { focusItem } from '@/lib/focus';
 import { skyState } from '@/lib/sky';
 import { updateWindows } from '@/lib/windows';
-import type { Project } from '@/types';
-import { Hotspot, type SceneProps } from '../../kit';
+import type { Project, ProjectBuilding } from '@/types';
+import type { SceneProps } from '../../kit';
 import { CyberCenter } from './Cyber';
 import { Gallery } from './Gallery';
-import { SITES, TOWN, sitePosition, siteRotation, type SiteId } from './layout';
-import { Plaque } from './signs';
+import { Medical } from './Medical';
+import { Shipyard } from './Shipyard';
 import { TechCenter } from './TechCenter';
 import { Town } from './Town';
+import { TownLife } from './TownLife';
+import { Workshops } from './Workshops';
 
 /**
- * ÎLE PROJETS — la ville : un bâtiment par projet autour d'une place, le centre cyber
- * (le nouveau site) en son cœur. Voir layout.ts pour le plan.
+ * ÎLE PROJETS — la ville : un bâtiment par projet autour d'une place ronde, le centre
+ * cyber (le nouveau site, sa bulle-galaxie) en son cœur. Plan : layout.ts. Relief : config.ts.
+ * Chaque bâtiment lit son projet dans data/projects.ts (numéro, titre, couleur, captures).
  */
-
-function Placeholder({ project }: { project: Project }) {
-  const id = project.building as SiteId;
-  const [x, z] = sitePosition(id);
-  const y = id === 'shipyard' ? 0.82 : TOWN.level;
-  return (
-    <Hotspot onActivate={() => focusItem('projects', project.id)} position={[x, y, z]} rotation={[0, siteRotation(id), 0]}>
-      <mesh position-y={1.5} castShadow receiveShadow>
-        <boxGeometry args={[4, 3, 3]} />
-        <meshStandardMaterial color={project.accent} roughness={0.8} />
-      </mesh>
-      <Plaque index={project.index} accent={project.accent} position={[0, 2.2, 1.52]} />
-    </Hotspot>
-  );
-}
+const BUILDINGS: Record<ProjectBuilding, (props: { project: Project }) => React.ReactNode> = {
+  'tech-center': TechCenter,
+  gallery: Gallery,
+  medical: Medical,
+  cyber: CyberCenter,
+  workshops: Workshops,
+  shipyard: Shipyard,
+};
 
 export default function ProjectsScene({ island }: SceneProps) {
-  // Les vitres partagées (kit WindowPane) s'allument au crépuscule.
+  // Les vitres partagées (kit WindowPane, lib/windows) s'allument au crépuscule.
   useFrame(() => updateWindows(skyState.dayNight));
   return (
     <>
       <Town elevation={island.elevation} />
+      <TownLife />
       {projects.map((project) => {
-        if (!(project.building in SITES)) return null;
-        if (project.building === 'cyber') return <CyberCenter key={project.id} project={project} />;
-        if (project.building === 'tech-center') return <TechCenter key={project.id} project={project} />;
-        if (project.building === 'gallery') return <Gallery key={project.id} project={project} />;
-        return <Placeholder key={project.id} project={project} />;
+        const Building = BUILDINGS[project.building];
+        return Building ? <Building key={project.id} project={project} /> : null;
       })}
     </>
   );

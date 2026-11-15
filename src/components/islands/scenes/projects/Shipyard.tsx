@@ -2,14 +2,13 @@
 
 import { useEffect, useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
-import { DoubleSide, ExtrudeGeometry, MeshStandardMaterial, Shape, Vector2, type Group, type InstancedMesh } from 'three';
-import { Object3D } from 'three';
+import { DoubleSide, ExtrudeGeometry, MeshStandardMaterial, Object3D, Shape, Vector2, type Group, type InstancedMesh } from 'three';
 import { gwennHaDu } from '@/components/islets/BreizhDecor';
 import { focusItem } from '@/lib/focus';
 import { hash } from '@/lib/utils/math';
 import type { Project } from '@/types';
 import { Hotspot } from '../../kit';
-import { Maquette, pose, type V3 } from './builder';
+import { Maquette } from './builder';
 import { SHIPYARD, VIEWPOINT, faceToward, sitePosition } from './layout';
 import { glow, paint } from './materials';
 import { Plaque, SignText, signFrame } from './signs';
@@ -267,5 +266,3 @@ export function Shipyard({ project }: { project: Project }) {
     </Hotspot>
   );
 }
-
-export const SHIPYARD_POSE = pose([SX, SHIPYARD.level, SZ], [0, RY, 0]);
