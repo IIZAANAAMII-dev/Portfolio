@@ -118,7 +118,7 @@ export function ringMaterial() {
         float a = atan(vLocal.y, vLocal.x);
         float n = krNoise(vec2(a * 2.6 + vFx.y * 10.0, uTime * 0.7 + vFx.y * 3.0));
         // Collerette serrée contre le bras, déchiquetée.
-        float collar = smoothstep(0.88, 1.02, d) * (1.0 - smoothstep(1.12, 1.55 + n * 0.7, d));
+        float collar = smoothstep(0.86, 1.0, d) * (1.0 - smoothstep(1.25, 2.0 + n * 0.9, d));
         // Rides qui s'éloignent.
         float ripples = 0.0;
         for (int i = 0; i < 3; i++) {
@@ -127,7 +127,7 @@ export function ringMaterial() {
           ripples += (1.0 - smoothstep(0.0, 0.16 + life * 0.1, abs(d - r))) * (1.0 - life) * (1.0 - life);
         }
         float breakup = smoothstep(0.28, 0.62, krNoise(vLocal * 2.4 + vFx.y * 7.0 + uTime * 0.3));
-        float foam = max(collar * (0.55 + n * 0.6), ripples * 0.6 * breakup) * vFx.x;
+        float foam = max(collar * (0.75 + n * 0.5), ripples * 0.7 * breakup) * vFx.x;
         foam *= 1.0 - smoothstep(3.6, 4.4, d);
         if (foam < 0.01) discard;
         vec3 color = mix(vec3(0.88, 0.97, 0.95), vec3(0.42, 0.95, 0.86), uNight * 0.55);

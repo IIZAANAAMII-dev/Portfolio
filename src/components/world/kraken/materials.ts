@@ -161,11 +161,11 @@ float krAlong = 0.5;
   float krLaneId = floor(krAz * 9.0);
   float krRand = fract(sin(krLaneId * 91.7 + 3.1) * 43758.5);
   float krLane = fract(krAz * 9.0);
-  float krLine = 1.0 - smoothstep(0.0, 0.07 + krRand * 0.1, abs(krLane - 0.5));
+  float krLine = 1.0 - smoothstep(0.0, 0.04 + krRand * 0.06, abs(krLane - 0.5));
   float krFlow = fract(vKrLocal.y * 0.32 + uTime * (0.7 + krRand * 0.8) + krRand * 5.0);
   float krDrop = smoothstep(0.0, 0.12, krFlow) * (1.0 - smoothstep(0.45, 1.0, krFlow));
   float krSheet = krLine * krDrop * step(0.3, krRand) * uWet;
-  diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.62, 0.72, 0.78), krSheet * 0.55);
+  diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.62, 0.72, 0.78), krSheet * 0.3);
   krWetness = max(krWetness * 0.6, krSheet);
 }
 #endif
@@ -202,7 +202,9 @@ const SKIN_LIGHT = /* glsl */ `
   vec3 krV = geometryViewDir;
   float krFres = 1.0 - saturate(dot(normal, krV));
   // Liseré froid du ciel d'orage : la silhouette se lit même de nuit.
-  totalEmissiveRadiance += uRim * smoothstep(0.55, 0.95, krFres) * (0.3 + 0.7 * uNight) * (0.35 + diffuseColor.rgb * 1.6);
+  totalEmissiveRadiance += uRim * smoothstep(0.6, 0.95, krFres) * (0.14 + 0.6 * uNight) * (0.3 + diffuseColor.rgb * 1.8);
+  // Chair translucide : la couleur reste saturée dans la pénombre de l'orage.
+  totalEmissiveRadiance += diffuseColor.rgb * (0.13 + uNight * 0.06) * (1.0 - krBelly * 0.4);
   // Irisation discrète (film d'eau et de mucus), surtout sur le dos.
   vec3 krIrid = 0.5 + 0.5 * cos(6.2832 * (krFres * 1.4 + krAlong * 0.8 + vec3(0.0, 0.33, 0.67)));
   totalEmissiveRadiance += krIrid * pow(krFres, 2.6) * 0.17 * (1.0 - krBelly * 0.6);
@@ -320,7 +322,7 @@ function skinMaterial(kind: Kind) {
   const material = new MeshStandardMaterial({
     map: skin,
     bumpMap: skin,
-    bumpScale: kind === 'head' || kind === 'lid' ? 1.6 : 1.1,
+    bumpScale: kind === 'head' || kind === 'lid' ? 0.55 : 0.35,
     emissive: new Color('#ffffff'),
     emissiveMap: glow,
     emissiveIntensity: 0,

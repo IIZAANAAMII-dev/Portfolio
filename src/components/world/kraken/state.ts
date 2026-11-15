@@ -14,12 +14,12 @@ export const SPINE_ROWS = 3;
 
 /** Silhouette de la tête (repère local : +X vers le bateau, +Y haut, ±Z les flancs). */
 export const HEAD = {
-  rx: 7.4,
-  ry: 6.2,
-  rz: 7.8,
+  rx: 9.2,
+  ry: 7.4,
+  rz: 9.6,
   /** Le manteau s'étire vers l'arrière, comme un calmar. */
-  mantle: 1.8,
-  eyeRadius: 2.05,
+  mantle: 1.85,
+  eyeRadius: 2.6,
 } as const;
 
 export const krakenState = {

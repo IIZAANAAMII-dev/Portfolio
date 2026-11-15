@@ -68,18 +68,10 @@ function paintSkin(size: number) {
   ctx.lineWidth = Math.max(1, size / 340);
   for (let ring = 0; ring < 9; ring++) {
     const base = (ring + next() * 0.4) * (size / 9);
-    ctx.strokeStyle = rgba([48, 8, 30], 0.2 + next() * 0.16);
+    ctx.strokeStyle = rgba([60, 10, 36], 0.08 + next() * 0.08);
     ctx.beginPath();
     for (let x = 0; x <= size; x += size / 32) {
       const y = base + Math.sin((x / size) * Math.PI * 2 * 3 + ring) * size * 0.006;
-      if (x === 0) ctx.moveTo(x, y);
-      else ctx.lineTo(x, y);
-    }
-    ctx.stroke();
-    ctx.strokeStyle = rgba([214, 110, 120], 0.12);
-    ctx.beginPath();
-    for (let x = 0; x <= size; x += size / 32) {
-      const y = base + size * 0.006 + Math.sin((x / size) * Math.PI * 2 * 3 + ring) * size * 0.006;
       if (x === 0) ctx.moveTo(x, y);
       else ctx.lineTo(x, y);
     }

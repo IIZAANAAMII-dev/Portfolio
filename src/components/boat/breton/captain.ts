@@ -213,7 +213,7 @@ export type CaptainCue = {
   /** Accélération (m/s²) et vitesse de lacet (rad/s) du bateau : inertie du buste, regard. */
   accel: number;
   turn: number;
-  /** 1 = mouvements réduits (préférence système) : gestes plus lents et plus amples de moitié. */
+  /** 1 = mouvements réduits (préférence système) : gestes deux fois plus lents et moins amples. */
   calm: number;
 };
 

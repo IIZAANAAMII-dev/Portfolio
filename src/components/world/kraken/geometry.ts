@@ -195,18 +195,18 @@ export function headGeometry() {
     }
     // Front un peu aplati, menton (bas de la face) creusé.
     if (n.x > 0.55) x -= (n.x - 0.55) * 1.3;
-    let radial = (noise3(n.x * 3.1 + 7, n.y * 3.1, n.z * 3.1) - 0.5) * 0.7
-      + (noise3(n.x * 9.0, n.y * 9.0 + 3, n.z * 9.0) - 0.5) * 0.28;
+    let radial = (noise3(n.x * 2.6 + 7, n.y * 2.6, n.z * 2.6) - 0.5) * 0.9
+      + (noise3(n.x * 7.0, n.y * 7.0 + 3, n.z * 7.0) - 0.5) * 0.22;
     // Verrues éparses.
-    radial += Math.pow(noise3(n.x * 17, n.y * 17, n.z * 17 + 11), 6) * 0.9;
+    radial += Math.pow(noise3(n.x * 15, n.y * 15, n.z * 15 + 11), 6) * 0.7;
     for (const dir of eyes) {
       const angle = Math.acos(Math.max(-1, Math.min(1, n.dot(dir))));
       // Orbite creusée, bourrelet autour, arcade plus marquée au-dessus de l'œil.
-      radial -= (1 - Math.min(1, angle / 0.34)) * 1.25;
-      const brow = n.y > dir.y ? 1 + (n.y - dir.y) * 3 : 1;
-      radial += Math.exp(-Math.pow((angle - 0.4) / 0.075, 2)) * 0.7 * brow;
+      radial -= (1 - Math.min(1, angle / 0.36)) * 1.6;
+      const brow = n.y > dir.y ? 1 + (n.y - dir.y) * 3.2 : 1;
+      radial += Math.exp(-Math.pow((angle - 0.42) / 0.08, 2)) * 0.95 * brow;
       // Plis concentriques sous l'œil.
-      if (n.y < dir.y) radial += Math.exp(-Math.pow((angle - 0.55) / 0.04, 2)) * 0.22;
+      if (n.y < dir.y) radial += Math.exp(-Math.pow((angle - 0.58) / 0.045, 2)) * 0.3;
     }
     const length = Math.hypot(x, y, z) || 1;
     position.setXYZ(i, x + (x / length) * radial, y + (y / length) * radial, z + (z / length) * radial);

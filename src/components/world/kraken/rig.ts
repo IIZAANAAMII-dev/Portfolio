@@ -87,14 +87,14 @@ const ARCH = 0.56;
 
 /** Angle à la verticale (vers `dir`) le long du bras : la crosse se resserre vers la pointe. */
 function armAngle(arm: ArmPose, s: number, curl: number, time: number, calm: number) {
-  const hook = s > 0.4 ? Math.pow((s - 0.4) / 0.6, 2.1) : 0;
+  const hook = s > 0.56 ? Math.pow((s - 0.56) / 0.44, 2.3) : 0;
   return arm.tilt + arm.lean * s + curl * hook
     + arm.sway * calm * 0.2 * Math.sin(time * 0.78 + arm.phase + s * 2.3) * s;
 }
 
 function radiusAt(arm: ArmPose, s: number) {
-  const taper = Math.pow(1 - s, 0.85);
-  return arm.thickness * Math.max(0.024, taper) * arm.visible;
+  const taper = Math.pow(1 - s, 1.05);
+  return arm.thickness * Math.max(0.022, taper) * arm.visible;
 }
 
 /**

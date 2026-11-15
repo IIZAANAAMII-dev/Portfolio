@@ -54,15 +54,15 @@ const T_SLAP = T_ATTACK + 1.1;
 
 /** Bras du cercle (angle autour du bateau depuis la direction de la tête, en radians). */
 const RING = [
-  { angle: 0.62, radius: 15, length: 35, thickness: 1.8, order: 2, lean: 1.0, twist: 0.35 },
-  { angle: -0.66, radius: 15.5, length: 36, thickness: 1.85, order: 0, lean: 0.95, twist: -0.35 },
-  { angle: 1.3, radius: 13.5, length: 32, thickness: 1.6, order: 4, lean: 1.12, twist: 0.45 },
-  { angle: -1.32, radius: 14, length: 33, thickness: 1.65, order: 1, lean: 1.08, twist: -0.45 },
+  { angle: 0.62, radius: 17, length: 42, thickness: 2.2, order: 2, lean: 0.95, curl: 3.6, tilt: -0.32, twist: 0.35 },
+  { angle: -0.66, radius: 18, length: 44, thickness: 2.3, order: 0, lean: 0.85, curl: 3.9, tilt: -0.28, twist: -0.35 },
+  { angle: 1.3, radius: 15.5, length: 38, thickness: 2.0, order: 4, lean: 1.05, curl: 3.4, tilt: -0.36, twist: 0.45 },
+  { angle: -1.32, radius: 16, length: 40, thickness: 2.05, order: 1, lean: 0.95, curl: 3.7, tilt: -0.3, twist: -0.45 },
   // Les deux bras qui saisissent la coque : avant (4) et arrière (5).
-  { angle: 2.0, radius: 11.5, length: 30, thickness: 1.4, order: 5, lean: 1.2, twist: 0 },
-  { angle: -1.95, radius: 12, length: 30, thickness: 1.4, order: 3, lean: 1.2, twist: 0 },
-  { angle: 2.7, radius: 14.5, length: 30, thickness: 1.5, order: 6, lean: 1.18, twist: 0.25 },
-  { angle: -2.72, radius: 15, length: 31, thickness: 1.55, order: 7, lean: 1.15, twist: -0.25 },
+  { angle: 2.0, radius: 12.5, length: 34, thickness: 1.7, order: 5, lean: 1.1, curl: 3.0, tilt: -0.25, twist: 0 },
+  { angle: -1.95, radius: 13, length: 34, thickness: 1.7, order: 3, lean: 1.1, curl: 3.2, tilt: -0.25, twist: 0 },
+  { angle: 2.7, radius: 16.5, length: 36, thickness: 1.85, order: 6, lean: 1.0, curl: 3.5, tilt: -0.34, twist: 0.25 },
+  { angle: -2.72, radius: 17, length: 37, thickness: 1.9, order: 7, lean: 0.98, curl: 3.6, tilt: -0.32, twist: -0.25 },
 ] as const;
 const GRAB_FRONT = 4;
 const GRAB_BACK = 5;
@@ -274,8 +274,8 @@ function captureAnchor() {
   }
   seq.latX = -seq.outZ * seq.side;
   seq.latZ = seq.outX * seq.side;
-  seq.headX = seq.anchorX + seq.outX * 19 + seq.latX * 3;
-  seq.headZ = seq.anchorZ + seq.outZ * 19 + seq.latZ * 3;
+  seq.headX = seq.anchorX + seq.outX * 22 + seq.latX * 3;
+  seq.headZ = seq.anchorZ + seq.outZ * 22 + seq.latZ * 3;
 }
 
 function startSequence() {
@@ -689,14 +689,14 @@ function poseSequence(T: number, time: number, calm: number) {
     arm.length = spec.length;
     arm.thickness = spec.thickness;
     arm.rise = rise;
-    arm.tilt = -0.2;
+    arm.tilt = spec.tilt;
     // Dressés, puis penchés en cage au-dessus du bateau, cabrés pendant l'assaut, puis
     // abattus dans l'eau quand le kraken replonge.
     arm.lean = spec.lean
       + 0.32 * smoothstep(T_COIL, T_COIL + 1.2, T)
       - 0.28 * smoothstep(T_ATTACK + 0.2, T_ATTACK + 1.1, T)
       + 0.7 * smoothstep(T_IMPACT + 0.1, T_IMPACT + 0.7, T);
-    arm.curl = 2.0 + 0.3 * Math.sin(time * 0.4 + i * 1.7) * calm;
+    arm.curl = spec.curl + 0.35 * Math.sin(time * 0.4 + i * 1.7) * calm;
     arm.sway = 1;
     arm.phase = i * 1.37;
     arm.twist = spec.twist;
@@ -769,7 +769,7 @@ function poseSequence(T: number, time: number, calm: number) {
   head.rise = rise;
   head.x = seq.headX;
   head.z = seq.headZ;
-  head.y = -11 + rise * 11.2 + Math.sin(time * 0.7) * 0.35 * rise * calm;
+  head.y = -13 + rise * 13.8 + Math.sin(time * 0.7) * 0.35 * rise * calm;
   // +X local de la tête vers le bateau (rotation.y = −cap, comme le bateau).
   head.yaw = -Math.atan2(seq.anchorZ - head.z, seq.anchorX - head.x) + Math.sin(time * 0.3) * 0.04 * calm;
   head.roll = Math.sin(time * 0.5) * 0.03 * calm;

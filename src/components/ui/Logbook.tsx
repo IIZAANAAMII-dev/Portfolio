@@ -70,6 +70,13 @@ export function LogbookButton() {
   );
 }
 
+/** Pages du carnet : les îles, les îlots, puis les trouvailles et exploits du voyage. */
+const STAMP_GROUPS: { title: string; match: (id: StampId) => boolean }[] = [
+  { title: 'Îles', match: (id) => id.startsWith('island:') },
+  { title: 'Îlots', match: (id) => id.startsWith('islet:') },
+  { title: 'Trouvailles', match: (id) => !id.startsWith('island:') && !id.startsWith('islet:') },
+];
+
 export function LogbookPanel() {
   const open = useLogbook((state) => state.open);
   const stamps = useLogbook((state) => state.stamps);
@@ -87,6 +94,7 @@ export function LogbookPanel() {
   }, [open, setOpen]);
 
   if (!open) return null;
+  const progress = STAMPS.length ? stamps.length / STAMPS.length : 0;
   return (
     <div className="logbook-backdrop" onClick={() => setOpen(false)}>
       <section
@@ -96,39 +104,60 @@ export function LogbookPanel() {
         aria-label="Carnet de bord"
         onClick={(event) => event.stopPropagation()}
       >
-        <header className="logbook__header">
-          <span className="intro-eyebrow">Carnet de bord</span>
-          <h2>Tampons de voyage</h2>
-          <p>
-            {stamps.length} / {STAMPS.length} tampons · étoiles d’or {stars.length} / {STAR_COUNT}
-          </p>
-          <button type="button" className="logbook__close" onClick={() => setOpen(false)} aria-label="Fermer le carnet">
-            ×
-          </button>
-        </header>
-        <div className="logbook__tabs" role="tablist" aria-label="Pages du carnet">
-          <button type="button" role="tab" aria-selected={tab === 'map'} onClick={() => setTab('map')}>
-            Carte de voyage
-          </button>
-          <button type="button" role="tab" aria-selected={tab === 'stamps'} onClick={() => setTab('stamps')}>
-            Tampons
-          </button>
-        </div>
-        {tab === 'map' ? (
-          <VoyageMap />
-        ) : (
-          <div className="logbook__grid">
-            {STAMPS.map((stamp) => {
-              const earned = stamps.includes(stamp.id);
-              return (
-                <div key={stamp.id} className="logbook__cell">
-                  <Stamp stamp={stamp} earned={earned} />
-                  <span className="logbook__hint">{earned ? 'obtenu' : stamp.hint}</span>
-                </div>
-              );
-            })}
+        {/* La page de papier (marge rouge, lignes, ombre intérieure) défile seule ; la
+            croix reste en place au-dessus d'elle. */}
+        <div className="logbook__sheet">
+          <header className="logbook__header">
+            <span className="intro-eyebrow">Carnet de bord</span>
+            <h2>Tampons de voyage</h2>
+            <p>
+              {stamps.length} / {STAMPS.length} tampons · étoiles d’or {stars.length} / {STAR_COUNT}
+            </p>
+            <div className="logbook__progress" aria-hidden="true">
+              <span style={{ transform: `scaleX(${progress.toFixed(3)})` }} />
+            </div>
+          </header>
+          <div className="logbook__tabs" role="tablist" aria-label="Pages du carnet">
+            <button type="button" role="tab" aria-selected={tab === 'map'} onClick={() => setTab('map')}>
+              Carte de voyage
+            </button>
+            <button type="button" role="tab" aria-selected={tab === 'stamps'} onClick={() => setTab('stamps')}>
+              Tampons
+            </button>
           </div>
-        )}
+          {tab === 'map' ? (
+            <VoyageMap />
+          ) : (
+            STAMP_GROUPS.map((group) => {
+              const entries = STAMPS.filter((stamp) => group.match(stamp.id));
+              const earnedCount = entries.filter((stamp) => stamps.includes(stamp.id)).length;
+              return (
+                <section key={group.title} className="logbook__group" aria-label={group.title}>
+                  <h3>
+                    {group.title}
+                    <b>
+                      {earnedCount}/{entries.length}
+                    </b>
+                  </h3>
+                  <div className="logbook__grid">
+                    {entries.map((stamp) => {
+                      const earned = stamps.includes(stamp.id);
+                      return (
+                        <div key={stamp.id} className="logbook__cell" data-earned={earned || undefined}>
+                          <Stamp stamp={stamp} earned={earned} />
+                          <span className="logbook__hint">{earned ? 'obtenu' : stamp.hint}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </section>
+              );
+            })
+          )}
+        </div>
+        <button type="button" className="logbook__close" onClick={() => setOpen(false)} aria-label="Fermer le carnet">
+          ×
+        </button>
       </section>
     </div>
   );
