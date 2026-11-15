@@ -51,7 +51,8 @@ export function StackSmoke({ anchor }: { anchor: RefObject<Object3D | null> }) {
 
     // Cadence sur l'horloge (comme l'âge des bouffées) : même rythme quel que soit le FPS.
     if (running && time >= timer.current) {
-      timer.current = time + Math.max(0.09, 0.7 - throttle * 0.4 - push * 0.2) * (0.85 + Math.random() * 0.3);
+      // Ralenti : une bouffée toutes les 0,6 s ; en route, un panache continu (bouffées jointives).
+      timer.current = time + Math.max(0.08, 0.6 - throttle * 0.48 - push * 0.15) * (0.85 + Math.random() * 0.3);
       stack.getWorldPosition(tip);
       const index = cursor.current;
       cursor.current = (index + 1) % PUFFS;

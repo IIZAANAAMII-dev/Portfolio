@@ -192,12 +192,13 @@ export function Boat() {
         position.z - Math.sin(heading) * sampleDistance,
         time,
       );
-      const port = waveHeight(
+      // Tribord (+Z du bateau) est en (−sin, cos) dans le monde : rotation.y = −cap.
+      const starboard = waveHeight(
         position.x - Math.sin(heading) * 1.05,
         position.z + Math.cos(heading) * 1.05,
         time,
       );
-      const starboard = waveHeight(
+      const port = waveHeight(
         position.x + Math.sin(heading) * 1.05,
         position.z - Math.cos(heading) * 1.05,
         time,

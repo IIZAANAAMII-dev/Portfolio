@@ -1,3 +1,5 @@
+import { Vector3 } from 'three';
+
 /**
  * Mouvement du bateau, mesuré une fois par image par Boat (hors React) et lu par le modèle,
  * le patron, la fumée et les embruns : tous réagissent au même gaz, au même coup de barre.
@@ -17,4 +19,7 @@ export const boatMotion = {
   splashAt: -1,
   dockedAt: -1,
   bumpAt: -1,
+  /** Fourneau de la pipe du patron (monde), tenu à jour par le modèle ; `pipeAt` = dernière mise à jour. */
+  pipe: new Vector3(),
+  pipeAt: -1,
 };
