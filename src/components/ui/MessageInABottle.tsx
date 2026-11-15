@@ -111,7 +111,7 @@ export function MessageInABottle() {
             setEmail(event.target.value);
             if (emailInvalid) setStatus('idle');
           }}
-          placeholder="Ton e-mail, pour te répondre"
+          placeholder="Ton e-mail"
           aria-label="Ton e-mail (facultatif)"
           aria-invalid={emailInvalid || undefined}
           aria-describedby={emailInvalid ? 'bottle-note' : undefined}
