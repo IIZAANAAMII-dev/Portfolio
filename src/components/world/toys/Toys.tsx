@@ -52,6 +52,8 @@ const meshes: Record<Shape, InstancedMesh | null> = {
   raft: null,
 };
 const extras = { paint: null as InstancedMesh | null, net: null as InstancedMesh | null, lamp: null as InstancedMesh | null };
+/** Tous les maillages, relus à chaque image sans rien allouer. */
+const everyMesh: (InstancedMesh | null)[] = new Array(11).fill(null);
 
 const matrix = new Matrix4();
 const HIDDEN = new Matrix4().makeScale(0, 0, 0);
@@ -185,7 +187,19 @@ export function Toys() {
     extras.paint = cratePaint.current;
     extras.net = potNet.current;
     extras.lamp = lamp.current;
-    for (const mesh of [crate.current, cratePaint.current, barrel.current, pot.current, potNet.current, buoy.current, ball.current, lifebuoy.current, duck.current, marker.current, lamp.current]) {
+    everyMesh[0] = crate.current;
+    everyMesh[1] = cratePaint.current;
+    everyMesh[2] = barrel.current;
+    everyMesh[3] = pot.current;
+    everyMesh[4] = potNet.current;
+    everyMesh[5] = buoy.current;
+    everyMesh[6] = ball.current;
+    everyMesh[7] = lifebuoy.current;
+    everyMesh[8] = duck.current;
+    everyMesh[9] = marker.current;
+    everyMesh[10] = lamp.current;
+    for (let index = 0; index < everyMesh.length; index++) {
+      const mesh = everyMesh[index];
       if (mesh) mesh.visible = visible;
     }
     const group = raftGroup.current;
@@ -207,7 +221,8 @@ export function Toys() {
       else if (toy.shape === 'pot') place(extras.net, toy, time);
       else if (toy.shape === 'marker') place(extras.lamp, toy, time);
     }
-    for (const mesh of [crate.current, cratePaint.current, barrel.current, pot.current, potNet.current, buoy.current, ball.current, lifebuoy.current, duck.current, marker.current, lamp.current]) {
+    for (let index = 0; index < everyMesh.length; index++) {
+      const mesh = everyMesh[index];
       if (mesh) mesh.instanceMatrix.needsUpdate = true;
     }
 
@@ -222,7 +237,7 @@ export function Toys() {
       flag.rotation.y = WIND_YAW - raftYaw + Math.sin(time * 2.3) * 0.2 + Math.sin(time * 5.7) * 0.07;
       flag.rotation.x = Math.sin(time * 7.1) * 0.12;
     }
-    materials.lamp.emissiveIntensity = 0.3 + skyState.dayNight * 3 * (Math.sin(time * 2.4) > 0.2 ? 1 : 0.25);
+    toyMaterials().lamp.emissiveIntensity = 0.3 + skyState.dayNight * 3 * (Math.sin(time * 2.4) > 0.2 ? 1 : 0.25);
   });
 
   // Un clic sur le radeau : le bateau fonce droit dans la pyramide (et la traverse).

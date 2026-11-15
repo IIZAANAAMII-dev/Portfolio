@@ -247,7 +247,9 @@ ${SHORE_GLSL}
   if (uCoastRect.w > 0.001) coastD = texture2D(uCoast, (p - uCoastRect.xy) / uCoastRect.z).r;
   float coastDyn = coastD + height * 1.3;
   float coastPx = max(fwidth(coastDyn), 1e-4);
-  vec2 shore = shoreFoam(coastDyn, p, uTime, coastPx) * uCoastRect.w;
+  // Au large (la grande majorité des pixels), pas d'écume de rivage à calculer.
+  vec2 shore = vec2(0.0);
+  if (coastDyn < 6.0) shore = shoreFoam(coastDyn, p, uTime, coastPx) * uCoastRect.w;
   float shelf = (1.0 - smoothstep(0.3, 3.6, coastD)) * uCoastRect.w;
   water = mix(water, uLagoon, shelf * 0.22);
 
