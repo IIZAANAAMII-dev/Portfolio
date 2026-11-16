@@ -319,11 +319,16 @@ function Invite({ onStart }: { onStart: () => void }) {
   );
 }
 
+/** Départ de la visite (lanceur, invitation) : le focus passe aux commandes du sous-titre. */
+function launchTour(from: number) {
+  const tour = useTour.getState();
+  tour.passFocus('deck');
+  tour.start(from);
+}
+
 function Launcher() {
   const resumeAt = useTour((state) => state.resumeAt);
   const invite = useTour((state) => state.invite);
-  const start = useTour((state) => state.start);
-  const passFocus = useTour((state) => state.passFocus);
   const button = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
@@ -331,14 +336,10 @@ function Launcher() {
   }, []);
 
   const resuming = resumeAt > 0;
-  const launch = (from: number) => {
-    passFocus('deck');
-    start(from);
-  };
+  const launch = launchTour;
 
   return (
     <div className={styles.launch}>
-      {invite && <Invite onStart={() => launch(0)} />}
       <div className={styles.launchRow}>
         <button
           ref={button}
@@ -606,6 +607,7 @@ export default function GuidedTour() {
   const reducedMotion = useWorld((state) => state.reducedMotion);
   const status = useTour((state) => state.status);
   const stage = useTour((state) => state.stage);
+  const invite = useTour((state) => state.invite);
   // Carte de prise, bourriche ou appareil photo à l'écran : la visite leur laisse la place.
   const busy = useGameplay(
     (state) => state.photo !== 'off' || state.basketOpen || state.phase === 'caught' || state.phase === 'missed',
@@ -619,6 +621,18 @@ export default function GuidedTour() {
 
   // Démontée (version rapide…) : la visite s'arrête net, sans toucher au monde.
   useEffect(() => () => useTour.getState().reset(), []);
+
+  // `html[data-tour]` : l'invitation ou la visite à l'écran, le reste de l'interface s'ordonne
+  // autour (le mot d'accueil et le prochain cap attendent, le rail du jeu se range au téléphone).
+  const flag = !visible ? null : status === 'running' ? 'running' : status === 'idle' && invite ? 'invite' : null;
+  useEffect(() => {
+    if (!flag) return;
+    const html = document.documentElement;
+    html.dataset.tour = flag;
+    return () => {
+      delete html.dataset.tour;
+    };
+  }, [flag]);
 
   // Développement : accès à la visite pour les tests automatisés (comme __world).
   useEffect(() => {
@@ -640,9 +654,12 @@ export default function GuidedTour() {
         data-busy={busy ? '' : undefined}
         data-reduced={reducedMotion ? '' : undefined}
       >
-        {status === 'idle' && <Launcher />}
-        {status === 'running' && <Deck />}
-        {status === 'ended' && <EndCard />}
+        {status === 'idle' && invite && <Invite onStart={() => launchTour(0)} />}
+        <div className={styles.frame}>
+          {status === 'idle' && <Launcher />}
+          {status === 'running' && <Deck />}
+          {status === 'ended' && <EndCard />}
+        </div>
       </div>
     </>
   );

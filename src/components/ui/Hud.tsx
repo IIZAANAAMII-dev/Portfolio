@@ -211,6 +211,17 @@ function IslandNav({ menuOpen, setMenuOpen }: { menuOpen: boolean; setMenuOpen: 
     return () => ctx.revert();
   }, [menuOpen, reducedMotion]);
 
+  // `html[data-menu='cap']` : le dock du jeu, le rail, la radio et la visite guidée s'effacent
+  // tant que la liste est ouverte (elle passe au-dessus d'eux, sous un voile).
+  useEffect(() => {
+    if (!menuOpen) return;
+    const html = document.documentElement;
+    html.dataset.menu = 'cap';
+    return () => {
+      delete html.dataset.menu;
+    };
+  }, [menuOpen]);
+
   // Échap referme la liste avant toute autre chose (phase de capture), puis rend le focus.
   useEffect(() => {
     if (!menuOpen) return;
@@ -261,6 +272,7 @@ function IslandNav({ menuOpen, setMenuOpen }: { menuOpen: boolean; setMenuOpen: 
           className="hud-cap"
           aria-expanded={menuOpen}
           aria-controls="hud-cap-menu"
+          data-target={targetIsland ? '' : undefined}
           style={targetIsland ? { ['--accent' as string]: targetIsland.accent } : undefined}
           onClick={() => setMenuOpen(!menuOpen)}
         >
@@ -416,7 +428,7 @@ export function Hud() {
 
   return (
     <>
-      <div className="hud" data-visible={visible} inert={!visible}>
+      <div className="hud" data-visible={visible} data-menu={menuOpen ? 'open' : undefined} inert={!visible}>
         <header className="hud-top">
           <p className="hud-brand">{site.shortName}</p>
           <div className="hud-actions" role="toolbar" aria-label="Réglages du voyage">

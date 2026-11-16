@@ -40,9 +40,16 @@
    *   --zone-bottom : première ligne libre au-dessus de la navigation (indications de cap)
    *   --corner-b    : bas des éléments de coin (boussole, radio)
    *   --rail-b      : bas d'une colonne de boutons d'action au-dessus de la radio (à droite)
+   *   --dock-b      : bas du dock du jeu (prochain cap, pêche, régate, viseur), au centre
    *   --panel-space : largeur prise à gauche par la page de contenu ouverte (≥ 768 px)
    *   --sheet-h     : hauteur visible de la feuille de contenu (téléphone, < 768 px)
    * html[data-panel='open'] est posé tant qu'une page de contenu est ouverte.
+   *
+   * Petits écrans : une grille de rangées de 44 px (--row = rangée + écart) plutôt que des
+   * éléments empilés au jugé. Téléphone en portrait (≤ 640 px) :
+   *   rangée 1 : boussole · « Cap » · radio ;  rangée 2 : visite guidée · appareil photo ;
+   *   rangée 3 : le dock, au centre (il grandit vers le haut, dans la mer, jamais sur le bateau).
+   * Téléphone à l'horizontale (≤ 520 px de haut) : visite · « Cap » · radio, puis le dock.
    */
   --safe-t: env(safe-area-inset-top, 0px);
   --safe-r: env(safe-area-inset-right, 0px);
@@ -60,6 +67,8 @@
   --zone-bottom: calc(var(--hud-b) + var(--hud-nav) + 0.75rem);
   --corner-b: max(12vh, var(--zone-bottom));
   --rail-b: calc(var(--corner-b) + 4.25rem);
+  --dock-b: var(--zone-bottom);
+  --row: calc(var(--tap) + 0.625rem);
   --panel-w: min(27rem, calc(100vw - var(--hud-l) - var(--hud-r)));
   --panel-space: 0px;
   --sheet-h: 0px;
@@ -69,7 +78,18 @@
 @media (max-width: 640px) {
   :root {
     --gutter: 1rem;
-    --corner-b: max(14vh, var(--zone-bottom));
+    --corner-b: var(--hud-b);
+    --rail-b: calc(var(--hud-b) + var(--row));
+    --dock-b: calc(var(--hud-b) + 2 * var(--row));
+  }
+}
+
+@media (max-height: 520px) and (orientation: landscape) {
+  :root {
+    --row: calc(var(--tap) + 0.5rem);
+    --corner-b: var(--hud-b);
+    --rail-b: calc(var(--hud-b) + var(--row));
+    --dock-b: calc(var(--hud-b) + var(--row));
   }
 }
 
@@ -364,8 +384,9 @@ a,
   .hud-btn { min-height: var(--tap); }
 }
 
-/* Téléphone : rangée d'icônes de 44 px, libellés réservés aux lecteurs d'écran. */
-@media (max-width: 640px) {
+/* Téléphone (portrait comme horizontal) : rangée d'icônes de 44 px, libellés réservés aux
+   lecteurs d'écran (et au survol, en infobulle). */
+@media (max-width: 640px), (max-height: 520px) and (orientation: landscape) {
   .hud-actions { gap: 0; padding: 0.15rem; }
   .hud-btn { width: var(--tap); height: var(--tap); padding: 0; }
   .hud-btn__label {
@@ -452,11 +473,32 @@ a,
 .hud-nav__item[aria-current='location']::before { opacity: 1; transform: scale(1); background: var(--abyss); }
 @keyframes heading-pulse { 0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 70%, transparent); } 50% { box-shadow: 0 0 0 5px transparent; } }
 
+@media (pointer: coarse) {
+  .hud-nav__item { min-height: var(--tap); }
+}
+
 .hud-nav__compact { display: none; position: relative; pointer-events: auto; }
 
 @container hudnav (max-width: 44rem) {
   .hud-nav__list { display: none; }
   .hud-nav__compact { display: block; }
+}
+
+/* Liste des îles ouverte : elle passe au-dessus de tout le reste du HUD (dock, rail, radio,
+   visite guidée), qui s'efface sous un voile ; toucher le voile referme la liste. */
+.hud[data-menu='open'] { z-index: 27; }
+.hud[data-menu='open'] .hud-nav { z-index: 2; }
+.hud-cap-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1;
+  pointer-events: auto;
+  cursor: default;
+  background: rgba(4, 12, 20, 0.22);
+  animation: intro-fade 0.3s ease both;
+}
+@media (max-width: 640px), (max-height: 520px) {
+  .hud-cap-backdrop { background: rgba(4, 12, 20, 0.46); }
 }
 
 .hud-cap {
@@ -486,6 +528,21 @@ a,
 .hud-cap__target { overflow: hidden; text-overflow: ellipsis; color: var(--accent, var(--dawn)); font-size: 0.9rem; font-weight: 700; letter-spacing: 0.08em; }
 .hud-cap__chevron { width: 0.7rem; height: 0.7rem; flex: none; opacity: 0.7; transition: transform 0.4s var(--ease-out); }
 .hud-cap[aria-expanded='true'] .hud-cap__chevron { transform: rotate(180deg); }
+/* Téléphone : le bouton tient entre la boussole et la radio (même rangée). */
+@media (max-width: 640px) {
+  .hud-cap { max-width: calc(100vw - 2 * (var(--gutter) + 3.75rem)); }
+}
+/* Très étroit, cap en cours : le nom de l'île seul (« Cap sur » reste lu à voix haute). */
+@media (max-width: 380px) {
+  .hud-cap[data-target] .hud-cap__label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+}
 
 /* La liste des îles : une page du carnet, posée au-dessus du bouton. */
 .hud-cap-menu {
@@ -504,6 +561,13 @@ a,
   transform-origin: 50% 100%;
 }
 .hud-cap-menu[hidden] { display: none; }
+/* Jamais plus haute que l'écran (téléphone à l'horizontale) : elle défile au besoin. */
+.hud-cap-menu {
+  max-height: calc(100dvh - var(--hud-t) - var(--hud-b) - var(--tap) - 1.4rem);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+}
 .hud-cap-menu__title { padding: 0 0.75rem 0.4rem; font-family: var(--font-serif); font-style: italic; font-size: 1.2rem; font-weight: 500; line-height: 1.05; }
 .hud-cap-menu ul { display: grid; gap: 0.1rem; }
 .hud-cap-item {
@@ -575,15 +639,35 @@ a,
 html[data-panel='open'] .hud-compass { opacity: 0; transform: translateY(0.75rem); pointer-events: none; }
 
 @media (max-width: 640px) {
-  .hud-compass { width: 4rem; height: 4rem; --r: 1.75rem; }
-  .hud-compass__needle { height: 3.25rem; margin-top: -1.625rem; }
+  /* Rangée du bas, à gauche du bouton « Cap », sur la même ligne. */
+  .hud-compass { bottom: calc(var(--hud-b) - 0.125rem); width: 3rem; height: 3rem; font-size: 0.5rem; --r: 1.3rem; }
+  .hud-compass__n { top: -0.95rem; }
+  .hud-compass__needle { height: 2.5rem; margin-top: -1.25rem; }
+  .hud-compass__star { font-size: 0.8rem; }
   /* Repères trop petits pour un doigt : la navigation passe par le bouton « Cap ». */
-  .hud-island-dot { pointer-events: none; }
+  .hud-island-dot { width: 0.32rem; height: 0.32rem; pointer-events: none; }
+}
+/* Téléphone à l'horizontale : la place du coin revient à la visite guidée. */
+@media (max-height: 520px) and (orientation: landscape) {
+  .hud-compass { display: none; }
 }
 
 /* Feuille ouverte sur téléphone : la navigation du bas s'efface sous elle. */
 @media (max-width: 767px) {
   html[data-panel='open'] .hud-nav { opacity: 0; transform: translateY(1rem); pointer-events: none; }
+}
+
+/* Téléphone à l'horizontale : la visite guidée (à gauche) et la radio (à droite) partagent la
+   rangée du bas ; la barre des îles cède la place au bouton « Cap », centré, dont la liste
+   s'ouvre sur deux colonnes (l'écran est bas). */
+@media (max-height: 520px) and (orientation: landscape) {
+  .hud-nav { left: calc(var(--hud-l) + 13rem); right: calc(var(--hud-r) + 13rem); }
+  html[data-panel='open'] .hud-nav { left: var(--panel-space); right: calc(var(--hud-r) + 4.5rem); }
+  .hud-cap-menu { width: min(36rem, calc(100vw - 2 * var(--gutter))); padding-bottom: 0.45rem; }
+  .hud-cap-menu ul { grid-template-columns: 1fr 1fr; column-gap: 0.2rem; }
+  .hud-cap-item { min-height: 2.9rem; }
+  /* Page ouverte : la marque cède sa place à la page, qui prend toute la hauteur. */
+  html[data-panel='open'] .hud-brand { opacity: 0; }
 }
 
 /* --- Curseur nautique (bureau, souris) --------------------------------------- */
@@ -791,6 +875,19 @@ html[data-cursor='on'] canvas[data-engine] { cursor: none !important; }
     align-items: center;
   }
   .sheet__paper { width: 100%; max-height: 100%; border-radius: 20px; transform-origin: 0% 50%; }
+}
+/* Téléphone à l'horizontale : la page prend toute la hauteur (la marque s'efface, la navigation
+   se range à sa droite) ; l'en-tête se resserre pour laisser de la place au texte. */
+@media (min-width: 768px) and (max-height: 520px) {
+  .sheet { top: var(--hud-t); bottom: var(--hud-b); }
+  .sheet__header { padding: 1rem 1.1rem 0.6rem 2rem; }
+  .panel__title { font-size: 2.2rem !important; }
+  .panel__stamp { width: 3.2rem; height: 3.2rem; }
+  .panel__stamp .logbook-stamp { scale: 0.58; }
+}
+/* Au doigt, la fermeture garde une cible de 44 px (page posée à gauche : tablette, horizontal). */
+@media (pointer: coarse) {
+  .sheet__close { min-height: var(--tap); }
 }
 
 @media (max-width: 767px) {

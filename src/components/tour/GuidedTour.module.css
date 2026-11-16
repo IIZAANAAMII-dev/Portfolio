@@ -24,11 +24,21 @@
   flex-direction: column;
   align-items: flex-start;
   gap: 0.7rem;
-  container-type: inline-size;
   pointer-events: none;
   /* Changement de place = un « cut » de montage : pas de glissement sous la page qui s'ouvre,
      les éléments rejouent leur entrée à leur nouvelle place (voir rise-in-alt). */
   transition: opacity 0.35s ease, visibility 0s linear 0s;
+}
+
+/* Cadre des requêtes de conteneur (lanceur, sous-titre, carte de fin). L'invitation reste en
+   dehors : sur téléphone, elle se place en haut de l'écran (un conteneur la retiendrait). */
+.frame {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.7rem;
+  width: 100%;
+  container-type: inline-size;
 }
 
 /* Bureau, page ouverte à gauche : à côté d'elle, au-dessus du dock du jeu (bas centre). */
@@ -50,26 +60,61 @@
   }
 }
 
+/* Téléphone en portrait : rangée 2 de la grille du bas (globals.css), à gauche, au-dessus de
+   la boussole ; la colonne de droite (appareil photo, radio) reste libre. */
 @media (max-width: 640px) {
   .anchor {
-    --compass-h: 4rem;
-    --rail-x: calc(max(1rem, var(--safe-r) + 0.75rem) + 4.1rem + 0.75rem);
+    --rail-x: calc(var(--hud-r) + 3.25rem + 0.5rem);
+    --anchor-b: var(--rail-b);
+  }
+  /* Visite en cours : le rail du jeu s'efface (gameplay.module.css), le sous-titre a la largeur. */
+  .anchor[data-mode='running'] {
+    --rail-x: var(--hud-r);
+  }
+  /* L'invitation descend en haut de l'écran, sous la barre du HUD : jamais sur le bateau. */
+  .invite {
+    position: fixed;
+    top: var(--zone-top);
+    left: var(--hud-l);
+    right: var(--hud-r);
+    width: auto;
+    max-width: 30rem;
+    margin-inline: auto;
+    transform-origin: 50% 0;
+    animation-name: invite-drop;
+  }
+  .invite::after {
+    display: none;
   }
 }
 
-/* Écran bas (téléphone à l'horizontale) : à côté de la boussole plutôt qu'au-dessus. */
-@media (max-height: 560px) and (min-width: 641px) {
+/* Téléphone à l'horizontale : la visite guidée prend le coin bas gauche (la boussole s'efface),
+   à côté du bouton « Cap » centré ; page ouverte, elle se range à droite de la page, au-dessus
+   du bouton « Cap », et le lanceur attend le retour en mer. */
+@media (max-height: 520px) and (orientation: landscape) {
+  .anchor {
+    --rail-x: calc(var(--hud-r) + 3.25rem + 0.5rem);
+    --anchor-b: var(--hud-b);
+  }
   .anchor:not([data-panel='open']) {
-    --left: calc(var(--hud-l) + var(--compass-h) + 1rem);
-    --anchor-b: var(--corner-b);
+    --left: var(--hud-l);
+    width: min(30rem, calc(50vw - var(--hud-l) - 7.25rem));
+  }
+  .anchor[data-panel='open'] {
+    --anchor-b: var(--rail-b);
+  }
+  .anchor[data-panel='open'][data-mode='idle'] {
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.2s ease, visibility 0s linear 0.2s;
   }
 }
 
-/* Feuille dépliée, menu des îles ouvert, carte de prise / bourriche / appareil photo du jeu :
+/* Feuille dépliée, liste des îles ouverte, carte de prise / bourriche / appareil photo du jeu :
    la visite s'efface (rien ne se chevauche). */
 .anchor[data-covered],
 .anchor[data-busy],
-:global(html:has(.hud-cap[aria-expanded='true'])) .anchor {
+:global(html[data-menu='cap']) .anchor {
   opacity: 0;
   visibility: hidden;
   transition: opacity 0.2s ease, visibility 0s linear 0.2s;

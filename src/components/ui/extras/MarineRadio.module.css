@@ -29,11 +29,20 @@
   }
 }
 
-@media (max-width: 640px) {
+/* Téléphone : le poste rejoint la rangée du bas, à droite du bouton « Cap » (globals.css). */
+@media (max-width: 640px), (max-height: 520px) and (orientation: landscape) {
   .root {
-    right: max(1rem, env(safe-area-inset-right, 0px) + 0.75rem);
-    bottom: max(14vh, env(safe-area-inset-bottom, 0px) + 5rem);
+    right: var(--hud-r);
+    bottom: var(--corner-b);
   }
+}
+
+/* Liste des îles ouverte : le poste s'efface sous le voile (le cadran se referme). */
+:global(html[data-menu='cap']) .root {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity 0.2s ease, visibility 0s linear 0.2s;
 }
 
 /* --- Le poste (bouton) ------------------------------------------------------ */
@@ -373,17 +382,27 @@
   to { height: 100%; }
 }
 
-@media (max-width: 640px) {
+@media (max-width: 640px), (max-height: 520px) and (orientation: landscape) {
+  /* Même hauteur que le bouton « Cap » de la rangée du bas. */
   .trigger {
-    width: 3.55rem;
-    height: 3rem;
-    border-radius: 0.9rem;
+    width: 3.25rem;
+    height: var(--tap);
+    border-radius: 0.85rem;
   }
   .icon {
-    width: 2.75rem;
+    width: 2.55rem;
   }
   .keyName {
     font-size: 1.08rem;
+  }
+}
+
+/* Au doigt : la croix de fermeture du cadran garde une cible de 44 px. */
+@media (pointer: coarse) {
+  .close {
+    width: var(--tap);
+    height: var(--tap);
+    margin: -0.45rem -0.5rem -0.45rem auto;
   }
 }
 

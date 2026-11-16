@@ -10,28 +10,15 @@ import { asset } from '@/lib/asset';
 import { useFocus, useFocusedItem } from '@/lib/focus';
 import type { IslandId, Project, SkillItem } from '@/types';
 import { MessageInABottle } from './MessageInABottle';
+import { fr } from './typography';
 
 /**
  * Le contenu de chaque île, en DOM. Ces composants sont partagés entre les panneaux de
  * l'expérience 3D et la version rapide : une seule source pour chaque texte (data/*.ts).
+ * La typographie française est posée au rendu par `fr()` (voir typography.ts).
  */
 
-/** Espace fine insécable (avant ; ! ? et dans les guillemets). */
-const FINE = ' ';
-/** Espace insécable (avant les deux-points). */
-const NBSP = ' ';
-
-/**
- * Typographie française à l'affichage : les textes de data/*.ts restent écrits avec des
- * espaces ordinaires (faciles à modifier), et ne se coupent jamais avant « : ; ! ? » ni
- * à l'intérieur des guillemets.
- */
-export function fr(text: string) {
-  return text
-    .replace(/[   ]+([;!?»])/g, `${FINE}$1`)
-    .replace(/[   ]+:(?=\s|$)/g, `${NBSP}:`)
-    .replace(/«[   ]*/g, `«${FINE}`);
-}
+export { fr };
 
 function Stack({ items }: { items: string[] }) {
   return (
