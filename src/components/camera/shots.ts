@@ -82,11 +82,18 @@ const HOME_BERTH_CENTER = homeBerth();
 /**
  * Plans de l'atelier de peinture.
  *  - `browse` : l'appentis de face, de près (les pots et les pavillons se choisissent au doigt) ;
- *  - sinon : l'appentis et le bateau amarré au bout du ponton en contrebas, trois quarts
- *    arrière (on voit le pinceau courir sur son flanc). Téléphone en portrait : plus de recul,
- *    le bateau au centre (c'est lui qu'on repeint).
+ *  - sinon : le bateau amarré, de trois quarts par son flanc extérieur (le pinceau court sur
+ *    la coque de ce côté-là), l'îlot et l'atelier en fond. `berth` : poste occupé (son cap
+ *    décide de quel côté est l'arrière).
  */
-export function atelierPose(mobile: boolean, portrait: boolean, browse: boolean, outPosition: Vector3, outTarget: Vector3) {
+export function atelierPose(
+  mobile: boolean,
+  portrait: boolean,
+  browse: boolean,
+  berth: Berth | null,
+  outPosition: Vector3,
+  outTarget: Vector3,
+) {
   if (browse) {
     const fx = Math.cos(ATELIER.facing);
     const fz = Math.sin(ATELIER.facing);
@@ -100,15 +107,16 @@ export function atelierPose(mobile: boolean, portrait: boolean, browse: boolean,
     outTarget.copy(focus);
     return;
   }
-  const share = portrait ? 0.62 : 0.45;
-  focus.set(
-    ATELIER.x + (HOME_BERTH_CENTER.x - ATELIER.x) * share,
-    1.1,
-    ATELIER.z + (HOME_BERTH_CENTER.z - ATELIER.z) * share,
-  );
-  const angle = -1.75;
-  const distance = portrait ? 27 : mobile ? 20 : 16;
-  const height = portrait ? 15 : mobile ? 11 : 9.5;
-  outPosition.set(focus.x + Math.cos(angle) * distance, height, focus.z + Math.sin(angle) * distance);
+  const post = berth ?? HOME_BERTH_CENTER;
+  const fx = Math.cos(post.heading);
+  const fz = Math.sin(post.heading);
+  const dx = Math.cos(post.dockAngle);
+  const dz = Math.sin(post.dockAngle);
+  // Visée : le milieu de la coque, un peu vers l'arrière ; un soupçon vers l'atelier.
+  focus.set(post.x - fx * 0.3 + (ATELIER.x - post.x) * 0.12, 1.0, post.z - fz * 0.3 + (ATELIER.z - post.z) * 0.12);
+  direction.set(dx - fx * 0.38, 0, dz - fz * 0.38).normalize();
+  const distance = portrait ? 19 : mobile ? 15 : 11.5;
+  const height = portrait ? 9 : mobile ? 6.5 : 4.8;
+  outPosition.set(focus.x + direction.x * distance, height, focus.z + direction.z * distance);
   outTarget.copy(focus);
 }

@@ -332,7 +332,7 @@ export function CameraRig({ mobile }: { mobile: boolean }) {
       const browse = atelier.queue.length === 0 && !atelier.job && atelier.doneAt < atelier.focusAt;
       const painting = phase === 'playing' && atelier.focus && (browse || distanceHome() < 28);
       if (painting) {
-        atelierPose(mobile, aspect < 0.82, browse, desiredPosition, desiredTarget);
+        atelierPose(mobile, aspect < 0.82, browse, mooring.berth?.home ? mooring.berth : null, desiredPosition, desiredTarget);
         omega = 2.2;
         zeta = 0.86;
       } else if (atelierShot.current) departAt.current = time;
