@@ -2,7 +2,8 @@
 
 import { useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
-import { Color, Group, InstancedMesh, MeshBasicMaterial, Object3D, PointLight } from 'three';
+import { Color, Group, InstancedMesh, MeshBasicMaterial, Object3D, PointLight, Vector3 } from 'three';
+import { introSfx } from '@/components/intro/sfx';
 import { ambience } from '@/lib/audio/ambience';
 import { boatState } from '@/lib/boat-state';
 import { INTRO_DURATION, INTRO_SPLASH_AT } from '@/lib/cinematic';
@@ -16,6 +17,8 @@ import { BowSpray, Splash, sprayState, triggerSplash } from './Splash';
 import { StackSmoke } from './Smoke';
 import { Wake } from './Wake';
 import { BOAT_FRAME, BoatModel } from './BoatModel';
+import { GANGWAY_STATION, mooring, STERN_CLEAT, updateMooring } from './mooring';
+import { MooringLine } from './MooringLine';
 import { boatMotion } from './motion';
 
 const MAX_VISUAL_SPEED = MAX_SPEED;
@@ -51,6 +54,8 @@ const PROP_FOAM = 10;
 /** Tableau arrière à la flottaison (repère du bateau) : le remous de l'hélice en sort. */
 const TRANSOM_X = -3.08;
 const foamDummy = new Object3D();
+/** Plat-bord au droit du pont arrière (repère du bateau) : le passavant s'y pose. */
+const RAIL_LANDING = new Vector3(GANGWAY_STATION, 0.93, 1.0);
 /** Écume : blanche le jour, éteinte la nuit (matériau non éclairé), bleu-vert si le plancton luit. */
 const FOAM_DAY = new Color('#effcf7');
 const FOAM_NIGHT = new Color('#5f8c92');
@@ -79,7 +84,10 @@ function HullFoam() {
     const throttle = boatMotion.throttle;
     const strength = clamp((boatState.speed - 0.5) / 7.5, 0, 1);
     churn.current = damp(churn.current, running ? 0.3 + throttle * 0.7 : 0, 2.5, dt);
-    const prop = churn.current * (1 - ecologyState.leviathanAttack);
+    // Accostage : marche arrière (l'eau bouillonne vers l'avant) ; départ : l'hélice brasse fort.
+    const reverse = mooring.reverse;
+    const wash = mooring.wash;
+    const prop = Math.max(churn.current, reverse * 0.95, wash * 0.9) * (1 - ecologyState.leviathanAttack);
     const cycle = phases.current;
     cycle.bow = (cycle.bow + dt * (0.55 + strength * 0.65)) % 1;
     cycle.prop = (cycle.prop + dt * (0.5 + prop * 0.8)) % 1;
@@ -116,11 +124,16 @@ function HullFoam() {
       const seed = hash(index * 7.31);
       const life = (cycle.prop + index / PROP_FOAM + seed * 0.07) % 1;
       const envelope = Math.min(life * 5, 1) * Math.pow(1 - life, 0.7);
+      // En avant : panache derrière le tableau. En arrière : bouillon qui remonte les flancs.
+      const ahead = TRANSOM_X - 0.15 - life * (0.55 + throttle * 3.4 + wash * 2.4);
+      const astern = TRANSOM_X + 0.15 + life * (0.7 + reverse * 1.5);
+      const across = (seed - 0.5) * (0.3 + life * (0.7 + throttle * 1.4 + wash * 1.2));
+      const flank = (seed < 0.5 ? -1 : 1) * (0.45 + life * 0.9) * (0.6 + seed * 0.4);
       place(
         BOW_FOAM + index,
-        TRANSOM_X - 0.15 - life * (0.55 + throttle * 3.4),
-        (seed - 0.5) * (0.3 + life * (0.7 + throttle * 1.4)) + Math.sin(time * 2.6 + index * 1.7) * 0.05,
-        (0.12 + life * (0.18 + throttle * 0.24)) * prop * envelope,
+        ahead + (astern - ahead) * reverse,
+        across + (flank - across) * reverse + Math.sin(time * 2.6 + index * 1.7) * 0.05,
+        (0.12 + life * (0.18 + throttle * 0.24 + wash * 0.14)) * prop * envelope,
         0.28,
       );
     }
@@ -150,8 +163,12 @@ export function Boat() {
   const splashed = useRef(false);
   const engineClock = useRef(0);
   // Mesures du mouvement et ressort du choc (tout hors React, lu à chaque image).
-  const previous = useRef({ heading: boatState.heading, speed: boatState.speed, collision: 0, phase: '' });
+  const previous = useRef({ heading: boatState.heading, speed: boatState.speed, collision: 0, phase: '', putt: 0 });
   const attitude = useRef({ pitch: 0, roll: 0, yaw: 0, bump: 0, bumpVelocity: 0 });
+  /** Tenue à l'amarrage : pilonnement, tangage et roulis amortis (arrêt, amarre, passavant). */
+  const settle = useRef({ heave: 0, heaveV: 0, pitch: 0, pitchV: 0, roll: 0, rollV: 0 });
+  /** Hauteur de flottaison lissée (sans la tenue, qui s'y ajoute). */
+  const float = useRef(0);
   const quality = useWorld((state) => state.quality);
 
   useBoatNavigation();
@@ -159,8 +176,11 @@ export function Boat() {
   useFrame((state, delta) => {
     const dt = Math.min(delta, 1 / 30);
     const time = state.clock.elapsedTime;
+    const world = useWorld.getState();
+    const { phase, gameTransition, reducedMotion } = world;
+    // Accostage / appareillage : peut réécrire la position, le cap et la vitesse du bateau.
+    updateMooring(time, dt, world);
     const { position, heading, speed } = boatState;
-    const { phase, gameTransition, reducedMotion } = useWorld.getState();
     // Avant le clic, il n'y a pas encore de bateau : il tombe dans l'anneau au départ.
     const waiting = phase === 'loading' || phase === 'intro';
     const dropping = phase === 'transitioning' && gameTransition * INTRO_DURATION < INTRO_SPLASH_AT * INTRO_DURATION + 2.2;
@@ -213,6 +233,33 @@ export function Boat() {
     body.bumpVelocity += (-body.bump * 95 - body.bumpVelocity * 7.5) * dt;
     body.bump += body.bumpVelocity * dt;
 
+    // Remise en route : trois « teuf », l'avant se soulève et la cheminée crache à chacun.
+    let putt = -1;
+    mooring.putts.forEach((at, index) => {
+      if (at >= 0 && time >= at && time < at + 0.14) putt = index;
+    });
+    if (putt >= 0) boatMotion.accel = Math.max(boatMotion.accel, 13 - putt * 2);
+    const puttKey = putt >= 0 ? mooring.putts[putt] : last.putt;
+    if (putt >= 0 && puttKey !== last.putt) introSfx.cough(0.5 + putt * 0.12);
+    last.putt = puttKey;
+
+    // Tenue à l'amarrage : impulsions (arrêt, amarre raidie, passavant posé) dans trois ressorts.
+    const hold = settle.current;
+    const kick = mooring.kick;
+    const give = reducedMotion ? 0.3 : 1;
+    hold.heaveV += kick.heave * 0.3 * give;
+    hold.pitchV += kick.pitch * 0.35 * give;
+    hold.rollV += kick.roll * 0.3 * give;
+    kick.heave = 0;
+    kick.pitch = 0;
+    kick.roll = 0;
+    hold.heaveV += (-hold.heave * 42 - hold.heaveV * 4.2) * dt;
+    hold.heave += hold.heaveV * dt;
+    hold.pitchV += (-hold.pitch * 30 - hold.pitchV * 3.4) * dt;
+    hold.pitch += hold.pitchV * dt;
+    hold.rollV += (-hold.roll * 26 - hold.rollV * 3.2) * dt;
+    hold.roll += hold.rollV * dt;
+
     if (group.current) {
       const y = waveHeight(position.x, position.z, time);
       const drift = (Math.sin(time * 0.74) * 0.16
@@ -224,9 +271,8 @@ export function Boat() {
         + Math.sin(time * 2.35 + position.x * 0.08) * ecologyState.stormWaves * 0.12;
       group.current.position.x = position.x;
       // Pendant la chute, la position est imposée : un lissage la ferait traîner.
-      group.current.position.y = pose
-        ? heave + pose.y
-        : damp(group.current.position.y, heave - swallowed * 5.4, 8, dt);
+      float.current = pose ? heave + pose.y : damp(float.current, heave - swallowed * 5.4, 8, dt);
+      group.current.position.y = float.current + (pose ? 0 : hold.heave);
       group.current.position.z = position.z;
       group.current.rotation.y = -heading;
       const scale = damp(group.current.scale.x, 1 - swallowed * 0.42, 6, dt);
@@ -270,12 +316,14 @@ export function Boat() {
       // déjauge un peu en route. Gîte : il se couche dans les virages, d'autant plus qu'il va vite.
       const surge = clamp(boatMotion.accel * 0.0055, -0.06, 0.075) * motion;
       const lean = clamp(boatMotion.turn * throttle * 0.2, -0.12, 0.12) * motion;
+      // Départ : l'avant se cabre en prenant de la vitesse ; arrivée : il s'assoit quand on réduit.
+      const trim = mooring.lift * 0.05 * motion - mooring.reverse * 0.018 * motion;
       body.pitch = damp(
         body.pitch,
         (ahead - behind) * 0.34 * damping
           + Math.sin(time * 1.13) * ecologyState.stormWind * 0.055
           + ecologyState.leviathanAttack * 0.72
-          + surge + throttle * 0.028,
+          + surge + throttle * 0.028 + trim,
         4,
         dt,
       );
@@ -295,8 +343,20 @@ export function Boat() {
         2,
         dt,
       );
-      rocker.current.rotation.set(body.roll + body.bump * 0.18, body.yaw + body.bump * 0.05, body.pitch + body.bump * 0.42);
+      rocker.current.rotation.set(
+        body.roll + body.bump * 0.18 + hold.roll,
+        body.yaw + body.bump * 0.05,
+        body.pitch + body.bump * 0.42 + hold.pitch,
+      );
       boatMotion.roll = rocker.current.rotation.x;
+    }
+
+    // Points d'amarrage dans le monde (corde, passavant) : taquet arrière et plat-bord côté quai.
+    if (drop.current && mooring.phase !== 'free') {
+      const side = mooring.berth?.side ?? 1;
+      drop.current.updateWorldMatrix(true, false);
+      drop.current.localToWorld(mooring.cleat.set(STERN_CLEAT[0], STERN_CLEAT[1], STERN_CLEAT[2] * side));
+      drop.current.localToWorld(mooring.landing.copy(RAIL_LANDING).setZ(RAIL_LANDING.z * side));
     }
   });
 
@@ -320,6 +380,7 @@ export function Boat() {
           </group>
         </group>
       </group>
+      <MooringLine />
       <HullFoam />
       <StackSmoke anchor={stackTip} />
       <BowSpray />

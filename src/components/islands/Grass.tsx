@@ -15,7 +15,7 @@ import {
   Vector3,
 } from 'three';
 import { CLOUD_SHADOW_GLSL, cloudClock } from '@/lib/materials/cloud-shadow';
-import { QUALITY_LEVELS } from '@/lib/quality';
+import { TIER_LEVELS } from '@/lib/quality';
 import { useWorld } from '@/lib/store';
 import { hash } from '@/lib/utils/math';
 import { ClearingContext, MAX_CLEARINGS } from './clearings';
@@ -295,7 +295,8 @@ export function Grass({
   const clearings = useContext(ClearingContext);
   const seenVersion = useRef(-1);
   const quality = useWorld((state) => state.quality);
-  const density = QUALITY_LEVELS[quality].vegetationDensity;
+  // Densité du palier réel (« Très léger » : herbe plus clairsemée).
+  const density = useWorld((state) => TIER_LEVELS[state.tier].vegetationDensity);
   const material = useMemo(() => createGrassMaterial(), []);
   const paletteKey = palette?.join('|') ?? '';
   const { blades, blooms } = useMemo(

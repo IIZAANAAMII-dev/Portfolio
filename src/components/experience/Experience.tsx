@@ -12,7 +12,7 @@ import { QuickView } from '@/components/ui/QuickView';
 import { useDeepLink } from '@/hooks/useDeepLink';
 import { ambience } from '@/lib/audio/ambience';
 import { useWorld } from '@/lib/store';
-import { useRenderDpr } from '@/lib/quality';
+import { atLeast, initialTier, useRenderDpr } from '@/lib/quality';
 import { boatState } from '@/lib/boat-state';
 import { isMobileDevice, prefersReducedMotion, supportsWebGL } from '@/lib/utils/device';
 import { Scene } from './Scene';
@@ -45,6 +45,14 @@ export function Experience() {
     webgl: supportsWebGL(),
   }));
   const mobile = device.mobile;
+  // Options du contexte WebGL, fixées à sa création d'après le palier de départ : pas de
+  // MSAA sous « Équilibré » (bande passante des petits GPU), objet stable entre deux rendus.
+  const [glOptions] = useState(() => ({
+    antialias: !device.mobile && atLeast(initialTier(), 'medium'),
+    powerPreference: 'high-performance' as const,
+    toneMapping: ACESFilmicToneMapping,
+    toneMappingExposure: 1.05,
+  }));
 
   useDeepLink();
 
@@ -75,12 +83,7 @@ export function Experience() {
         className="fixed inset-0"
         shadows={!mobile}
         dpr={dpr}
-        gl={{
-          antialias: !mobile,
-          powerPreference: 'high-performance',
-          toneMapping: ACESFilmicToneMapping,
-          toneMappingExposure: 1.05,
-        }}
+        gl={glOptions}
         camera={{ fov: 42, near: 0.5, far: 620, position: [12, 7.5, -11.2] }}
         onCreated={({ gl }) => {
           // Un contexte perdu (onglet en arrière-plan sur mobile, pilote qui redémarre) est

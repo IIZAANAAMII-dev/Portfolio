@@ -31,7 +31,7 @@ export function NavigationChart({ open, onClose }: { open: boolean; onClose: () 
     <dialog ref={dialog} className="navigation-chart" aria-labelledby="chart-title" onCancel={onClose} onClick={(event) => { if (event.target === event.currentTarget) onClose(); }}>
       <div className="navigation-chart__inner">
         <header><span className="atlas-kicker">Atlas personnel / Index des escales</span><button type="button" className="chart-close" onClick={onClose} autoFocus aria-label="Fermer la carte">✕</button></header>
-        <div className="navigation-chart__intro"><h2 id="chart-title">Choisissez<br /><em>votre horizon.</em></h2><p>Du port breton aux projets immersifs,<br />chaque île raconte une partie de mon histoire.<br /><strong>Une escale, un clic.</strong></p></div>
+        <div className="navigation-chart__intro"><h2 id="chart-title">Choisis<br /><em>ton horizon.</em></h2><p>Du port breton aux projets immersifs,<br />chaque île raconte une partie de mon histoire.<br /><strong>Une escale, un clic.</strong></p></div>
         <div className="navigation-chart__sea">
           <svg viewBox="0 0 600 480" preserveAspectRatio="none" aria-hidden="true">
             <defs><pattern id="chart-grid" width="48" height="48" patternUnits="userSpaceOnUse"><path d="M48 0H0V48" fill="none" stroke="currentColor" strokeWidth=".5" opacity=".12" /></pattern></defs>
@@ -45,7 +45,7 @@ export function NavigationChart({ open, onClose }: { open: boolean; onClose: () 
           </svg>
           {islands.map((island, i) => {const [x,y]=project(island.position); return <button key={island.id} type="button" className="chart-destination" style={{left:`${x}%`,top:`${y}%`}} aria-current={current===island.id ? 'location' : undefined} onClick={()=>{useWorld.getState().jumpTo(island.id);onClose();}}><b>{String(i+1).padStart(2,'0')}</b><span>{island.label}</span></button>;})}
         </div>
-        <footer><span>Navigation directe · Le bateau reste à votre disposition</span><span>KLG / Carnet de navigation</span></footer>
+        <footer><span>Navigation directe · le bateau reste à ta disposition</span><span>KLG / Carnet de navigation</span></footer>
       </div>
     </dialog>
   );

@@ -6,6 +6,7 @@ import { skillZoneById, skillZones } from '@/data/skills';
 import { boatState } from '@/lib/boat-state';
 import { focusItem } from '@/lib/focus';
 import { useWorld } from '@/lib/store';
+import { fr, plural } from '@/components/ui/typography';
 import { probe } from './bridge';
 import { SPOTS, clockNow, levelLabel, zonesCaught } from './fishing-data';
 import { ArrowIcon, CloseIcon, CreelIcon, FishIcon, RodIcon } from './icons';
@@ -59,7 +60,7 @@ export function FishingDock() {
   if (phase === 'idle') {
     return (
       <div className={styles.stack} data-enter="">
-        <p className={styles.caption}>Coin de pêche{island ? ` · île ${island.label}` : ''}</p>
+        <p className={styles.caption}>{fr(`Coin de pêche${island ? ` · île ${island.label}` : ''}`)}</p>
         {stockLeft > 0 ? (
           <button type="button" className={styles.primary} onClick={cast} aria-keyshortcuts="F">
             <RodIcon className={styles.icon} />
@@ -67,7 +68,7 @@ export function FishingDock() {
           </button>
         ) : (
           <p className={styles.pill}>
-            <span className={styles.voice}>Coin au repos : les poissons reviennent bientôt.</span>
+            <span className={styles.voice}>{fr('Coin au repos : les poissons reviennent bientôt.')}</span>
           </p>
         )}
       </div>
@@ -93,7 +94,7 @@ export function FishingDock() {
             disabled={phase === 'reel'}
             aria-keyshortcuts="F Space"
           >
-            Ferrer&nbsp;!
+            Ferrer&#8239;!
           </button>
           <button type="button" className={styles.round} onClick={stop} aria-label="Ranger la canne" title="Ranger la canne">
             <CloseIcon className={styles.icon} />
@@ -112,7 +113,7 @@ export function FishingDock() {
         </button>
       ) : (
         <p className={styles.pill}>
-          <span className={styles.voice}>Coin vidé : il se repose un moment.</span>
+          <span className={styles.voice}>{fr('Coin vidé : il se repose un moment.')}</span>
         </p>
       )}
       <button type="button" className={styles.ghost} onClick={stop}>
@@ -168,7 +169,7 @@ export function CatchCard() {
       <div className={styles.cardSlot}>
         <article className={styles.miss} data-enter="">
           <p className={styles.kicker} data-tone="fresh">
-            Il s’est décroché&nbsp;!
+            Il s’est décroché&#8239;!
           </p>
           <p className={styles.joke}>{joke}</p>
         </article>
@@ -193,9 +194,9 @@ export function CatchCard() {
           <p className={styles.level} data-level={result.level}>
             {levelLabel(result.level)}
           </p>
-          {completed && <p className={styles.cardWin}>Pêche miraculeuse : une prise de chaque zone du labo&nbsp;!</p>}
+          {completed && <p className={styles.cardWin}>{fr('Pêche miraculeuse : une prise de chaque zone du labo !')}</p>}
           <div className={styles.cardFoot}>
-            <span className={styles.dots} role="img" aria-label={`${caught.length} zones sur ${skillZones.length} dans la bourriche`}>
+            <span className={styles.dots} role="img" aria-label={`${caught.length} ${plural(caught.length, 'zone')} sur ${skillZones.length} dans la bourriche`}>
               {skillZones.map((entry) => (
                 <i key={entry.id} style={accent(entry.accent)} data-on={caught.includes(entry.id)} />
               ))}

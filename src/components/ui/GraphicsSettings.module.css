@@ -1,0 +1,168 @@
+/*
+ * Réglage « Graphismes » : le bouton reprend .hud-btn (globals.css) ; le menu est une plaque
+ * de verre sombre du HUD, typographie des instruments (DM Mono). Couleurs : jetons de
+ * globals.css uniquement (docs/DESIGN.md).
+ */
+
+.root {
+  position: relative;
+  display: inline-flex;
+}
+
+.trigger {
+  font-variant-numeric: tabular-nums;
+}
+
+.panel {
+  position: absolute;
+  z-index: 40;
+  top: calc(100% + 0.6rem);
+  right: 0;
+  width: min(20rem, calc(100vw - 2 * var(--gutter)));
+  padding: 0.4rem;
+  border: 1px solid var(--glass-line);
+  border-radius: 1.15rem;
+  color: var(--paper);
+  background: var(--glass-strong);
+  -webkit-backdrop-filter: blur(14px) saturate(1.2);
+  backdrop-filter: blur(14px) saturate(1.2);
+  box-shadow: 0 18px 44px color-mix(in srgb, var(--ink) 42%, transparent);
+  font-family: var(--font-mono);
+  text-align: left;
+  transform-origin: top right;
+  animation: panel-in var(--dur-micro) var(--ease-out) both;
+}
+
+.panel[data-align='start'] {
+  right: auto;
+  left: 0;
+  transform-origin: top left;
+}
+
+.panel[data-placement='above'] {
+  top: auto;
+  bottom: calc(100% + 0.6rem);
+  transform-origin: bottom right;
+}
+
+.panel[data-placement='above'][data-align='start'] {
+  transform-origin: bottom left;
+}
+
+.title {
+  margin: 0.4rem 0.7rem 0.35rem;
+  font-size: 0.6rem;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--paper) 56%, transparent);
+}
+
+.list {
+  display: grid;
+  gap: 0.15rem;
+}
+
+.option {
+  display: grid;
+  grid-template-columns: 1rem 1fr;
+  align-items: center;
+  column-gap: 0.65rem;
+  width: 100%;
+  min-height: var(--tap);
+  padding: 0.5rem 0.7rem;
+  border-radius: 0.85rem;
+  color: color-mix(in srgb, var(--paper) 84%, transparent);
+  font: inherit;
+  text-align: left;
+  transition:
+    color var(--dur-micro) ease,
+    background-color var(--dur-micro) ease;
+}
+
+.option:hover,
+.option:focus-visible {
+  color: var(--paper);
+  background: color-mix(in srgb, var(--paper) 10%, transparent);
+}
+
+.option:focus-visible {
+  outline: 2px solid var(--dawn);
+  outline-offset: -2px;
+}
+
+.option[aria-checked='true'] {
+  color: var(--dawn);
+  background: color-mix(in srgb, var(--dawn) 12%, transparent);
+}
+
+.option[aria-disabled='true'] {
+  cursor: default;
+  opacity: 0.55;
+}
+
+.mark {
+  justify-self: center;
+  width: 0.78rem;
+  height: 0.78rem;
+  border: 1.5px solid currentColor;
+  border-radius: 999px;
+  opacity: 0.7;
+}
+
+.option[aria-checked='true'] .mark {
+  opacity: 1;
+  background: currentColor;
+  box-shadow: inset 0 0 0 2px var(--abyss);
+}
+
+.name {
+  font-size: 0.74rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.hint {
+  grid-column: 2;
+  margin-top: 0.18rem;
+  font-size: 0.64rem;
+  line-height: 1.38;
+  letter-spacing: 0.015em;
+  color: color-mix(in srgb, var(--paper) 62%, transparent);
+}
+
+.option[aria-checked='true'] .hint {
+  color: color-mix(in srgb, var(--dawn) 72%, var(--paper));
+}
+
+.note,
+.footer {
+  margin: 0.45rem 0.7rem 0.25rem;
+  font-size: 0.6rem;
+  line-height: 1.42;
+  letter-spacing: 0.03em;
+}
+
+.note {
+  color: var(--dawn);
+}
+
+.footer {
+  color: color-mix(in srgb, var(--paper) 50%, transparent);
+}
+
+@keyframes panel-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .panel {
+    animation: none;
+  }
+}

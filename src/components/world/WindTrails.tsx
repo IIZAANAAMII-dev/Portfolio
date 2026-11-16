@@ -139,6 +139,8 @@ export function WindTrails() {
   const mesh = useRef<Mesh>(null);
   const material = useRef<ShaderMaterial>(null);
   const quality = useWorld((state) => state.quality);
+  // Palier « Très léger » : pas de traînées de vent (décor secondaire).
+  const minimal = useWorld((state) => state.tier === 'minimal');
   const count = quality === 'low' ? 5 : quality === 'medium' ? 8 : TRAILS;
 
   const geometry = useMemo(() => {
@@ -186,6 +188,7 @@ export function WindTrails() {
     if (mesh.current) mesh.current.visible = u.uPresence.value > 0.01;
   });
 
+  if (minimal) return null;
   return (
     <mesh ref={mesh} geometry={geometry} frustumCulled={false} renderOrder={8} raycast={() => null}>
       <shaderMaterial

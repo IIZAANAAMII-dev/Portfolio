@@ -1,6 +1,8 @@
 'use client';
 
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
+import { useTour } from '@/components/tour/tour-store';
+import { fr, plural } from '@/components/ui/typography';
 import { islands } from '@/data/islands';
 import { skillZoneById } from '@/data/skills';
 import { boatState } from '@/lib/boat-state';
@@ -88,38 +90,43 @@ function teasers(stamps: StampId[], stars: number, raced: boolean): Teaser[] {
   if (!stamps.includes('fishing')) {
     list.push({
       id: 'fishing',
-      text: 'Des poissons sautent au large : arrête-toi sur un bouillon et pêche une compétence.',
+      text: fr('Des poissons sautent au large : arrête-toi sur un bouillon et pêche une compétence.'),
       action: { label: 'Y aller', run: sailToNearestSpot },
     });
   }
   if (!stamps.includes('postcard')) {
     list.push({
       id: 'postcard',
-      text: 'L’appareil photo, à droite, tire une carte postale de l’archipel.',
+      text: fr('L’appareil photo, à droite, tire une carte postale de l’archipel.'),
       action: { label: 'Essayer', run: () => useGameplay.getState().aim() },
     });
   }
   if (!raced) {
     list.push({
       id: 'regatta',
-      text: 'La régate des bouées : six marques autour du port d’attache, un chrono et ton record.',
+      text: fr('La régate des bouées : six marques autour du port d’attache, un chrono et ton record.'),
       action: { label: 'Courir', run: () => useRegatta.getState().start() },
     });
   }
   if (stars < STAR_COUNT) {
     const left = STAR_COUNT - stars;
-    list.push({ id: 'stars', text: `Il reste ${left} étoile${left > 1 ? 's' : ''} d’or à repêcher dans l’archipel.` });
+    list.push({ id: 'stars', text: fr(`Il reste ${left} ${plural(left, 'étoile')} d’or à repêcher dans l’archipel.`) });
   }
   if (!stamps.includes('night')) {
     list.push({
       id: 'night',
-      text: 'À la nuit tombée, les fenêtres s’allument et l’eau se met à briller.',
+      text: fr('À la nuit tombée, les fenêtres s’allument et l’eau se met à briller.'),
       action: { label: 'Voir la nuit', run: () => useWorld.getState().toggleDayNight() },
     });
   }
-  if (!stamps.includes('static')) list.push({ id: 'static', text: 'Quelque chose grésille dans la brume, loin au sud-est…' });
+  if (!stamps.includes('static')) list.push({ id: 'static', text: fr('Quelque chose grésille dans la brume, loin au sud-est…') });
   return list;
 }
+
+/** Petits écrans (téléphone, en portrait comme à l'horizontale). */
+const COMPACT = '(max-width: 640px), (max-height: 520px) and (orientation: landscape)';
+/** Sur petit écran, le prochain cap se range de lui-même après ce délai (le bouton « Cap » reste). */
+const CAP_FOLD_MS = 14000;
 
 /** « Prochain cap » : l'île pas encore visitée, puis les découvertes restantes. */
 function NextCap() {
@@ -129,9 +136,18 @@ function NextCap() {
   const raced = useRegatta((s) => s.best !== null);
   const sailTo = useWorld((s) => s.sailTo);
   const [dismissed, setDismissed] = useState(-1);
+  const [folded, setFolded] = useState(false);
   const arrow = useRef<HTMLSpanElement>(null);
   const next = islands.find((island) => !stamps.includes(`island:${island.id}`)) ?? null;
   const nextId = next?.id ?? null;
+
+  // Il revient à chaque arrêt du bateau (le composant est remonté) ; sur un petit écran, il
+  // ne s'attarde pas : la mer reste dégagée.
+  useEffect(() => {
+    if (!window.matchMedia(COMPACT).matches) return;
+    const timer = window.setTimeout(() => setFolded(true), CAP_FOLD_MS);
+    return () => window.clearTimeout(timer);
+  }, []);
 
   // La flèche pointe vers l'île à l'écran (cap relatif à la caméra), quelques fois par seconde.
   useEffect(() => {
@@ -157,7 +173,7 @@ function NextCap() {
 
   if (next) {
     return (
-      <div className={styles.cap} style={{ '--accent': next.accent } as CSSProperties} data-enter="" data-delay="">
+      <div className={styles.cap} style={{ '--accent': next.accent } as CSSProperties} data-enter="" data-delay="" data-folded={folded || undefined}>
         <button type="button" className={styles.capMain} onClick={() => sailTo(next.id)}>
           <span ref={arrow} className={styles.capArrow}>
             <ArrowIcon className={styles.icon} />
@@ -165,7 +181,7 @@ function NextCap() {
           <span className={styles.capText}>
             <span className={styles.label}>Prochain cap</span>
             <strong className={styles.capName}>{next.label}</strong>
-            <em className={styles.capTagline}>{next.tagline}</em>
+            <em className={styles.capTagline}>{fr(next.tagline)}</em>
           </span>
         </button>
         <button type="button" className={styles.capClose} onClick={hide} aria-label="Masquer le prochain cap">
@@ -178,7 +194,7 @@ function NextCap() {
   const teaser = teasers(stamps, stars, raced)[0];
   if (!teaser) return null;
   return (
-    <div className={styles.cap} data-enter="" data-delay="">
+    <div className={styles.cap} data-enter="" data-delay="" data-folded={folded || undefined}>
       <p className={styles.capText}>
         <span className={styles.label}>Au large</span>
         <span className={styles.voice}>{teaser.text}</span>
@@ -204,6 +220,8 @@ function Dock() {
   const sailing = useWorld((s) => s.destination !== null || s.freeTarget !== null);
   const race = useRegatta((s) => s.phase);
   const nearStart = useRegatta((s) => s.nearStart);
+  // Un message à la fois : le prochain cap attend que l'invitation à la visite guidée soit partie.
+  const inviting = useTour((s) => s.invite && s.status === 'idle');
 
   let content = null;
   if (photo === 'aim' || photo === 'shoot') content = <ShutterBar />;
@@ -212,7 +230,7 @@ function Dock() {
   else if (fishing !== 'idle' || near >= 0) content = <FishingDock />;
   else if (worldPhase === 'playing' && nearStart && !sailing) content = <RegattaHint />;
   else if (worldPhase === 'playing' && approach >= 0) content = <ApproachHint index={approach} />;
-  else if (worldPhase === 'playing' && !sailing) content = <NextCap />;
+  else if (worldPhase === 'playing' && !sailing && !inviting) content = <NextCap />;
   return <div className={styles.dock}>{content}</div>;
 }
 
@@ -236,7 +254,7 @@ function Rail() {
           onClick={() => setBasketOpen(!basketOpen)}
           aria-expanded={basketOpen}
           aria-controls="bourriche"
-          aria-label={`La bourriche : ${zones} zones sur 6`}
+          aria-label={`La bourriche : ${zones} ${plural(zones, 'zone')} sur 6`}
           data-label="La bourriche"
         >
           <CreelIcon className={styles.railIcon} />

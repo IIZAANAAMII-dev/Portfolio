@@ -1,10 +1,11 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type RefObject } from 'react';
 import { site } from '@/data/site';
 import { bottleThrow } from '@/components/world/MessageBottle';
 import { asset } from '@/lib/asset';
 import { logbook } from '@/lib/logbook';
+import { NBSP, NNBSP } from './typography';
 
 /**
  * Adresse d'envoi direct, fixée à la construction :
@@ -23,8 +24,59 @@ type Status = 'idle' | 'sending' | 'sent' | 'handoff' | 'unavailable' | 'email' 
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-/** Espace insécable avant les deux-points (typographie française). */
-const NBSP = ' ';
+/**
+ * Téléphone : le clavier virtuel réduit la zone visible (visualViewport) sans déplacer la feuille
+ * fixe qui porte le formulaire. Sa hauteur est publiée dans `--kb` (marge basse de la feuille,
+ * globals.css) et le champ actif est ramené au-dessus du clavier. Mise en page seulement.
+ */
+function useKeyboardInset(form: RefObject<HTMLFormElement | null>, mounted: boolean) {
+  useEffect(() => {
+    const element = form.current;
+    const viewport = window.visualViewport;
+    if (!mounted || !element || !viewport) return;
+    const root = document.documentElement;
+    let active: HTMLElement | null = null;
+    let frame = 0;
+    let release = 0;
+    const update = () => {
+      const inset = Math.max(0, window.innerHeight - viewport.height - viewport.offsetTop);
+      root.style.setProperty('--kb', `${Math.round(inset)}px`);
+      if (!active || inset <= 0) return;
+      const field = active;
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => {
+        const smooth = !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        field.scrollIntoView({ block: 'nearest', behavior: smooth ? 'smooth' : 'auto' });
+      });
+    };
+    const onFocusIn = (event: FocusEvent) => {
+      if (!(event.target instanceof HTMLElement) || !event.target.matches('input, textarea')) return;
+      window.clearTimeout(release);
+      active = event.target;
+      viewport.addEventListener('resize', update);
+      update();
+    };
+    const onFocusOut = () => {
+      active = null;
+      // Le focus passe peut-être au champ suivant : on attend un instant avant de tout relâcher.
+      window.clearTimeout(release);
+      release = window.setTimeout(() => {
+        viewport.removeEventListener('resize', update);
+        root.style.setProperty('--kb', '0px');
+      }, 300);
+    };
+    element.addEventListener('focusin', onFocusIn);
+    element.addEventListener('focusout', onFocusOut);
+    return () => {
+      element.removeEventListener('focusin', onFocusIn);
+      element.removeEventListener('focusout', onFocusOut);
+      viewport.removeEventListener('resize', update);
+      cancelAnimationFrame(frame);
+      window.clearTimeout(release);
+      root.style.setProperty('--kb', '0px');
+    };
+  }, [form, mounted]);
+}
 
 /** La bouteille quitte le bateau dans la scène, et le carnet de bord reçoit son tampon. */
 function launchBottle() {
@@ -45,6 +97,8 @@ export function MessageInABottle() {
   const [website, setWebsite] = useState('');
   const [status, setStatus] = useState<Status>('idle');
   const sentRef = useRef<HTMLDivElement>(null);
+  const formRef = useRef<HTMLFormElement>(null);
+  useKeyboardInset(formRef, status !== 'sent');
 
   const mailto = `mailto:${site.email}?subject=${encodeURIComponent('Une bouteille à la mer')}&body=${encodeURIComponent(
     `${message.trim()}${name.trim() ? `\n\n— ${name.trim()}` : ''}`,
@@ -115,7 +169,7 @@ export function MessageInABottle() {
   const emailInvalid = status === 'email';
 
   return (
-    <form className="bottle-form" onSubmit={send} noValidate>
+    <form ref={formRef} className="bottle-form" onSubmit={send} noValidate>
       <label className="eyebrow text-ink" htmlFor="bottle-message">
         Une bouteille à la mer
       </label>
@@ -164,7 +218,7 @@ export function MessageInABottle() {
       </button>
       {status === 'handoff' && (
         <p id="bottle-note" className="bottle-form__note" role="status">
-          {`Ta messagerie s’ouvre avec ton message${NBSP}: il ne reste qu’à l’envoyer. Rien ne s’est ouvert${NBSP}?`}{' '}
+          {`Ta messagerie s’ouvre avec ton message${NBSP}: il ne reste qu’à l’envoyer. Rien ne s’est ouvert${NNBSP}?`}{' '}
           <a className="link-underline" href={mailto}>
             Réessayer
           </a>

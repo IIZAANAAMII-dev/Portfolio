@@ -1,15 +1,17 @@
 'use client';
 
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react';
 import gsap from 'gsap';
 import { islandById, islands } from '@/data/islands';
 import { site } from '@/data/site';
+import { GraphicsSettings } from '@/components/ui/GraphicsSettings';
 import { LogbookButton } from '@/components/ui/Logbook';
 import { boatState } from '@/lib/boat-state';
 import { useLogbook } from '@/lib/logbook';
 import { dockPosition, useWorld } from '@/lib/store';
 import { isNightTime } from '@/lib/sky';
 import type { IslandId } from '@/types';
+import { fr } from './typography';
 
 const RAD2DEG = 180 / Math.PI;
 
@@ -298,7 +300,7 @@ function IslandNav({ menuOpen, setMenuOpen }: { menuOpen: boolean; setMenuOpen: 
                     <span className="hud-cap-item__dot" aria-hidden="true" />
                     <span className="hud-cap-item__text">
                       <span className="hud-cap-item__name">{island.label}</span>
-                      <span className="hud-cap-item__tagline">{island.tagline}</span>
+                      <span className="hud-cap-item__tagline">{fr(island.tagline)}</span>
                     </span>
                     <span className="hud-cap-item__state" data-tone={visited && !state ? 'visited' : undefined}>
                       {state === 'here' ? 'à quai' : state === 'heading' ? 'en route' : visited ? '✓ visitée' : ''}
@@ -402,7 +404,116 @@ function NauticalCursor({ active }: { active: boolean }) {
   );
 }
 
+/* --------------------------------------------------------------- RÉGLAGES */
+
+/** Petits écrans (téléphone, en portrait comme à l'horizontale) : mêmes seuils que globals.css. */
+const COMPACT_QUERY = '(max-width: 640px), (max-height: 520px) and (orientation: landscape)';
+const subscribeCompact = (listener: () => void) => {
+  const query = window.matchMedia(COMPACT_QUERY);
+  query.addEventListener('change', listener);
+  return () => query.removeEventListener('change', listener);
+};
+const getCompact = () => window.matchMedia(COMPACT_QUERY).matches;
+const getServerCompact = () => false;
+
+function SlidersIcon() {
+  return (
+    <svg className="hud-btn__icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" aria-hidden="true">
+      <path d="M3.5 6h6M13.5 6h3M3.5 14h3M10.5 14h6" />
+      <circle cx="11.5" cy="6" r="2" fill="currentColor" fillOpacity="0.18" />
+      <circle cx="8.5" cy="14" r="2" fill="currentColor" fillOpacity="0.18" />
+    </svg>
+  );
+}
+
+function DayNightButton({ isNight, onToggle }: { isNight: boolean; onToggle: () => void }) {
+  return (
+    <button
+      type="button"
+      className="hud-btn"
+      onClick={onToggle}
+      aria-label={isNight ? 'Nuit : passer au jour' : 'Jour : passer à la nuit'}
+      title={isNight ? 'Passer au jour' : 'Passer à la nuit'}
+    >
+      <DayDial />
+      <span className="hud-btn__label">{isNight ? 'Nuit' : 'Jour'}</span>
+    </button>
+  );
+}
+
+/**
+ * Téléphone : un seul bouton « Réglages » déplie une plaque de verre (jour ou nuit, puis
+ * « Graphismes »), pour que la barre du haut garde quatre icônes. Au bureau et sur tablette,
+ * ces réglages restent en ligne dans la barre.
+ */
+function SettingsMenu({
+  open,
+  setOpen,
+  isNight,
+  onToggleNight,
+}: {
+  open: boolean;
+  setOpen: (open: boolean) => void;
+  isNight: boolean;
+  onToggleNight: () => void;
+}) {
+  const trigger = useRef<HTMLButtonElement>(null);
+
+  // Échap referme la page avant toute autre chose (phase de capture), puis rend le focus.
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      event.preventDefault();
+      setOpen(false);
+      trigger.current?.focus();
+    };
+    document.addEventListener('keydown', onKey, true);
+    return () => document.removeEventListener('keydown', onKey, true);
+  }, [open, setOpen]);
+
+  return (
+    <>
+      <button
+        ref={trigger}
+        type="button"
+        className="hud-btn"
+        aria-expanded={open}
+        aria-controls="hud-settings-menu"
+        onClick={() => setOpen(!open)}
+        title="Réglages"
+      >
+        <SlidersIcon />
+        <span className="hud-btn__label">Réglages</span>
+      </button>
+      <div id="hud-settings-menu" className="hud-settings-menu" hidden={!open}>
+        <p className="hud-settings-menu__title">Réglages</p>
+        <button
+          type="button"
+          className="hud-settings-item"
+          onClick={onToggleNight}
+          aria-label={isNight ? 'Nuit : passer au jour' : 'Jour : passer à la nuit'}
+        >
+          <span className="hud-settings-item__icon" aria-hidden="true">
+            <DayDial />
+          </span>
+          <span className="hud-settings-item__text">
+            <b>{isNight ? 'Nuit' : 'Jour'}</b>
+            <small>{isNight ? 'Passer au jour' : 'Passer à la nuit'}</small>
+          </span>
+        </button>
+        {/* « Graphismes » (Auto, Élevé, Équilibré, Économie, Très léger) : son menu s'ouvre dessous. */}
+        <div className="hud-settings-row hud-graphics">
+          <GraphicsSettings />
+        </div>
+      </div>
+    </>
+  );
+}
+
 /* --------------------------------------------------------------------- HUD */
+
+type HudMenu = 'cap' | 'settings' | null;
 
 /**
  * L'interface permanente, toute dans les marges : le monde garde le centre de l'écran.
@@ -416,19 +527,24 @@ export function Hud() {
   const toggleSound = useWorld((s) => s.toggleSound);
   const toggleDayNight = useWorld((s) => s.toggleDayNight);
   const setQuickView = useWorld((s) => s.setQuickView);
-  const [menuOpen, setMenuOpen] = useState(false);
+  const compact = useSyncExternalStore(subscribeCompact, getCompact, getServerCompact);
+  const [menu, setMenu] = useState<HudMenu>(null);
+  const menuOpen = menu === 'cap';
+  const setMenuOpen = useCallback((open: boolean) => setMenu(open ? 'cap' : null), []);
+  const settingsOpen = menu === 'settings' && compact;
+  const setSettingsOpen = useCallback((open: boolean) => setMenu(open ? 'settings' : null), []);
 
   const visible = phase === 'playing' || phase === 'docked';
-  // La liste des îles se referme d'elle-même quand le monde change d'état (accostage…).
+  // Les menus se referment d'eux-mêmes quand le monde change d'état (accostage…).
   const [menuPhase, setMenuPhase] = useState(phase);
   if (menuPhase !== phase) {
     setMenuPhase(phase);
-    if (menuOpen) setMenuOpen(false);
+    if (menu) setMenu(null);
   }
 
   return (
     <>
-      <div className="hud" data-visible={visible} data-menu={menuOpen ? 'open' : undefined} inert={!visible}>
+      <div className="hud" data-visible={visible} data-menu={menuOpen ? 'cap' : settingsOpen ? 'settings' : undefined} inert={!visible}>
         <header className="hud-top">
           <p className="hud-brand">{site.shortName}</p>
           <div className="hud-actions" role="toolbar" aria-label="Réglages du voyage">
@@ -436,16 +552,16 @@ export function Hud() {
               <SoundIcon on={soundOn} />
               <span className="hud-btn__label">Son</span>
             </button>
-            <button
-              type="button"
-              className="hud-btn"
-              onClick={toggleDayNight}
-              aria-label={isNight ? 'Nuit : passer au jour' : 'Jour : passer à la nuit'}
-              title={isNight ? 'Passer au jour' : 'Passer à la nuit'}
-            >
-              <DayDial />
-              <span className="hud-btn__label">{isNight ? 'Nuit' : 'Jour'}</span>
-            </button>
+            {compact ? (
+              <SettingsMenu open={settingsOpen} setOpen={setSettingsOpen} isNight={isNight} onToggleNight={toggleDayNight} />
+            ) : (
+              <>
+                <DayNightButton isNight={isNight} onToggle={toggleDayNight} />
+                <div className="hud-graphics">
+                  <GraphicsSettings />
+                </div>
+              </>
+            )}
             <LogbookButton />
             <button
               type="button"
@@ -460,13 +576,14 @@ export function Hud() {
           </div>
         </header>
 
-        {menuOpen && (
+        {(menuOpen || settingsOpen) && (
           <button
             type="button"
             className="hud-cap-backdrop"
+            data-kind={settingsOpen ? 'settings' : 'cap'}
             tabIndex={-1}
             aria-hidden="true"
-            onClick={() => setMenuOpen(false)}
+            onClick={() => setMenu(null)}
           />
         )}
         <IslandNav menuOpen={menuOpen} setMenuOpen={setMenuOpen} />

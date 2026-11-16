@@ -7,7 +7,16 @@ import { INTRO_RADIUS_START, introGlowFromGameTransition, introRadiusFromGameTra
 import { logbook } from '@/lib/logbook';
 import { isNightTime } from '@/lib/sky';
 import type { IslandId, Vec2, WorldPhase } from '@/types';
-import { initialQuality, type QualityLevel } from '@/lib/quality';
+import {
+  autoTier,
+  initialGraphicsMode,
+  initialTier,
+  saveGraphicsMode,
+  tierQuality,
+  type GraphicsMode,
+  type GraphicsTier,
+  type QualityLevel,
+} from '@/lib/quality';
 
 /** Point d'accostage d'une île, calculé depuis son dockAngle. */
 export function dockPosition(id: IslandId): Vec2 {
@@ -47,8 +56,20 @@ interface WorldState {
    * SOURCE UNIQUE DE VÉRITÉ du jour/nuit — tout en dérive (voir lib/sky.ts).
    */
   timeOfDay: number;
-  /** Niveau graphique interne, piloté automatiquement par la moyenne des FPS. */
+  /**
+   * Heure visée par le bouton Jour/Nuit : le cycle y file en accéléré (time-lapse de quelques
+   * secondes, déroulé par Lighting), puis reprend son pas naturel. Null hors avance rapide.
+   */
+  timeLapseTarget: number | null;
+  /**
+   * Niveau de CONTENU lu par le décor ('low' | 'medium' | 'high'). Dérivé du palier : le palier
+   * 'minimal' s'y lit 'low' (voir lib/quality.ts).
+   */
   quality: QualityLevel;
+  /** Palier graphique réel ('minimal' | 'low' | 'medium' | 'high'), piloté par le régulateur. */
+  tier: GraphicsTier;
+  /** Réglage « Graphismes » du joueur : 'auto' (le régulateur décide) ou un palier fixe. */
+  graphicsMode: GraphicsMode;
 
   ready: () => void;
   start: () => void;
@@ -57,6 +78,9 @@ interface WorldState {
   setCinematicProgress: (gameTransition: number, reveal: number) => void;
   setTimeOfDay: (value: number) => void;
   setQuality: (quality: QualityLevel) => void;
+  setTier: (tier: GraphicsTier) => void;
+  /** Choix du joueur, enregistré (localStorage) ; 'auto' rend la main au régulateur. */
+  setGraphicsMode: (mode: GraphicsMode) => void;
   revealComplete: () => void;
   sailTo: (id: IslandId) => void;
   sailToPoint: (point: Vec2) => void;
@@ -91,7 +115,10 @@ export const useWorld = create<WorldState>((set, get) => ({
   reducedMotion: false,
   webglFailed: false,
   timeOfDay: 0.45,
-  quality: initialQuality(),
+  timeLapseTarget: null,
+  quality: tierQuality(initialTier()),
+  tier: initialTier(),
+  graphicsMode: initialGraphicsMode(),
 
   ready: () =>
     set((s) => (s.phase === 'loading' ? { phase: 'intro', sceneReady: true } : { sceneReady: true })),
@@ -105,7 +132,13 @@ export const useWorld = create<WorldState>((set, get) => ({
     introGlow: introGlowFromGameTransition(gameTransition),
   }),
   setTimeOfDay: (value) => set({ timeOfDay: value - Math.floor(value) }),
-  setQuality: (quality) => set((state) => (state.quality === quality ? state : { quality })),
+  setQuality: (quality) => set((state) => (state.tier === quality ? state : { tier: quality, quality })),
+  setTier: (tier) => set((state) => (state.tier === tier ? state : { tier, quality: tierQuality(tier) })),
+  setGraphicsMode: (mode) => {
+    saveGraphicsMode(mode);
+    const tier = mode === 'auto' ? autoTier() : mode;
+    set((state) => (state.tier === tier ? { graphicsMode: mode } : { graphicsMode: mode, tier, quality: tierQuality(tier) }));
+  },
   revealComplete: () => set({
     phase: 'playing',
     reveal: 1,
@@ -139,7 +172,10 @@ export const useWorld = create<WorldState>((set, get) => ({
   failWebgl: () => set({ webglFailed: true, quickView: true }),
   // Le bouton lit l'état RÉEL du cycle : si le monde est en nuit (même parce que le
   // cycle automatique y est arrivé tout seul), un clic ramène au matin, et inversement.
-  toggleDayNight: () => set((s) => ({ timeOfDay: isNightTime(s.timeOfDay) ? 0.32 : 0.82 })),
+  // Le bouton lit l'état RÉEL du cycle (ou l'heure déjà visée par une avance rapide en
+  // cours) : en nuit, un clic file vers le matin, et inversement. L'horloge n'est plus
+  // sautée : Lighting la fait filer jusque-là en quelques secondes.
+  toggleDayNight: () => set((s) => ({ timeLapseTarget: isNightTime(s.timeLapseTarget ?? s.timeOfDay) ? 0.32 : 0.82 })),
 
   // Le monde doit être entièrement révélé : sans cela le cercle d'intro garde les îles
   // à l'échelle zéro (elles n'apparaissent qu'à son passage).

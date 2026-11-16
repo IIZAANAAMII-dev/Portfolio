@@ -35,6 +35,7 @@ import { useWorld } from '@/lib/store';
 import { smoothstep } from '@/lib/utils/math';
 import { CoveredWorldPause, PerformanceDebug, PerformanceGovernor } from './PerformanceGovernor';
 import { AssetBoundary } from '@/components/world/AssetBoundary';
+import { NightOnly } from '@/components/world/night/night-gate';
 import { preview } from '@/lib/preview';
 
 // Les modèles visibles dès l'intro sont demandés en priorité ; le reste de l'archipel
@@ -52,6 +53,8 @@ const Archipelago = dynamic(
 const Secrets = dynamic(() => import('@/components/world/secrets/Secrets'), { ssr: false });
 const HarborLife = dynamic(() => import('@/components/world/harbor/HarborLife'), { ssr: false });
 const Gameplay3D = dynamic(() => import('@/components/gameplay/Gameplay3D'), { ssr: false });
+// Merveilles de la nuit (bateau pris dans le faisceau des phares) : chargées à la nuit tombante.
+const NightWonders = dynamic(() => import('@/components/world/night/NightWonders'), { ssr: false });
 const MarineLife = dynamic(
   () => import('@/components/world/MarineLife').then((module) => module.MarineLife),
   { ssr: false },
@@ -174,6 +177,11 @@ export function Scene({ mobile }: { mobile: boolean }) {
           <AssetBoundary>
             <Gameplay3D />
           </AssetBoundary>
+          <NightOnly>
+            <AssetBoundary>
+              <NightWonders />
+            </AssetBoundary>
+          </NightOnly>
         </>
       )}
       <PostFX />

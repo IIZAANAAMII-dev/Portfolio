@@ -1,10 +1,11 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import { useWorld } from '@/lib/store';
 import { Constellations } from './Constellations';
 import { DawnMist } from './DawnMist';
+import { DawnSky } from './DawnSky';
 import { Rainbow } from './Rainbow';
 import { ShootingStars } from './ShootingStars';
 import { Squall } from './Squall';
@@ -20,6 +21,17 @@ type SkyWindow = { __sky?: { squall: () => void; rainbow: () => void } };
  */
 export function SkyMoments() {
   const getState = useThree((state) => state.get);
+  // L'aube de la cinématique : montée à l'écran-titre (après l'atmosphère, dont elle teinte
+  // la brume), gardée une seconde après l'ouverture pour s'effacer en douceur si elle est passée.
+  const phase = useWorld((state) => state.phase);
+  const opening = phase === 'intro' || phase === 'transitioning';
+  const [dawnShown, setDawnShown] = useState(opening);
+  if (opening && !dawnShown) setDawnShown(true);
+  useEffect(() => {
+    if (opening || !dawnShown) return;
+    const id = window.setTimeout(() => setDawnShown(false), 1200);
+    return () => window.clearTimeout(id);
+  }, [dawnShown, opening]);
 
   // Développement : `window.__sky.squall()` / `.rainbow()` (captures, réglages).
   useEffect(() => {
@@ -51,6 +63,7 @@ export function SkyMoments() {
       <Squall />
       <Rainbow />
       <DawnMist />
+      {dawnShown && <DawnSky />}
     </>
   );
 }

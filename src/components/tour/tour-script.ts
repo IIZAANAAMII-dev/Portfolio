@@ -4,6 +4,7 @@ import { journey } from '@/data/journey';
 import { projects } from '@/data/projects';
 import { site } from '@/data/site';
 import { skillZones } from '@/data/skills';
+import { fr } from '@/components/ui/typography';
 import type { IslandId } from '@/types';
 
 /**
@@ -28,14 +29,6 @@ const ROUTE: IslandId[] = ['about', 'journey', 'experience', 'projects', 'skills
 
 /** Outils mis en avant à l'escale Compétences (seuls ceux présents dans data/skills.ts s'affichent). */
 const SKILL_PICKS = ['React', 'Next.js', 'TypeScript', 'Node.js', 'Prisma', 'Shopify', 'Three.js'];
-
-/** Typographie française : espace fine insécable avant ? ! ; », insécable avant les deux-points. */
-function french(text: string) {
-  return text
-    .replace(/[   ]+([?!;»])/g, ' $1')
-    .replace(/«[   ]*/g, '« ')
-    .replace(/[   ]+:(?=\s|$)/g, ' :');
-}
 
 /** Première phrase d'un texte. */
 function firstSentence(text: string) {
@@ -84,9 +77,9 @@ export const TOUR_STOPS: TourStop[] = ROUTE.map((id) => {
   return {
     id,
     label: island.label,
-    tagline: french(island.tagline),
+    tagline: fr(island.tagline),
     accent: island.accent,
-    hook: french(hookFor(id)),
+    hook: fr(hookFor(id)),
   };
 });
 

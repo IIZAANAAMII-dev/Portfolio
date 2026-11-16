@@ -474,7 +474,7 @@ p.pill {
   font-size: 0.6rem;
   letter-spacing: 0.18em;
   text-transform: uppercase;
-  color: rgba(59, 47, 37, 0.6);
+  color: rgba(59, 47, 37, 0.74);
 }
 .kicker[data-tone='fresh'] {
   color: var(--stamp-red);
@@ -763,7 +763,7 @@ p.pill {
   font-family: var(--font-mono);
   font-size: 0.62rem;
   letter-spacing: 0.1em;
-  color: rgba(59, 47, 37, 0.6);
+  color: rgba(59, 47, 37, 0.74);
 }
 .chips {
   display: flex;
@@ -785,7 +785,7 @@ p.pill {
   font-family: var(--font-serif);
   font-style: italic;
   font-size: 0.85rem;
-  color: rgba(59, 47, 37, 0.58);
+  color: rgba(59, 47, 37, 0.72);
 }
 .basketFoot {
   margin-top: 0.75rem;
@@ -885,6 +885,18 @@ p.pill {
 .capClose:hover {
   background: color-mix(in srgb, var(--paper) 10%, transparent);
   color: var(--paper);
+}
+/* Petit écran : le prochain cap se range de lui-même après un moment (GameplayUI). */
+.dock .cap[data-folded] {
+  pointer-events: none;
+  animation: cap-fold 0.6s var(--ease-in-out) forwards;
+}
+@keyframes cap-fold {
+  to {
+    opacity: 0;
+    translate: 0 0.6rem;
+    visibility: hidden;
+  }
 }
 
 /* --- Régate des bouées ---------------------------------------------------------------- */
@@ -1128,7 +1140,8 @@ p.pill {
     right: calc(var(--hud-r) + 0.25rem);
     flex-direction: row-reverse;
   }
-  .rail[data-card='true'] {
+  .rail[data-card='true'],
+  :global(html[data-tour='running']) .rail {
     opacity: 0;
     visibility: hidden;
     pointer-events: none;
@@ -1208,6 +1221,13 @@ p.pill {
   }
   .cardFish {
     width: 3.3rem;
+  }
+}
+
+/* Très étroit : le prochain cap garde son nom, pas son sous-titre. */
+@media (max-width: 359px) {
+  .capTagline {
+    display: none;
   }
 }
 

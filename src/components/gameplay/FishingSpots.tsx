@@ -2,9 +2,10 @@
 
 import { useLayoutEffect, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
-import { Color, InstancedBufferAttribute, InstancedMesh, Object3D } from 'three';
+import { Color, Frustum, InstancedBufferAttribute, InstancedMesh, Matrix4, Object3D, Sphere } from 'three';
 import { skillZones } from '@/data/skills';
 import { skyState } from '@/lib/sky';
+import { perfOff } from '@/lib/quality';
 import { useWorld } from '@/lib/store';
 import { hash, smoothstep } from '@/lib/utils/math';
 import { waveHeight } from '@/lib/waves';
@@ -75,6 +76,10 @@ const wing = GULL_SPOT_GEOMETRY.getAttribute('aWing') as InstancedBufferAttribut
 
 const dummy = new Object3D();
 const tint = new Color();
+/** Coins hors champ : ni draw call, ni matrices (ils sont éparpillés dans tout l'archipel). */
+const view = new Frustum();
+const viewMatrix = new Matrix4();
+const probe = new Sphere();
 const dayGlow = new Color('#7ff0e2');
 const nightGlow = new Color('#4fd2ff');
 const accents = skillZones.map((zone) => new Color(zone.accent));
@@ -155,6 +160,27 @@ export function FishingSpots() {
     const time = state.clock.elapsedTime;
     const { stock, near, phase, spot: fishingSpot } = useGameplay.getState();
     const low = useWorld.getState().quality === 'low';
+
+    // Aucun coin dans le champ (marge : la mouette, les éclaboussures) : tout dort.
+    const eye = state.camera;
+    eye.updateMatrixWorld();
+    viewMatrix.multiplyMatrices(eye.projectionMatrix, eye.matrixWorldInverse);
+    view.setFromProjectionMatrix(viewMatrix);
+    let seen = perfOff;
+    for (let index = 0; index < COUNT && !seen; index++) {
+      const spot = spots[index];
+      probe.center.set(spot.x, 4, spot.z);
+      probe.radius = spot.gullRadius + SPOT_RADIUS * 1.5 + 9;
+      seen = view.intersectsSphere(probe);
+    }
+    glows.visible = seen;
+    ringsMesh.visible = seen;
+    bubblesMesh.visible = seen;
+    fishes.visible = seen;
+    if (!seen) {
+      gulls.visible = false;
+      return;
+    }
     const night = skyState.dayNight;
     const camera = state.camera.position;
     const gullPresence = 1 - smoothstep(0.55, 0.85, night);

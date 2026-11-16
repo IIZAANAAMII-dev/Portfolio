@@ -1,10 +1,12 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useFrame } from '@react-three/fiber';
+import { useFrame, useThree } from '@react-three/fiber';
 import { CanvasTexture, Group, Mesh, MeshBasicMaterial, SRGBColorSpace } from 'three';
+import { homeIsland } from '@/data/islands';
 import { boatState } from '@/lib/boat-state';
 import { useWorld } from '@/lib/store';
+import { isCoarsePointer } from '@/lib/utils/device';
 import { smoothstep } from '@/lib/utils/math';
 
 /**
@@ -14,6 +16,8 @@ import { smoothstep } from '@/lib/utils/math';
 
 interface Note {
   lines: string[];
+  /** Variante au doigt (écran tactile). */
+  touchLines?: string[];
   at: [number, number];
   /** Direction de lecture : le haut du texte pointe vers ce cap (radians). */
   heading: number;
@@ -21,15 +25,45 @@ interface Note {
   arrow?: 'left' | 'right';
   /** Distance d'apparition. */
   reach?: number;
+  /** A besoin de place sous le bateau : masquée sur un téléphone à l'horizontale (écran trop bas). */
+  needsRoom?: boolean;
 }
 
 const outward = (x: number, z: number) => Math.atan2(z, x);
 
+/** Le bateau au départ, amarré à l'îlot (même calcul que lib/boat-state.ts) : position et cap. */
+const START_HEADING = homeIsland.dockAngle + Math.PI / 2;
+const START_REACH = homeIsland.radius + 5.8;
+const START: [number, number] = [
+  homeIsland.position[0] + Math.cos(homeIsland.dockAngle) * START_REACH,
+  homeIsland.position[1] + Math.sin(homeIsland.dockAngle) * START_REACH,
+];
+
+/** Un point repéré depuis le bateau au départ : `ahead` mètres vers l'avant, `right` vers la droite de l'écran. */
+function fromStart(ahead: number, right: number): [number, number] {
+  const fx = Math.cos(START_HEADING);
+  const fz = Math.sin(START_HEADING);
+  return [START[0] + fx * ahead - fz * right, START[1] + fz * ahead + fx * right];
+}
+
 const NOTES: Note[] = [
-  { lines: ['clique sur la mer', 'pour naviguer'], at: [20, -20], heading: 0.671, width: 15, arrow: 'left', reach: 70 },
+  // La consigne du départ : dans le sillage du bateau amarré, entre lui et la caméra, centrée
+  // sur l'axe de la vue. Elle reste ainsi au milieu de l'écran quel que soit son format
+  // (téléphone en portrait compris), sous le bateau sans le toucher, au-dessus du dock et loin
+  // des coins (invitation à la visite, boussole, radio) ; devant l'étrave, le mât la couvrirait
+  // et les jouets du terrain de jeu aussi.
+  {
+    lines: ['clique sur la mer', 'pour naviguer'],
+    touchLines: ['touche la mer', 'pour naviguer'],
+    at: fromStart(-6, 0),
+    heading: START_HEADING,
+    width: 10,
+    reach: 70,
+    needsRoom: true,
+  },
   { lines: ['7 étoiles d’or', 'se cachent dans l’archipel'], at: [-6, -30], heading: 0.671, width: 17, reach: 55 },
   { lines: ['mes îlots de personnalité'], at: [-24, -24], heading: outward(-24, -24), width: 17, arrow: 'left', reach: 55 },
-  { lines: ['on se parle ?'], at: [32, -66], heading: outward(32, -66), width: 11, arrow: 'right', reach: 50 },
+  { lines: ['on se parle\u202f?'], at: [32, -66], heading: outward(32, -66), width: 11, arrow: 'right', reach: 50 },
   { lines: ['ici vivent', 'des monstres'], at: [84, 86], heading: outward(84, 86), width: 15, reach: 60 },
   { lines: ['ici vivent', 'des monstres'], at: [-110, -52], heading: outward(-110, -52), width: 15, reach: 60 },
 ];
@@ -120,6 +154,18 @@ function SeaNote({ note, family }: { note: Note; family: string }) {
 
 export function SeaNotes() {
   const [family, setFamily] = useState<string | null>(null);
+  // Au doigt, la consigne dit « touche » plutôt que « clique » (connu dès le premier rendu).
+  const [touch] = useState(isCoarsePointer);
+  // Téléphone à l'horizontale : sous le bateau, la rangée du dock ; autour, l'invitation et le
+  // mot d'accueil. La consigne du départ y est déjà dite par l'écran d'accueil : elle se tait.
+  const lowLandscape = useThree((state) => state.size.height <= 520 && state.size.width > state.size.height);
+  const notes = useMemo(
+    () =>
+      NOTES.filter((note) => !(note.needsRoom && lowLandscape)).map((note) =>
+        touch && note.touchLines ? { ...note, lines: note.touchLines } : note,
+      ),
+    [lowLandscape, touch],
+  );
 
   // La police manuscrite doit être chargée avant de dessiner les notes.
   useEffect(() => {
@@ -136,7 +182,7 @@ export function SeaNotes() {
   if (!family) return null;
   return (
     <group>
-      {NOTES.map((note, index) => (
+      {notes.map((note, index) => (
         <SeaNote key={index} note={note} family={family} />
       ))}
     </group>

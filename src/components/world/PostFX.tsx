@@ -4,18 +4,21 @@ import { useEffect, useState } from 'react';
 import { useThree } from '@react-three/fiber';
 import { EffectComposer, Bloom, Vignette } from '@react-three/postprocessing';
 import { AssetBoundary } from '@/components/world/AssetBoundary';
-import { QUALITY_LEVELS } from '@/lib/quality';
+import { RenderWarmup } from '@/components/world/RenderWarmup';
+import { TIER_LEVELS } from '@/lib/quality';
 import { useWorld } from '@/lib/store';
 
 /**
- * Post-traitement de l'image finale (qualité haute seulement).
+ * Chaîne de rendu de l'image finale : préparation invisible (lumières constantes, shaders
+ * préchauffés pendant l'accueil, voir RenderWarmup) puis post-traitement (palier « Élevé »
+ * seulement).
  *
  * Un contexte WebGL perdu (onglet en arrière-plan, pilote qui redémarre) ne doit jamais
  * emporter la scène : la chaîne d'effets est retirée tant que le contexte est perdu, puis
  * remontée à sa restauration ; une erreur éventuelle ne coûte que les effets.
  */
 export function PostFX() {
-  const quality = useWorld((s) => s.quality);
+  const tier = useWorld((s) => s.tier);
   const gl = useThree((s) => s.gl);
   const [lost, setLost] = useState(false);
 
@@ -31,14 +34,18 @@ export function PostFX() {
     };
   }, [gl]);
 
-  if (lost || !QUALITY_LEVELS[quality].bloom) return null;
   return (
-    <AssetBoundary>
-      {/* MSAA dans la chaîne d'effets (sinon les arêtes crénèlent) et léger vignettage cinéma. */}
-      <EffectComposer multisampling={4}>
-        <Bloom mipmapBlur luminanceThreshold={0.9} luminanceSmoothing={0.35} intensity={0.38} />
-        <Vignette eskil={false} offset={0.3} darkness={0.38} />
-      </EffectComposer>
-    </AssetBoundary>
+    <>
+      <RenderWarmup />
+      {!lost && TIER_LEVELS[tier].bloom && (
+        <AssetBoundary>
+          {/* MSAA dans la chaîne d'effets (sinon les arêtes crénèlent) et léger vignettage cinéma. */}
+          <EffectComposer multisampling={4}>
+            <Bloom mipmapBlur luminanceThreshold={0.9} luminanceSmoothing={0.35} intensity={0.38} />
+            <Vignette eskil={false} offset={0.3} darkness={0.38} />
+          </EffectComposer>
+        </AssetBoundary>
+      )}
+    </>
   );
 }

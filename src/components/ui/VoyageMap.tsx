@@ -10,6 +10,7 @@ import { boatState } from '@/lib/boat-state';
 import { STAMPS, useLogbook, type StampId } from '@/lib/logbook';
 import { BREAK, voyage } from '@/lib/voyage';
 import { hash } from '@/lib/utils/math';
+import { plural } from './typography';
 
 /**
  * Carte de voyage : l'archipel dessiné à la main sur papier, la route réellement suivie par
@@ -613,9 +614,13 @@ function draw(canvas: HTMLCanvasElement, family: string) {
   ctx.font = `500 26px ${family}`;
   ctx.fillStyle = INK;
   ctx.textAlign = 'right';
-  ctx.fillText(`${(length / 120).toFixed(1).replace('.', ',')} milles parcourus`, WIDTH - 30, HEIGHT - 52);
-  const found = secrets > 0 ? ` · ${secrets} secret${secrets > 1 ? 's' : ''}` : '';
-  ctx.fillText(`${stamps.length} tampons · ${stars.length} étoiles d’or${found}`, WIDTH - 30, HEIGHT - 24);
+  // Accords à la française : 0 et 1 au singulier (« 0,0 mille parcouru », « 1 tampon »).
+  const miles = Number((length / 120).toFixed(1));
+  const milesText = `${String(miles.toFixed(1)).replace('.', ',')} ${plural(miles, 'mille')} ${plural(miles, 'parcouru')}`;
+  ctx.fillText(milesText, WIDTH - 30, HEIGHT - 52);
+  const found = secrets > 0 ? ` · ${secrets} ${plural(secrets, 'secret')}` : '';
+  const tally = `${stamps.length} ${plural(stamps.length, 'tampon')} · ${stars.length} ${plural(stars.length, 'étoile')} d’or`;
+  ctx.fillText(`${tally}${found}`, WIDTH - 30, HEIGHT - 24);
 }
 
 export function VoyageMap() {

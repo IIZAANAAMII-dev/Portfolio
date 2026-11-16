@@ -54,6 +54,8 @@ function restPose(wheel: Vec3): [number, number, number, number][] {
 
 const UPPER = 0.25;
 const LOWER = 0.25;
+/** Du coude au creux de la main (la main est une sphère sous l'avant-bras). */
+const LOWER_REACH = 0.26;
 const RIM = 0.22;
 
 export type CaptainRig = ReturnType<typeof buildCaptain>;
@@ -142,13 +144,27 @@ export function buildCaptain(material: Material, wheel: Vec3) {
     mesh,
     bones,
     wheel,
-    state: { wave: 0, whoa: 0, fall: 0, yaw: 0, lean: 0, headYaw: 0, headPitch: 0, lookYaw: 0, lookPitch: 0, nextLook: 0, wheelAngle: 0 },
+    state: { wave: 0, whoa: 0, fall: 0, yaw: 0, lean: 0, headYaw: 0, headPitch: 0, lookYaw: 0, lookPitch: 0, nextLook: 0, wheelAngle: 0, throwW: 0 },
   };
 }
 
 /** Position monde du fourneau de la pipe (matrices de l'image précédente : un retard invisible). */
 export function pipeBowl(rig: CaptainRig, out: Vector3) {
   return rig.bones[BONE.head].localToWorld(out.copy(PIPE_BOWL));
+}
+
+const HAND = new Vector3(0, -LOWER_REACH, 0);
+
+/** Position monde de la main droite (+1) ou gauche (−1) : l'amarre en part au lancer. */
+export function handPosition(rig: CaptainRig, side: number, out: Vector3) {
+  return rig.bones[side > 0 ? BONE.elbowR : BONE.elbowL].localToWorld(out.copy(HAND));
+}
+
+/** Bosse douce : monte de a à b, reste à 1, redescend de c à d. */
+function hump(x: number, a: number, b: number, c: number, d: number) {
+  const up = Math.max(0, Math.min(1, (x - a) / (b - a)));
+  const down = Math.max(0, Math.min(1, (x - c) / (d - c)));
+  return up * up * (3 - 2 * up) * (1 - down * down * (3 - 2 * down));
 }
 
 /* ------------------------------------------------------------------ Animation */
@@ -215,7 +231,41 @@ export type CaptainCue = {
   turn: number;
   /** 1 = mouvements réduits (préférence système) : gestes deux fois plus lents et moins amples. */
   calm: number;
+  /**
+   * Lancer d'amarre : avancement du geste (0 → 1), ou -1 hors lancer. `throwSide` : bord du
+   * quai (+1 tribord, −1 bâbord) ; le patron lance avec le bras de ce côté, face au ponton.
+   */
+  throw: number;
+  throwSide: number;
 };
+
+/* Lancer : poses clés du bras qui lance (repère du buste, côté droit ; z inversé à gauche). */
+const THROW_KEYS: { at: number; upper: [number, number, number]; lower: [number, number, number] }[] = [
+  // Prise d'élan : le bras part en arrière, bas et dehors (la glène dans la main).
+  { at: 0.0, upper: [-0.1, -1, 0.25], lower: [0.3, -1, 0.1] },
+  { at: 0.3, upper: [-0.6, -0.55, 0.6], lower: [-0.45, -0.7, 0.45] },
+  // Balancé par en dessous : lâcher bras tendu, vers l'avant et le haut.
+  { at: 0.44, upper: [0.8, 0.25, 0.4], lower: [0.85, 0.5, 0.15] },
+  // Accompagnement, puis le bras retombe.
+  { at: 0.62, upper: [0.45, 0.8, 0.3], lower: [0.35, 0.95, 0.1] },
+  { at: 1.0, upper: [0.15, -1, 0.25], lower: [0.3, -1, 0.1] },
+];
+const throwUpper = new Vector3();
+const throwLower = new Vector3();
+const keyA = new Vector3();
+const keyB = new Vector3();
+
+/** Pose du bras qui lance à l'avancement `p` (interpolation douce entre les poses clés). */
+function throwPose(p: number, mirror: number) {
+  let index = 0;
+  while (index < THROW_KEYS.length - 2 && p > THROW_KEYS[index + 1].at) index += 1;
+  const a = THROW_KEYS[index];
+  const b = THROW_KEYS[index + 1];
+  const t = Math.max(0, Math.min(1, (p - a.at) / (b.at - a.at)));
+  const k = t * t * (3 - 2 * t);
+  throwUpper.lerpVectors(keyA.set(a.upper[0], a.upper[1], a.upper[2] * mirror), keyB.set(b.upper[0], b.upper[1], b.upper[2] * mirror), k).normalize();
+  throwLower.lerpVectors(keyA.set(a.lower[0], a.lower[1], a.lower[2] * mirror), keyB.set(b.lower[0], b.lower[1], b.lower[2] * mirror), k).normalize();
+}
 
 /** Une image d'animation du patron : barre, regards, salut, surprise, chute. */
 export function animateCaptain(rig: CaptainRig, cue: CaptainCue) {
@@ -224,19 +274,34 @@ export function animateCaptain(rig: CaptainRig, cue: CaptainCue) {
   state.wave = damp(state.wave, cue.wave, 5, dt);
   state.whoa = damp(state.whoa, cue.whoa, 9, dt);
   state.fall = damp(state.fall, cue.fall, 7, dt);
+  // Lancer d'amarre : poids du geste (entrée et sortie douces) et ses temps forts.
+  const p = cue.throw;
+  const throwing = p >= 0 && p <= 1;
+  state.throwW = damp(state.throwW, throwing ? hump(p, 0, 0.12, 0.82, 1) : 0, 14, dt);
+  const windUp = throwing ? hump(p, 0.08, 0.3, 0.32, 0.44) : 0;
+  const release = throwing ? hump(p, 0.36, 0.46, 0.5, 0.7) : 0;
 
-  // Le bassin se tourne vers la caméra pour saluer (le reste du temps, face à la barre).
+  // Le bassin se tourne vers la caméra pour saluer (le reste du temps, face à la barre) ; pour
+  // lancer, face au ponton, un peu vers l'arrière (le bras qui lance passe du côté de la poupe).
   const calm = 1 - cue.calm * 0.5;
   const toCamera = Math.max(-2.5, Math.min(2.5, Math.atan2(-cue.camera.z, cue.camera.x)));
-  state.yaw = damp(state.yaw, toCamera * state.wave, 4, dt);
+  const toDock = -cue.throwSide * (Math.PI / 2 + 0.4);
+  state.yaw = damp(state.yaw, toCamera * state.wave + toDock * state.throwW, 4 + state.throwW * 3, dt);
   bones[BONE.pelvis].rotation.set(0, state.yaw, 0);
-  bones[BONE.pelvis].position.y = 0.5 + Math.abs(Math.sin(time * 9 * calm)) * 0.025 * calm * state.wave + state.whoa * 0.03;
+  bones[BONE.pelvis].position.y = 0.5 + Math.abs(Math.sin(time * 9 * calm)) * 0.025 * calm * state.wave + state.whoa * 0.03
+    - release * 0.04 * state.throwW;
 
   // Le buste compense la gîte, respire, se penche un peu sur la barre ; inertie : il part en
-  // arrière quand le moteur pousse, en avant quand on réduit les gaz.
+  // arrière quand le moteur pousse, en avant quand on réduit les gaz. Lancer : il arme en
+  // se cambrant et en tournant les épaules, puis bascule vers l'avant au lâcher.
   state.lean = damp(state.lean, Math.max(-0.08, Math.min(0.08, cue.accel * 0.007)), 3, dt);
   const spine = bones[BONE.spine];
-  spine.rotation.set(-cue.roll * 0.7, 0, -0.05 * (1 - state.wave) + state.fall * 0.08 + state.lean);
+  const twist = cue.throwSide * (-0.38 * windUp + 0.28 * release) * state.throwW;
+  spine.rotation.set(
+    -cue.roll * 0.7,
+    twist,
+    -0.05 * (1 - state.wave) + state.fall * 0.08 + state.lean + (0.12 * windUp - 0.17 * release) * state.throwW,
+  );
   spine.scale.set(1, 1 + Math.sin(time * 1.7) * 0.012, 1);
 
   // Regards : de temps en temps vers le large, ou vers la caméra quand il salue.
@@ -250,8 +315,9 @@ export function animateCaptain(rig: CaptainRig, cue: CaptainCue) {
   // En virage, il regarde où va l'étrave (cap positif = vers tribord, à sa droite).
   const turning = Math.min(Math.abs(cue.turn) * 2, 1);
   const intoTurn = Math.max(-0.6, Math.min(0.6, -cue.turn * 0.55));
-  const lookYaw = (state.lookYaw * (1 - turning) + intoTurn) * (1 - state.wave) + facing * state.wave;
-  const lookPitch = state.lookPitch * (1 - state.wave) + 0.18 * state.wave + state.fall * 0.35 - state.whoa * 0.1;
+  const lookYaw = ((state.lookYaw * (1 - turning) + intoTurn) * (1 - state.wave) + facing * state.wave) * (1 - state.throwW);
+  const lookPitch = (state.lookPitch * (1 - state.wave) + 0.18 * state.wave + state.fall * 0.35 - state.whoa * 0.1) * (1 - state.throwW)
+    - 0.12 * state.throwW;
   state.headYaw = damp(state.headYaw, lookYaw, 4, dt);
   state.headPitch = damp(state.headPitch, lookPitch, 4, dt);
   bones[BONE.head].rotation.set(0, state.headYaw, state.headPitch + Math.sin(time * 1.3) * 0.02);
@@ -277,6 +343,20 @@ export function animateCaptain(rig: CaptainRig, cue: CaptainCue) {
     solveArm(shoulderAt, target, pole.set(-0.35, -1, side * 0.7));
     poseUpper.copy(upperDir);
     poseLower.copy(lowerDir);
+
+    // Lancer d'amarre : le bras côté quai lance, l'autre se lève un peu pour l'équilibre.
+    if (state.throwW > 0.001) {
+      if (side === cue.throwSide) {
+        throwPose(Math.max(0, Math.min(1, p)), side);
+        blend(poseUpper, throwUpper, state.throwW);
+        blend(poseLower, throwLower, state.throwW);
+      } else {
+        upperDir.set(0.35, -0.65, side * 0.6).normalize();
+        lowerDir.set(0.65, -0.2, side * 0.25).normalize();
+        blend(poseUpper, upperDir, state.throwW * 0.85);
+        blend(poseLower, lowerDir, state.throwW * 0.85);
+      }
+    }
 
     // Salut (bras droit levé qui balance), l'autre bras ballant.
     if (side > 0) {

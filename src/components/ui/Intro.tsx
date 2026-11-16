@@ -7,6 +7,7 @@ import { site } from '@/data/site';
 import { ambience } from '@/lib/audio/ambience';
 import { useWorld } from '@/lib/store';
 import { isCoarsePointer } from '@/lib/utils/device';
+import { fr } from './typography';
 
 /** Le nom sur deux lignes, comme peint sur une coque : prénom, puis nom de famille. */
 const [FIRST_NAME, ...FAMILY] = site.name.split(' ');
@@ -91,8 +92,9 @@ function Threshold() {
         </p>
         <p className="intro-role">{site.role}</p>
         <div className="intro-route">
+          {/* « du Morbihan » : le département prend l'article (à revoir si l'origine change). */}
           <p className="sr-only">
-            De {ROUTE[0].place} à {ROUTE[1].place}
+            Du {ROUTE[0].place} à {ROUTE[1].place}
           </p>
           {ROUTE.map((leg) => (
             <p key={leg.place} className="intro-route__leg" aria-hidden="true">
@@ -136,7 +138,7 @@ function Threshold() {
               onStart();
             }}
           >
-            <span className="intro-cta__kicker">{touch ? 'Toucher pour' : 'Cliquer pour'}</span>{' '}
+            <span className="intro-cta__kicker">{touch ? 'Touche pour' : 'Clique pour'}</span>{' '}
             <span className="intro-cta__label">larguer les amarres</span>
           </button>
         )}
@@ -154,7 +156,7 @@ function Threshold() {
               <circle cx="8" cy="8" r="4.2" />
               <path d="M8 1.2v3M8 11.8v3M1.2 8h3M11.8 8h3" />
             </svg>
-            {touch ? 'Touche la mer pour naviguer' : 'Navigue au clic sur la mer'}
+            {touch ? 'Touche la mer pour naviguer' : 'Clique sur la mer pour naviguer'}
           </span>
           <span>
             <svg className="intro-hint__icon" viewBox="0 0 16 16" aria-hidden="true">
@@ -174,8 +176,8 @@ function Threshold() {
               useWorld.getState().setQuickView(true);
             }}
           >
-            <em>Pressé ?</em>
-            <span>Version rapide · 2 min</span>
+            <em>{fr('Pressé ?')}</em>
+            <span>{fr('Version rapide · 2 min')}</span>
           </button>
         )}
       </footer>

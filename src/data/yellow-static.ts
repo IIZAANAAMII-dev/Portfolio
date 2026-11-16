@@ -23,11 +23,12 @@ export const yellowStatic = {
   title: 'YELLOW STATIC',
   status: 'En développement',
   pitch: 'Un jeu d’horreur psychologique en coopération, inspiré des Backrooms.',
-  engine: 's&box · Source 2',
+  // Espaces insécables : « Source 2 » et « 4 scientifiques » ne se coupent jamais en fin de ligne.
+  engine: 's&box · Source\u00a02',
   facts: [
-    { label: 'Équipe', value: '4 scientifiques' },
+    { label: 'Équipe', value: '4\u00a0scientifiques' },
     { label: 'QG', value: 'une maison' },
-    { label: 'Moteur', value: 's&box · Source 2' },
+    { label: 'Moteur', value: 's&box · Source\u00a02' },
     { label: 'Statut', value: 'en développement' },
   ],
   roles: ['Caméraman', 'Opérateur', 'Scientifiques de terrain'],

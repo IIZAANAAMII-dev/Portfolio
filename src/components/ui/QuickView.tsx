@@ -10,7 +10,7 @@ import { skillZones } from '@/data/skills';
 import { asset } from '@/lib/asset';
 import { useWorld } from '@/lib/store';
 import type { Experiment, IslandId, Project } from '@/types';
-import { fr } from './content';
+import { fr, NBSP } from './typography';
 import { MessageInABottle } from './MessageInABottle';
 import styles from './quickview.module.css';
 
@@ -150,7 +150,7 @@ function ProjectCard({ project }: { project: Project }) {
             {project.title}
           </h3>
           <p className={styles.projectMeta}>
-            {project.kind} · {project.context}
+            {fr(`${project.kind} · ${project.context}`)}
           </p>
         </div>
         <p className={styles.projectTags}>
@@ -183,7 +183,7 @@ function ProjectCard({ project }: { project: Project }) {
               <Bullets items={project.feature.points} />
               {project.feature.url && (
                 <External href={project.feature.url} className={styles.textLink}>
-                  Voir la page · {host(project.feature.url)}
+                  Voir la page{NBSP}· {host(project.feature.url)}
                 </External>
               )}
             </div>
@@ -219,7 +219,7 @@ function ProjectCard({ project }: { project: Project }) {
         <Chips items={project.stack} label="Technologies" />
         {project.url && (
           <External href={project.url} className={styles.siteLink}>
-            Voir le site · {host(project.url)}
+            Voir le site{NBSP}· {host(project.url)}
           </External>
         )}
       </footer>
@@ -235,7 +235,7 @@ function ExperimentCard({ experiment }: { experiment: Experiment }) {
         <h3 id={titleId} className={styles.experimentTitle}>
           {experiment.title}
         </h3>
-        <p className={styles.projectMeta}>Expérimentation personnelle · {experiment.kind}</p>
+        <p className={styles.projectMeta}>{fr(`Expérimentation personnelle · ${experiment.kind}`)}</p>
       </div>
       <p className={styles.summary}>{fr(experiment.summary)}</p>
       <Chips items={experiment.stack} label="Technologies" />
@@ -294,7 +294,7 @@ function Experiences() {
         <li key={entry.id} className={`${styles.card} ${styles.job}`}>
           <div className={styles.jobGrid}>
             <p className={styles.jobWhen}>
-              <span className={styles.jobPeriod}>{entry.period}</span>
+              <span className={styles.jobPeriod}>{fr(entry.period)}</span>
               {entry.contract && <span>{entry.contract}</span>}
               {entry.location && <span>{entry.location}</span>}
             </p>
@@ -365,7 +365,7 @@ function Contact() {
             </li>
           )}
         </ul>
-        <p className={styles.based}>Basé à {site.location}.</p>
+        <p className={styles.based}>{fr(`Basé à ${site.location}.`)}</p>
       </div>
     </div>
   );
@@ -391,7 +391,11 @@ const SECTIONS: Record<IslandId, () => ReactNode> = {
  */
 export function QuickView() {
   const setQuickView = useWorld((s) => s.setQuickView);
-  const webglFailed = useWorld((s) => s.webglFailed);
+  // Lu à l'ouverture : la 3D n'a pas démarré (pas de WebGL, contexte perdu). Une alerte qui
+  // arriverait pendant la lecture vient du canvas que la version rapide vient de démonter
+  // (perte de contexte volontaire) : elle ne doit ni afficher l'avertissement, ni retirer
+  // le retour à l'expérience 3D.
+  const [webglFailed] = useState(() => useWorld.getState().webglFailed);
   const [active, setActive] = useState<IslandId>(ORDER[0]);
   const tocList = useRef<HTMLOListElement>(null);
 
@@ -460,7 +464,7 @@ export function QuickView() {
 
       <header id="qv-top" className={styles.hero} tabIndex={-1}>
         <div className={styles.heroBar}>
-          <p className={styles.kicker}>Version rapide · lecture 2 min</p>
+          <p className={styles.kicker}>{fr('Version rapide · lecture 2 min')}</p>
           {!webglFailed && (
             <button type="button" className={styles.btn} onClick={back}>
               <Icon name="back" />
@@ -474,9 +478,7 @@ export function QuickView() {
             <h1 className={styles.name}>
               <span>{FIRST_NAME}</span> <span>{LAST_NAME.join(' ')}</span>
             </h1>
-            <p className={styles.role}>
-              {site.role} · {site.location}
-            </p>
+            <p className={styles.role}>{fr(`${site.role} · ${site.location}`)}</p>
             <p className={styles.intro}>{fr(site.intro)}</p>
             <div className={styles.actions}>
               <a className={`${styles.btn} ${styles.btnPrimary}`} href={`#${anchor('contact')}`} onClick={(event) => go(event, anchor('contact'))}>
@@ -605,7 +607,7 @@ export function QuickView() {
           )}
         </div>
         <p className={styles.copyright}>
-          © {YEAR} {site.name} — {site.location}
+          {fr(`© ${YEAR} ${site.name} — ${site.location}`)}
         </p>
       </footer>
     </div>

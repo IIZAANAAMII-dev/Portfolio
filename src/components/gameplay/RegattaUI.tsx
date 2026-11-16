@@ -3,6 +3,7 @@
 import { useEffect, useRef } from 'react';
 import { boatState } from '@/lib/boat-state';
 import { useWorld } from '@/lib/store';
+import { fr } from '@/components/ui/typography';
 import { probe } from './bridge';
 import { clockNow } from './fishing-data';
 import { ArrowIcon, CloseIcon, FlagIcon, RestartIcon } from './icons';
@@ -19,7 +20,7 @@ export function RegattaHint() {
       <p className={styles.pillText}>
         <span className={styles.label}>La régate des bouées</span>
         <span className={styles.voice}>
-          {best !== null ? `Ton record : ${raceClock(best)}. Tu le bats ?` : 'Six bouées autour du port, un chrono : à toi de jouer.'}
+          {fr(best !== null ? `Ton record : ${raceClock(best)}. Tu le bats ?` : 'Six bouées autour du port, un chrono : à toi de jouer.')}
         </span>
       </p>
       <button type="button" className={styles.primary} onClick={start}>
@@ -71,7 +72,7 @@ export function RegattaDock() {
   // Un instrument compact (étiquette, puis chrono et boutons sur une ligne) : sur téléphone, il
   // tient entre la boussole et la radio, sous les sous-titres de la visite guidée.
   if (phase === 'finished') {
-    const verdict = record ? 'Arrivée · nouveau record\u202f!' : best !== null ? `Arrivée · record ${raceClock(best)}` : 'Arrivée\u202f!';
+    const verdict = fr(record ? 'Arrivée · nouveau record !' : best !== null ? `Arrivée · record ${raceClock(best)}` : 'Arrivée !');
     return (
       <div className={styles.race} data-enter="">
         <span className={styles.label}>{verdict}</span>
@@ -94,7 +95,7 @@ export function RegattaDock() {
   const heading = phase === 'armed' ? 'Cap sur le départ' : finale ? 'Cap sur l’arrivée' : 'Cap sur la bouée';
   return (
     <div className={styles.race} data-enter="">
-      <span className={styles.label}>Régate · {label}</span>
+      <span className={styles.label}>{fr(`Régate · ${label}`)}</span>
       <div className={styles.raceRow}>
         <span ref={clock} className={styles.timer} role="timer" aria-live="off">
           {raceClock(0)}

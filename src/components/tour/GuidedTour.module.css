@@ -71,8 +71,14 @@
   .anchor[data-mode='running'] {
     --rail-x: var(--hud-r);
   }
-  /* L'invitation descend en haut de l'écran, sous la barre du HUD : jamais sur le bateau. */
-  .invite {
+}
+
+/* Écran en portrait (téléphone, tablette) : l'invitation descend en haut de l'écran, sous la
+   barre du HUD. En bas à gauche, elle couvrirait le bateau (téléphone) ou la consigne peinte
+   sur l'eau juste sous lui (tablette). (Sélecteurs renforcés : la règle de base de .invite
+   vient plus bas dans ce fichier.) */
+@media (max-width: 640px), (orientation: portrait) {
+  .anchor > .invite {
     position: fixed;
     top: var(--zone-top);
     left: var(--hud-l);
@@ -83,7 +89,7 @@
     transform-origin: 50% 0;
     animation-name: invite-drop;
   }
-  .invite::after {
+  .anchor > .invite::after {
     display: none;
   }
 }
@@ -244,6 +250,18 @@
   font-size: 0.6rem;
   letter-spacing: 0.12em;
 }
+/* Téléphone étroit, ou colonne serrée entre la page ouverte et la radio (tablette) :
+   « Visite guidée » seul, la colonne de droite reste libre. */
+@media (max-width: 400px) {
+  .launcherMeta {
+    display: none;
+  }
+}
+@container (max-width: 16.5rem) {
+  .launcherMeta {
+    display: none;
+  }
+}
 .shortLabel {
   display: none;
 }
@@ -317,7 +335,7 @@
   font-size: 0.62rem;
   letter-spacing: 0.2em;
   text-transform: uppercase;
-  color: rgba(59, 47, 37, 0.62);
+  color: rgba(59, 47, 37, 0.74);
 }
 .inviteText {
   margin-top: 0.3rem;
@@ -675,7 +693,7 @@
   font-size: 0.6rem;
   letter-spacing: 0.2em;
   text-transform: uppercase;
-  color: rgba(59, 47, 37, 0.6);
+  color: rgba(59, 47, 37, 0.74);
 }
 .endTitle {
   margin-top: 0.35rem;
@@ -722,7 +740,7 @@
   letter-spacing: 0.12em;
   text-transform: uppercase;
   white-space: nowrap;
-  color: rgba(59, 47, 37, 0.66);
+  color: rgba(59, 47, 37, 0.74);
 }
 
 .endActions {
@@ -781,13 +799,13 @@
   font-family: var(--font-mono);
   font-size: 0.62rem;
   letter-spacing: 0.06em;
-  color: rgba(59, 47, 37, 0.64);
+  color: rgba(59, 47, 37, 0.74);
 }
 .textButton {
   font-family: var(--font-mono);
   font-size: 0.62rem;
   letter-spacing: 0.08em;
-  color: rgba(59, 47, 37, 0.72);
+  color: rgba(59, 47, 37, 0.78);
   text-decoration: underline;
   text-decoration-color: rgba(59, 47, 37, 0.3);
   text-underline-offset: 3px;
@@ -859,6 +877,12 @@
 @media (pointer: coarse) {
   .cta,
   .ghostCta {
+    min-height: var(--tap);
+  }
+  /* Liens « Plus tard », « Ouvrir le carnet » : 44 px de haut au doigt. */
+  .textButton {
+    display: inline-flex;
+    align-items: center;
     min-height: var(--tap);
   }
   .endClose {
@@ -983,6 +1007,16 @@
   from {
     opacity: 0;
     transform: translateY(12px) scale(0.94);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes invite-drop {
+  from {
+    opacity: 0;
+    transform: translateY(-10px) scale(0.97);
   }
   to {
     opacity: 1;

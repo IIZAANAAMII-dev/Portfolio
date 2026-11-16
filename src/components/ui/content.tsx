@@ -10,7 +10,7 @@ import { asset } from '@/lib/asset';
 import { useFocus, useFocusedItem } from '@/lib/focus';
 import type { IslandId, Project, SkillItem } from '@/types';
 import { MessageInABottle } from './MessageInABottle';
-import { fr } from './typography';
+import { fr, NBSP } from './typography';
 
 /**
  * Le contenu de chaque île, en DOM. Ces composants sont partagés entre les panneaux de
@@ -70,9 +70,7 @@ export function AboutContent() {
         </div>
         <div>
           <dt className="eyebrow text-ink">Aujourd’hui</dt>
-          <dd>
-            {site.current.contract} · {site.current.company} ({site.current.place})
-          </dd>
+          <dd>{fr(`${site.current.contract} · ${site.current.company} (${site.current.place})`)}</dd>
         </div>
       </dl>
       <div className="space-y-2">
@@ -136,7 +134,7 @@ export function SkillsContent() {
       {skillZones.map((zone) => (
         <SkillZoneBlock key={zone.id} zone={zone} />
       ))}
-      <p className="text-xs text-ink/45">{fr('Pas de pourcentages : ce que j’utilise, et ce que j’apprends.')}</p>
+      <p className="text-xs text-ink/60">{fr('Pas de pourcentages : ce que j’utilise, et ce que j’apprends.')}</p>
     </div>
   );
 }
@@ -161,7 +159,7 @@ function ProjectCard({ project, open, onToggle }: { project: Project; open: bool
   const { ref } = useFocusScroll('projects', project.id);
   const detailsId = `project-details-${project.id}`;
   return (
-    <article ref={ref as React.RefObject<HTMLElement>} className="focus-target border-b border-ink/10 pb-3 last:border-0">
+    <article ref={ref as React.RefObject<HTMLElement>} className="focus-target project-card">
       {/* Motif « accordéon » : le bouton est dans le titre, la hiérarchie des titres reste juste. */}
       <h3>
         <button type="button" onClick={onToggle} className="project-toggle" aria-expanded={open} aria-controls={detailsId}>
@@ -178,9 +176,7 @@ function ProjectCard({ project, open, onToggle }: { project: Project; open: bool
           </span>
         </button>
       </h3>
-      <p className="mt-0.5 text-xs text-ink/50">
-        {project.kind} · {project.context}
-      </p>
+      <p className="mt-0.5 text-xs text-ink/60">{fr(`${project.kind} · ${project.context}`)}</p>
       <p className="mt-1 text-sm text-ink/70">{fr(project.summary)}</p>
 
       {open && (
@@ -227,7 +223,7 @@ function ProjectCard({ project, open, onToggle }: { project: Project; open: bool
               {project.parts.map((part) => (
                 <li key={part.name} className="flex items-baseline justify-between gap-3">
                   <span>
-                    {part.name} <span className="text-ink/50">· {part.note}</span>
+                    {part.name} <span className="text-ink/60">· {part.note}</span>
                   </span>
                   {part.status && <span className={`status status--${part.status}`}>{STATUS_LABEL[part.status]}</span>}
                 </li>
@@ -276,14 +272,13 @@ function ExperienceItem({ entry }: { entry: (typeof experiences)[number] }) {
   const { ref } = useFocusScroll('experience', entry.id);
   return (
     <li ref={ref as React.RefObject<HTMLLIElement>} className="focus-target border-l border-ink/15 pl-4">
-      <p className="eyebrow text-ink">
-        {entry.period}
-        {entry.contract ? ` · ${entry.contract}` : ''}
-      </p>
+      <p className="eyebrow text-ink">{fr(`${entry.period}${entry.contract ? ` · ${entry.contract}` : ''}`)}</p>
       <h3 className="text-base font-medium">
-        {entry.role} · <span className="text-ink/60">{entry.company}</span>
+        {entry.role}
+        {NBSP}·{' '}
+        <span className="text-ink/60">{entry.company}</span>
       </h3>
-      {entry.location && <p className="text-xs text-ink/50">{entry.location}</p>}
+      {entry.location && <p className="text-xs text-ink/60">{entry.location}</p>}
       <ul className="mt-2 space-y-1 text-sm text-ink/70">
         {entry.missions.map((mission) => (
           <li key={mission}>{fr(mission)}</li>
@@ -316,7 +311,7 @@ function JourneyItem({ step, index }: { step: (typeof journey)[number]; index: n
         {index + 1}
       </span>
       <div>
-        <p className="eyebrow text-ink/60">{step.marker}</p>
+        <p className="eyebrow text-ink">{step.marker}</p>
         <h3 className="text-base font-medium">{step.title}</h3>
         <p className="text-sm text-ink/65">{fr(step.description)}</p>
       </div>
@@ -341,31 +336,35 @@ export function ContactContent() {
     <div className="space-y-5">
       <p className="text-lg">{fr('Un projet, une question, ou juste envie d’échanger ?')}</p>
       <MessageInABottle />
-      <ul className="space-y-2 text-sm">
+      <ul className="contact-links">
         <li>
-          <a className="link-underline" href={`mailto:${site.email}`}>
-            {site.email}
+          <a href={`mailto:${site.email}`}>
+            <span className="link-underline">{site.email}</span>
           </a>
         </li>
         <li>
-          <a className="link-underline" href={site.links.linkedin} target="_blank" rel="noreferrer">
-            LinkedIn
+          <a href={site.links.linkedin} target="_blank" rel="noreferrer">
+            <span className="link-underline">LinkedIn</span>
+            <span aria-hidden="true">↗</span>
+            <span className="sr-only"> (nouvel onglet)</span>
           </a>
         </li>
         <li>
-          <a className="link-underline" href={site.links.github} target="_blank" rel="noreferrer">
-            GitHub
+          <a href={site.links.github} target="_blank" rel="noreferrer">
+            <span className="link-underline">GitHub</span>
+            <span aria-hidden="true">↗</span>
+            <span className="sr-only"> (nouvel onglet)</span>
           </a>
         </li>
         {site.links.cv && (
           <li>
-            <a className="link-underline" href={site.links.cv} download>
-              CV (PDF)
+            <a href={site.links.cv} download>
+              <span className="link-underline">CV (PDF)</span>
             </a>
           </li>
         )}
       </ul>
-      <p className="hand text-xl text-ink/50">Basé à {site.location}.</p>
+      <p className="hand text-xl text-ink/60">{fr(`Basé à ${site.location}.`)}</p>
     </div>
   );
 }

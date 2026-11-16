@@ -264,7 +264,7 @@
   font-size: 0.98rem;
   line-height: 1;
   white-space: nowrap;
-  color: rgba(74, 48, 24, 0.62);
+  color: rgba(74, 48, 24, 0.74);
   transition: color 0.3s ease;
 }
 
@@ -338,7 +338,7 @@
 .keyHint {
   font-size: 0.62rem;
   letter-spacing: 0.03em;
-  color: rgba(59, 47, 37, 0.62);
+  color: rgba(59, 47, 37, 0.76);
 }
 
 .status {

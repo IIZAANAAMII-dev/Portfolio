@@ -6,6 +6,7 @@ import { site } from '@/data/site';
 import { ambience } from '@/lib/audio/ambience';
 import { boatState } from '@/lib/boat-state';
 import { skyState } from '@/lib/sky';
+import { fr } from '@/components/ui/typography';
 import { darkroom } from './bridge';
 import { ChevronIcon, CloseIcon, DownloadIcon, ShareIcon } from './icons';
 import { composePostcard, type PostcardInfo } from './postcard';
@@ -73,7 +74,7 @@ export function ShutterBar() {
   return (
     <div className={styles.stack} data-enter="">
       <p className={styles.caption} aria-live="polite">
-        Cadrage · {FRAMING_LABELS[framing]} · {framing + 1}/{FRAMINGS}
+        {fr(`Cadrage · ${FRAMING_LABELS[framing]} · ${framing + 1}/${FRAMINGS}`)}
       </p>
       <div className={styles.row}>
         <button type="button" className={styles.round} onClick={() => setFraming(framing - 1)} aria-label="Cadrage précédent" aria-keyshortcuts="ArrowLeft">

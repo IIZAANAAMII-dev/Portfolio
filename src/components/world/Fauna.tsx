@@ -4,6 +4,7 @@ import { Jellyfish } from '@/components/world/fauna/Jellyfish';
 import { MantaRays } from '@/components/world/fauna/Mantas';
 import { Sharks } from '@/components/world/fauna/Shark';
 import { SeaTurtles } from '@/components/world/fauna/Turtles';
+import { useWorld } from '@/lib/store';
 
 /**
  * Faune « remarquable » du large et des lagons : raies manta à mi-eau, tortues qui font le
@@ -14,11 +15,13 @@ import { SeaTurtles } from '@/components/world/fauna/Turtles';
  * Sur mobile / qualité basse, chaque composant garde une population représentative.
  */
 export function Fauna({ mobile }: { mobile: boolean }) {
+  // Palier « Très léger » : les deux silhouettes qui se voient de loin (tortues, aileron).
+  const minimal = useWorld((state) => state.tier === 'minimal');
   return (
     <group>
-      <MantaRays mobile={mobile} />
+      {!minimal && <MantaRays mobile={mobile} />}
       <SeaTurtles mobile={mobile} />
-      <Jellyfish mobile={mobile} />
+      {!minimal && <Jellyfish mobile={mobile} />}
       <Sharks />
     </group>
   );

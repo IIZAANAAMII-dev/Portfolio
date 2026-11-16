@@ -1,12 +1,13 @@
 'use client';
 
-import { useMemo, useRef } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { Html } from '@react-three/drei';
 import { useFrame, type ThreeEvent } from '@react-three/fiber';
 import { AdditiveBlending, Color, Group, Mesh, ShaderMaterial, Vector2 } from 'three';
 import { CLEARING_ROOT, ClearingContext, ClearingStore } from '@/components/islands/clearings';
 import { Grass } from '@/components/islands/Grass';
 import { createDecorLod, updateDecorLod, type DecorLod } from '@/components/islands/lod';
+import { createFrameGate, FrameGateScope } from '@/components/islands/frame-gate';
 import { Terrain } from '@/components/islands/Terrain';
 import { Trees } from '@/components/islands/Trees';
 import { createHeightSampler, terrainFeatures, type TerrainShape } from '@/components/islands/terrain-shape';
@@ -14,6 +15,7 @@ import { islets, type IsletConfig } from '@/data/islets';
 import { ambience } from '@/lib/audio/ambience';
 import { boatState } from '@/lib/boat-state';
 import { logbook } from '@/lib/logbook';
+import { perfOff } from '@/lib/quality';
 import { useWorld } from '@/lib/store';
 import { INTRO_DURATION } from '@/lib/cinematic';
 import { damp, smoothstep } from '@/lib/utils/math';
@@ -69,6 +71,8 @@ function Islet({ islet }: { islet: IsletConfig }) {
   const group = useRef<Group>(null);
   const decor = useRef<Group>(null);
   const lod = useRef<DecorLod>(createDecorLod());
+  // Porte des animations du décor : fermée tant qu'il est masqué (LOD) ou l'îlot invisible.
+  const [gate] = useState(createFrameGate);
   const label = useRef<HTMLDivElement>(null);
   const aura = useRef<Mesh>(null);
   const pose = useRef<RisePose>({ visible: false, y: 0, sy: 1, sxz: 1, tiltX: 0, tiltZ: 0 });
@@ -134,6 +138,7 @@ function Islet({ islet }: { islet: IsletConfig }) {
         activeIsland !== null,
         reducedMotion || !target.visible,
         dt,
+        gate,
       );
     }
 
@@ -151,9 +156,11 @@ function Islet({ islet }: { islet: IsletConfig }) {
     }
 
     const material = aura.current?.material as ShaderMaterial | undefined;
-    if (material) {
+    if (material && aura.current) {
       material.uniforms.uAwake.value = awake.value * scale;
       material.uniforms.uTime.value = state.clock.elapsedTime;
+      // Anneau éteint (îlot endormi) : alpha nul partout, inutile de le dessiner.
+      aura.current.visible = perfOff || material.uniforms.uAwake.value > 0.002;
     }
     if (label.current) {
       const shown = awake.value > 0.45 && scale > 0.9;
@@ -193,8 +200,10 @@ function Islet({ islet }: { islet: IsletConfig }) {
         )}
         {/* Herbe et décor : LOD de distance (qualité basse / moyenne). */}
         <group ref={decor}>
-          <Grass sampler={sampler} radius={islet.radius} plateau={features.plateau} seed={islet.seed} palette={islet.grass} />
-          <Decor islet={islet} sampler={sampler} features={features} awake={isletAwake[islet.id]} />
+          <FrameGateScope gate={gate}>
+            <Grass sampler={sampler} radius={islet.radius} plateau={features.plateau} seed={islet.seed} palette={islet.grass} />
+            <Decor islet={islet} sampler={sampler} features={features} awake={isletAwake[islet.id]} />
+          </FrameGateScope>
         </group>
         {/* Nappes d'eau qui ruissellent quand l'îlot crève la surface (ouverture seulement). */}
         <WaterSkin id={`islet:${islet.id}`} shape={shape} sampler={sampler} />

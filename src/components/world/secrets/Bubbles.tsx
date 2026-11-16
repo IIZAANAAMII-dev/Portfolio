@@ -3,6 +3,7 @@
 import { useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { BufferAttribute, BufferGeometry, ShaderMaterial, type Points } from 'three';
+import { perfOff } from '@/lib/quality';
 import { hash } from '@/lib/utils/math';
 
 /**
@@ -20,6 +21,8 @@ const params = new Float32Array(COUNT * 3);
 let cursor = 0;
 let dirty = false;
 let clock = 0;
+/** Fin de vie de la dernière bulle émise : au-delà, le nuage n'est plus dessiné du tout. */
+let busyUntil = -1;
 
 /**
  * Émet `count` bulles autour de (x, y, z), dans un disque de rayon `spread`.
@@ -39,6 +42,8 @@ export function emitBubbles(x: number, y: number, z: number, count: number, spre
     params[slot * 3] = 0.9 + hash(seed + 5.3) * 0.9;
     params[slot * 3 + 1] = (0.13 + hash(seed + 6.7) * 0.2) * size;
     params[slot * 3 + 2] = hash(seed + 8.1) * 10;
+    // Même durée de vie que dans le shader (montée jusqu'à la surface, puis éclatement).
+    busyUntil = Math.max(busyUntil, starts[slot * 4 + 3] + Math.max(0, (0.05 - starts[slot * 4 + 1]) / params[slot * 3]) + 0.5);
   }
   dirty = true;
 }
@@ -111,6 +116,8 @@ export function Bubbles() {
     clock = state.clock.elapsedTime;
     const target = points.current;
     if (!target) return;
+    target.visible = perfOff || clock < busyUntil;
+    if (!target.visible && !dirty) return;
     const material = target.material as ShaderMaterial;
     material.uniforms.uTime.value = clock;
     // Taille en pixels : hauteur du rendu × focale (projection[5]) / 2.

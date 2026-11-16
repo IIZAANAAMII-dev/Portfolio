@@ -5,6 +5,7 @@ import { useFrame } from '@react-three/fiber';
 import { Color, InstancedMesh, Object3D, Vector3 } from 'three';
 import { boatState } from '@/lib/boat-state';
 import { useWorld } from '@/lib/store';
+import { mooring } from './mooring';
 import { boatMotion } from './motion';
 
 /**
@@ -37,6 +38,8 @@ export function StackSmoke({ anchor }: { anchor: RefObject<Object3D | null> }) {
   const pipe = useRef<Puff[] | null>(null);
   const pipeCursor = useRef(0);
   const pipeTimer = useRef(0);
+  /** Dernier instant examiné pour les « teuf » de remise en route. */
+  const puttClock = useRef(0);
 
   useEffect(() => {
     const target = mesh.current;
@@ -86,6 +89,33 @@ export function StackSmoke({ anchor }: { anchor: RefObject<Object3D | null> }) {
       puff.spin = Math.random() * 6.28;
       target.setColorAt(index, tint.copy(LIGHT).lerp(DARK, push * 0.8));
       if (target.instanceColor) target.instanceColor.needsUpdate = true;
+    }
+
+    // Remise en route : chaque « teuf » crache une grosse bouffée sombre, d'un coup.
+    const checked = puttClock.current;
+    puttClock.current = time;
+    if (running) {
+      for (let putt = 0; putt < mooring.putts.length; putt++) {
+        const at = mooring.putts[putt];
+        if (at < 0 || at <= checked || at > time) continue;
+        const index = cursor.current;
+        cursor.current = (index + 1) % PUFFS;
+        const puff = list[index];
+        puff.born = time;
+        puff.life = 2.1 + Math.random() * 0.4;
+        puff.x = tip.x;
+        puff.y = tip.y + 0.04;
+        puff.z = tip.z;
+        puff.vx = 0.25 + (Math.random() - 0.5) * 0.2;
+        puff.vy = 1.55 + putt * 0.15 + Math.random() * 0.2;
+        puff.vz = -0.15 + (Math.random() - 0.5) * 0.2;
+        puff.size = 0.21 - putt * 0.025;
+        puff.spin = Math.random() * 6.28;
+        target.setColorAt(index, tint.copy(LIGHT).lerp(DARK, 0.9 - putt * 0.18));
+        if (target.instanceColor) target.instanceColor.needsUpdate = true;
+        // Le panache régulier reprend juste après.
+        timer.current = Math.max(timer.current, time + 0.12);
+      }
     }
 
     // Pipe : une volute toutes les 1 à 2 s, tant que le patron n'a pas le vent de la course.

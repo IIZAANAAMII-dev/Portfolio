@@ -28,7 +28,7 @@ import { animalRevealScale } from '@/lib/cinematic';
 import { activityFactor, ecologyState } from '@/lib/ecology';
 import { asset } from '@/lib/asset';
 import { MODEL } from '@/lib/models';
-import { QUALITY_LEVELS } from '@/lib/quality';
+import { TIER_LEVELS } from '@/lib/quality';
 import { useWorld } from '@/lib/store';
 import { clamp, damp, hash, shortestAngle, smoothstep } from '@/lib/utils/math';
 import { waveHeight } from '@/lib/waves';
@@ -351,10 +351,11 @@ function FishSchool({
     group.current.scale.setScalar(currentScale);
 
     const quality = world.quality;
-    const config = QUALITY_LEVELS[quality];
+    // Le palier réel (« Très léger » : bancs plus clairsemés, vus de moins loin).
+    const config = TIER_LEVELS[world.tier];
     // Le banc apparaît bien avant d'arriver dessus. La couronne lointaine tourne à
     // basse fréquence et avec moins d'instances, donc son coût reste contenu.
-    const simulationDistance = quality === 'high' ? 132 : quality === 'medium' ? 98 : 72;
+    const simulationDistance = quality === 'high' ? 132 : quality === 'medium' ? 98 : world.tier === 'minimal' ? 58 : 72;
     const dx = boatState.position.x - leaderX;
     const dz = boatState.position.z - leaderZ;
     const distance = Math.hypot(dx, dz);
@@ -593,10 +594,14 @@ function DeferredWorldBoundary() {
 
 export function MarineLife({ mobile }: { mobile: boolean }) {
   // Les bancs sont définis par zones écologiques (plages, rochers, eau profonde) :
-  // voir data/zones.ts. Sur mobile on garde une zone représentative de chaque type.
-  const schools = mobile
-    ? FISH_SCHOOLS.filter((_, index) => index % 2 === 0)
-    : FISH_SCHOOLS;
+  // voir data/zones.ts. Sur mobile on garde une zone représentative de chaque type ;
+  // palier « Très léger » : un banc sur trois, pas de plancton nocturne.
+  const minimal = useWorld((state) => state.tier === 'minimal');
+  const schools = minimal
+    ? FISH_SCHOOLS.filter((_, index) => index % 3 === 0)
+    : mobile
+      ? FISH_SCHOOLS.filter((_, index) => index % 2 === 0)
+      : FISH_SCHOOLS;
   return (
     <group>
       {schools.map((school) => (
@@ -616,7 +621,7 @@ export function MarineLife({ mobile }: { mobile: boolean }) {
       ))}
       <Fauna mobile={mobile} />
       <UnderwaterWorld mobile={mobile} />
-      <Plankton />
+      {!minimal && <Plankton />}
       <DeferredWorldBoundary />
       {!mobile && <DistantBoat />}
     </group>

@@ -93,21 +93,24 @@ void main() {
 
   // Deux nappes procédurales très hautes. Elles appartiennent au dôme du ciel :
   // aucun volume sombre ne peut donc traverser ou masquer brutalement la caméra.
-  vec2 cloudUv = view.xz / max(0.18, view.y + 0.42);
-  float highLayer = valueNoise(cloudUv * 1.15 + vec2(uTime * 0.010, -uTime * 0.004));
-  highLayer = highLayer * 0.68
-    + valueNoise(cloudUv * 2.35 + vec2(-uTime * 0.007, uTime * 0.009) + 8.7) * 0.32;
-  float midLayer = valueNoise(cloudUv * 0.72 + vec2(-uTime * 0.016, uTime * 0.006) - 4.2);
-  midLayer = midLayer * 0.58
-    + valueNoise(cloudUv * 1.8 + vec2(uTime * 0.012, uTime * 0.005) + 13.1) * 0.42;
-  float coverEdge = mix(0.78, 0.43, uStorm);
-  float highClouds = smoothstep(coverEdge, 0.9, highLayer) * uStorm;
-  float midClouds = smoothstep(coverEdge - 0.06, 0.86, midLayer) * uStorm;
-  float altitudeMask = smoothstep(-0.06, 0.26, vHeight);
-  vec3 cloudHigh = mix(vec3(0.47, 0.55, 0.59), vec3(0.25, 0.32, 0.37), uStorm);
-  vec3 cloudMid = mix(vec3(0.38, 0.46, 0.50), vec3(0.12, 0.19, 0.24), uStorm);
-  sky = mix(sky, cloudHigh, highClouds * altitudeMask * 0.6);
-  sky = mix(sky, cloudMid, midClouds * altitudeMask * 0.72);
+  // (Elles n'existent que par gros temps : hors tempête, leur bruit n'est pas calculé.)
+  if (uStorm > 0.0) {
+    vec2 cloudUv = view.xz / max(0.18, view.y + 0.42);
+    float highLayer = valueNoise(cloudUv * 1.15 + vec2(uTime * 0.010, -uTime * 0.004));
+    highLayer = highLayer * 0.68
+      + valueNoise(cloudUv * 2.35 + vec2(-uTime * 0.007, uTime * 0.009) + 8.7) * 0.32;
+    float midLayer = valueNoise(cloudUv * 0.72 + vec2(-uTime * 0.016, uTime * 0.006) - 4.2);
+    midLayer = midLayer * 0.58
+      + valueNoise(cloudUv * 1.8 + vec2(uTime * 0.012, uTime * 0.005) + 13.1) * 0.42;
+    float coverEdge = mix(0.78, 0.43, uStorm);
+    float highClouds = smoothstep(coverEdge, 0.9, highLayer) * uStorm;
+    float midClouds = smoothstep(coverEdge - 0.06, 0.86, midLayer) * uStorm;
+    float altitudeMask = smoothstep(-0.06, 0.26, vHeight);
+    vec3 cloudHigh = mix(vec3(0.47, 0.55, 0.59), vec3(0.25, 0.32, 0.37), uStorm);
+    vec3 cloudMid = mix(vec3(0.38, 0.46, 0.50), vec3(0.12, 0.19, 0.24), uStorm);
+    sky = mix(sky, cloudHigh, highClouds * altitudeMask * 0.6);
+    sky = mix(sky, cloudMid, midClouds * altitudeMask * 0.72);
+  }
 
   // Ton légèrement plus lumineux après la révélation.
   sky *= 0.9 + 0.2 * uReveal;
@@ -128,12 +131,14 @@ void main() {
 
   // Étoiles : un point rond par cellule de la voûte, qui scintille (plus serrées dans la
   // voie lactée) ; la nuit et pendant l'intro (ciel noir au-dessus de la carte marine).
-  vec3 starCell = floor(view * 230.0);
-  float starSeed = fract(sin(dot(starCell, vec3(12.9898, 78.233, 37.719))) * 43758.5453);
-  float starDot = 1.0 - smoothstep(0.08, 0.32, length(fract(view * 230.0) - 0.5));
-  float twinkle = 0.55 + 0.45 * sin(uTime * (1.5 + starSeed * 3.0) + starSeed * 40.0);
-  float stars = step(0.9955 - band * 0.0035, starSeed) * starDot * twinkle * smoothstep(0.02, 0.22, vHeight);
-  sky += vec3(0.88, 0.93, 1.0) * stars * nightSky;
+  if (nightSky > 0.0) {
+    vec3 starCell = floor(view * 230.0);
+    float starSeed = fract(sin(dot(starCell, vec3(12.9898, 78.233, 37.719))) * 43758.5453);
+    float starDot = 1.0 - smoothstep(0.08, 0.32, length(fract(view * 230.0) - 0.5));
+    float twinkle = 0.55 + 0.45 * sin(uTime * (1.5 + starSeed * 3.0) + starSeed * 40.0);
+    float stars = step(0.9955 - band * 0.0035, starSeed) * starDot * twinkle * smoothstep(0.02, 0.22, vHeight);
+    sky += vec3(0.88, 0.93, 1.0) * stars * nightSky;
+  }
 
   gl_FragColor = vec4(sky, 1.0);
   #include <colorspace_fragment>

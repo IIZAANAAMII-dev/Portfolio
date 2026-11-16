@@ -2,10 +2,11 @@
 
 import { useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
-import { Color, Group, InstancedMesh, Matrix4, Vector3 } from 'three';
+import { Color, Frustum, Group, InstancedMesh, Matrix4, Sphere, Vector3 } from 'three';
 import { Hotspot } from '@/components/islands/kit';
 import { boatState } from '@/lib/boat-state';
 import { skyState } from '@/lib/sky';
+import { perfOff } from '@/lib/quality';
 import { useWorld } from '@/lib/store';
 import { knockNow, pyramid, restackNow, setupPyramid, stepPyramid } from './chamboule';
 import { fxSettings } from './effects';
@@ -57,6 +58,22 @@ const everyMesh: (InstancedMesh | null)[] = new Array(11).fill(null);
 
 const matrix = new Matrix4();
 const HIDDEN = new Matrix4().makeScale(0, 0, 0);
+/** Champ de la caméra : une sorte d'objet entièrement hors champ ne coûte aucun draw call. */
+const view = new Frustum();
+const viewMatrix = new Matrix4();
+const probe = new Sphere();
+const inView: Record<Shape, boolean> = {
+  crate: false,
+  barrel: false,
+  pot: false,
+  buoy: false,
+  ball: false,
+  lifebuoy: false,
+  duck: false,
+  marker: false,
+  raft: false,
+};
+const SHAPES = Object.keys(inView) as Shape[];
 const stretch = new Vector3();
 const shifted = new Vector3();
 const lift = new Vector3();
@@ -65,13 +82,18 @@ const color = new Color();
 const noRaycast = () => null;
 
 let appliedQuality = '';
+/** Palier « Très léger » : seul le terrain de jeu autour du radeau reste peuplé. */
+const PLAYGROUND = 24;
 
 /** Qualité basse : moins d'objets (et une pyramide de 5 caisses). */
-function applyQuality(quality: string) {
-  if (quality === appliedQuality) return;
-  appliedQuality = quality;
-  const level = quality === 'low' ? 0 : quality === 'medium' ? 1 : 2;
-  for (const toy of toys) toy.enabled = level >= toy.minQuality;
+function applyQuality(tier: string) {
+  if (tier === appliedQuality) return;
+  appliedQuality = tier;
+  const level = tier === 'minimal' || tier === 'low' ? 0 : tier === 'medium' ? 1 : 2;
+  for (const toy of toys) {
+    toy.enabled = level >= toy.minQuality;
+    if (tier === 'minimal' && toy.enabled && Math.hypot(toy.ax - raft.p.x, toy.az - raft.p.z) > PLAYGROUND) toy.enabled = false;
+  }
   setupPyramid(level === 0);
 }
 
@@ -177,7 +199,7 @@ export function Toys() {
     const dt = Math.min(delta, 1 / 30);
     const time = state.clock.elapsedTime;
     frame.time = time;
-    const { phase, quality, reducedMotion } = useWorld.getState();
+    const { phase, tier, reducedMotion } = useWorld.getState();
     // Absents de la cinématique d'intro : la chute du bateau reste le seul sujet.
     const visible = phase === 'playing' || phase === 'docked';
     meshes.crate = crate.current;
@@ -202,24 +224,49 @@ export function Toys() {
     everyMesh[8] = duck.current;
     everyMesh[9] = marker.current;
     everyMesh[10] = lamp.current;
-    for (let index = 0; index < everyMesh.length; index++) {
-      const mesh = everyMesh[index];
-      if (mesh) mesh.visible = visible;
-    }
     const group = raftGroup.current;
     if (group) group.visible = visible;
-    if (!visible) return;
+    if (!visible) {
+      for (let index = 0; index < everyMesh.length; index++) {
+        const mesh = everyMesh[index];
+        if (mesh) mesh.visible = false;
+      }
+      return;
+    }
 
     fxSettings.reduced = reducedMotion;
-    applyQuality(quality);
+    applyQuality(tier);
     readBoat();
     stepToys(dt, time);
     stepPyramid(dt, time);
     collidePairs(time);
 
+    // Les jouets s'étendent sur tout le centre de l'archipel : chaque sorte n'est dessinée
+    // (et ses matrices envoyées) que si l'un de ses objets est dans le champ. Marge large :
+    // la caméra a pu bouger depuis son dernier calcul de matrices.
+    const camera = state.camera;
+    camera.updateMatrixWorld();
+    viewMatrix.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse);
+    view.setFromProjectionMatrix(viewMatrix);
+    for (const shape of SHAPES) inView[shape] = false;
     for (let index = 0; index < toys.length; index++) {
       const toy = toys[index];
-      if (toy === raft) continue;
+      if (toy === raft || !toy.enabled || inView[toy.shape]) continue;
+      probe.center.copy(toy.p);
+      probe.radius = toy.radius * 1.8 + 2.5;
+      if (perfOff || view.intersectsSphere(probe)) inView[toy.shape] = true;
+    }
+    for (const shape of SHAPES) {
+      const mesh = meshes[shape];
+      if (mesh) mesh.visible = inView[shape];
+    }
+    if (extras.paint) extras.paint.visible = inView.crate;
+    if (extras.net) extras.net.visible = inView.pot;
+    if (extras.lamp) extras.lamp.visible = inView.marker;
+
+    for (let index = 0; index < toys.length; index++) {
+      const toy = toys[index];
+      if (toy === raft || !inView[toy.shape]) continue;
       place(meshes[toy.shape], toy, time);
       if (toy.shape === 'crate') place(extras.paint, toy, time);
       else if (toy.shape === 'pot') place(extras.net, toy, time);
@@ -227,7 +274,7 @@ export function Toys() {
     }
     for (let index = 0; index < everyMesh.length; index++) {
       const mesh = everyMesh[index];
-      if (mesh) mesh.instanceMatrix.needsUpdate = true;
+      if (mesh && mesh.visible) mesh.instanceMatrix.needsUpdate = true;
     }
 
     if (group) {

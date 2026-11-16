@@ -7,13 +7,18 @@ import { STAMPS, useLogbook } from '@/lib/logbook';
 import { SHEET_PEEK, setSheetCover } from '@/lib/sheet';
 import { islandContent } from './content';
 import { Stamp } from './Logbook';
+import { fr } from './typography';
 import type { IslandId } from '@/types';
 
-/** Sur le papier, une couleur d'accent trop claire (blanc…) devient une encre brune. */
+/**
+ * Encre de l'accroche sur le papier : une couleur d'accent trop claire (blanc, pastels) devient
+ * une encre brune ; les autres sont fondues dans l'encre du carnet, pour garder leur teinte
+ * avec un contraste lisible (AA) à cette petite taille.
+ */
 function inkFor(accent: string) {
   const value = Number.parseInt(accent.replace('#', ''), 16);
   const luma = (0.2126 * ((value >> 16) & 255) + 0.7152 * ((value >> 8) & 255) + 0.0722 * (value & 255)) / 255;
-  return luma > 0.72 ? '#8a6d4f' : accent;
+  return luma > 0.72 ? '#7a5c40' : `color-mix(in srgb, ${accent} 40%, #3b2f25)`;
 }
 
 const PHONE = '(max-width: 767px)';
@@ -235,7 +240,7 @@ export function Panel() {
         <header className="sheet__header" {...dragHandlers}>
           <div className="sheet__heading">
             <p className="eyebrow" style={{ color: inkFor(island.accent) }}>
-              {island.tagline}
+              {fr(island.tagline)}
             </p>
             <h2 id="sheet-title" className="panel__title mt-1">{island.label}</h2>
           </div>

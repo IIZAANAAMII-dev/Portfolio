@@ -20,7 +20,8 @@ import { gwennHaDu } from '@/components/islets/BreizhDecor';
 import { skyState } from '@/lib/sky';
 import { useWorld } from '@/lib/store';
 import { boatMotion } from '../motion';
-import { animateCaptain, buildCaptain, pipeBowl, type CaptainRig } from './captain';
+import { mooring, THROW_TIME } from '../mooring';
+import { animateCaptain, buildCaptain, handPosition, pipeBowl, type CaptainRig } from './captain';
 import { ANCHORS, buildBoatGeometries } from './parts';
 import { glassGlowTexture, glassTexture, haloTexture, hullTexture, nameDecal, nameTexture } from './textures';
 
@@ -211,9 +212,12 @@ export function BretonBoat() {
       rig.mesh.castShadow = level !== 'low';
       holder.worldToLocal(cameraLocal.copy(state.camera.position));
       const sinceSplash = time - boatMotion.splashAt;
-      const sinceDock = time - boatMotion.dockedAt;
+      // Il salue après l'amarrage (l'amarre capelée, le passavant posé), pas avant.
       const waving = (boatMotion.splashAt >= 0 && sinceSplash > 0.9 && sinceSplash < 4.4)
-        || (boatMotion.dockedAt >= 0 && sinceDock > 0.4 && sinceDock < 4.2);
+        || (mooring.waveFrom >= 0 && time > mooring.waveFrom && time < mooring.waveTo);
+      const docking = mooring.phase === 'arriving' || mooring.phase === 'moored';
+      const throwPhase = docking && mooring.throwAt >= 0 ? (time - mooring.throwAt) / THROW_TIME : -1;
+      const dockSide = mooring.berth?.side ?? 1;
       animateCaptain(rig, {
         time,
         dt,
@@ -226,10 +230,14 @@ export function BretonBoat() {
         accel: boatMotion.accel,
         turn: boatMotion.turn,
         calm: reducedMotion ? 1 : 0,
+        throw: throwPhase >= 0 && throwPhase <= 1 ? throwPhase : -1,
+        throwSide: dockSide,
       });
       // Fourneau de la pipe (monde) : la fumée en tire de petites volutes (Smoke).
       pipeBowl(rig, boatMotion.pipe);
       boatMotion.pipeAt = time;
+      // Main qui lance l'amarre (la corde en part pendant l'élan).
+      if (docking && mooring.line) handPosition(rig, dockSide, mooring.hand);
     }
   });
 

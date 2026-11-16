@@ -4,6 +4,7 @@ import { useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { Group } from 'three';
 import { Dock } from '@/components/islands/docks';
+import { HOME_DOCK_END } from '@/components/islands/docks/layout';
 import { CLEARING_ROOT, ClearingContext, ClearingStore } from '@/components/islands/clearings';
 import { Grass } from '@/components/islands/Grass';
 import { Trees } from '@/components/islands/Trees';
@@ -181,7 +182,7 @@ export function HomeIsland() {
         <Trees sampler={sampler} radius={RADIUS} plateau={features.plateau} avoidAngle={DOCK_ANGLE} seed={5} flame="#e2553f" count={2} />
         <AssetBoundary blocking>
           {/* Au départ, le bateau est amarré de flanc (rayon + 5,8 m) : le ponton s'arrête contre sa coque. */}
-          <Dock angle={DOCK_ANGLE} reach={RADIUS} end={RADIUS + 4.35} />
+          <Dock angle={DOCK_ANGLE} reach={RADIUS} end={RADIUS + HOME_DOCK_END} gangway={false} />
         </AssetBoundary>
         <AssetBoundary>
           <HarborDressing sampler={sampler} plateau={features.plateau} />

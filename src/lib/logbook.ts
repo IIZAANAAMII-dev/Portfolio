@@ -35,7 +35,9 @@ export type StampId =
   | 'radio'
   | 'buoy'
   | 'fishing'
-  | 'postcard';
+  | 'postcard'
+  | 'festnoz'
+  | 'beam';
 
 export interface StampInfo {
   id: StampId;
@@ -78,6 +80,8 @@ export const STAMPS: StampInfo[] = [
   { id: 'static', title: 'Signal jaune', hint: 'Trouver ce qui grésille dans la brume', glyph: '▦' },
   { id: 'fishing', title: 'Pêche miraculeuse', hint: 'Pêcher un poisson de chaque zone du labo', glyph: '❦' },
   { id: 'postcard', title: 'Carte postale', hint: 'Développer une carte postale de l’archipel', glyph: '✉' },
+  { id: 'festnoz', title: 'Fest-noz', hint: 'Faire tourner la ronde de l’îlot breton, la nuit', glyph: '♬' },
+  { id: 'beam', title: 'Pris dans le faisceau', hint: 'Croiser le faisceau d’un phare, la nuit', glyph: '✹' },
 ];
 
 const STORAGE_KEY = 'kyliann-logbook-v1';

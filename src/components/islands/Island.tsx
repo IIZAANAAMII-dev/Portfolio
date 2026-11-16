@@ -20,6 +20,7 @@ import { Trees } from './Trees';
 import { NightLights } from './NightLights';
 import { IslandLife } from './IslandLife';
 import { createDecorLod, updateDecorLod, type DecorLod } from './lod';
+import { createFrameGate, FrameGateScope } from './frame-gate';
 import { sceneConfigs } from './scenes/registry';
 import type { IslandConfig } from '@/types';
 
@@ -58,6 +59,8 @@ export function Island({ island, index }: { island: IslandConfig; index: number 
   const group = useRef<Group>(null);
   const decor = useRef<Group>(null);
   const lod = useRef<DecorLod>(createDecorLod());
+  // Porte des animations du décor : fermée tant qu'il est masqué (LOD) ou l'île invisible.
+  const [gate] = useState(createFrameGate);
   const sailTo = useWorld((s) => s.sailTo);
   const hover = useWorld((s) => s.hover);
   const isHovered = useWorld((s) => s.hovered === island.id);
@@ -122,6 +125,7 @@ export function Island({ island, index }: { island: IslandConfig; index: number 
         activeIsland !== null,
         reducedMotion || !group.current.visible,
         dt,
+        gate,
       );
     }
   });
@@ -156,6 +160,7 @@ export function Island({ island, index }: { island: IslandConfig; index: number 
         <Terrain shape={shape} sampler={sampler} cliff={island.terrain.cliff} top={island.terrain.top} cliffTint={config.cliffTint} />
         {/* Décor détaillé, soumis au LOD de distance (qualité basse / moyenne). */}
         <group ref={decor}>
+          <FrameGateScope gate={gate}>
           {config.grass > 0 && (
             <Grass
               sampler={sampler}
@@ -170,6 +175,7 @@ export function Island({ island, index }: { island: IslandConfig; index: number 
           <DeferredDecor island={island} index={index} sampler={sampler} shape={shape} />
           <NightLights island={island} />
           <IslandLife island={island} index={index} />
+          </FrameGateScope>
         </group>
         {config.trees > 0 && (
           <Trees

@@ -1,14 +1,12 @@
 'use client';
 
-import { useContext, useLayoutEffect, useMemo, useRef } from 'react';
+import { lazy, Suspense, useContext, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import { useFrame, useThree, type ThreeEvent } from '@react-three/fiber';
 import {
-  AdditiveBlending,
   BoxGeometry,
   CanvasTexture,
   Color,
   DoubleSide,
-  Group,
   IcosahedronGeometry,
   InstancedMesh,
   Mesh,
@@ -16,20 +14,37 @@ import {
   Object3D,
   PlaneGeometry,
   SRGBColorSpace,
-  ShaderMaterial,
 } from 'three';
 import { addClearing, ClearingContext } from '@/components/islands/clearings';
 import { groundAt } from '@/components/islands/terrain-shape';
+import { festLayout, type V3 } from '@/components/world/night/festnoz-build';
+import { FestNozSetup } from '@/components/world/night/FestNozSetup';
+import { GlowWord } from '@/components/world/night/GlowWord';
+import { useNightGate } from '@/components/world/night/night-gate';
+import { SweepBeam, type BeamControl } from '@/components/world/night/SweepBeam';
+import { wordRockGroup } from '@/components/world/night/word-rock';
 import { ambience } from '@/lib/audio/ambience';
 import { logbook } from '@/lib/logbook';
 import { skyState } from '@/lib/sky';
+import { useWorld } from '@/lib/store';
 import { hash } from '@/lib/utils/math';
 import type { IsletDecorProps } from './types';
 
 /**
  * Breizh : phare blanc à lanterne rouge (son faisceau balaie la mer la nuit), Gwenn-ha-Du
- * au vent, alignement de menhirs et blocs de granit rose sur la grève.
+ * au vent, alignement de menhirs et blocs de granit rose sur la grève. Sur le replat à l'est
+ * du phare, tout est prêt pour le fest-noz : estrade, mâts, guirlandes de lampions, bûcher.
+ * À la nuit tombée, les lampions s'allument un à un, le feu prend, les sonneurs montent sur
+ * l'estrade et la ronde se forme (night/FestNoz, chargé seulement la nuit). Au large, une
+ * dalle porte « Mor » (la mer) peint à la peinture phosphorescente, que le faisceau révèle.
  */
+
+/** La nuit seulement : le fest-noz et sa musique sont chargés à part. */
+const FestNoz = lazy(() => import('@/components/world/night/FestNoz'));
+
+/** Dalle du « Mor », côté large (ouest) de l'îlot (repère de l'îlot). */
+const SEA_WORD = { x: -10.4, z: 2.6, yaw: Math.PI / 2, length: 3.4, width: 1.8, top: 0.55 };
+const PINK_GRANITE = new MeshStandardMaterial({ color: '#e0a296', roughness: 0.9, flatShading: true });
 
 /** Une moucheture d'hermine : trois points et une queue évasée en trois pointes. */
 function ermine(ctx: CanvasRenderingContext2D, x: number, y: number, s: number) {
@@ -103,43 +118,19 @@ function flagMaterial(map: CanvasTexture) {
 
 const flagTime = { value: 0 };
 
-const beamVertex = /* glsl */ `
-varying vec2 vUv;
-void main() {
-  vUv = uv;
-  gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-}
-`;
-
-const beamFragment = /* glsl */ `
-uniform float uStrength;
-varying vec2 vUv;
-void main() {
-  // Le faisceau s'éteint en s'éloignant de la lanterne (uv.y = 1 au sommet du cône).
-  float along = smoothstep(0.0, 1.0, vUv.y);
-  gl_FragColor = vec4(vec3(1.0, 0.86, 0.6) * uStrength, along * along * 0.6 * uStrength);
-  #include <colorspace_fragment>
-}
-`;
-
 function Lighthouse({ position }: { position: [number, number, number] }) {
-  const beam = useRef<Group>(null);
-  const beamMaterial = useRef<ShaderMaterial>(null);
+  const beam = useRef<BeamControl>({ strength: 0, speed: 0.7, angle: 2.4 });
   const lamp = useRef<Mesh>(null);
   const flashAt = useRef(-10);
   const clock = useThree((state) => state.clock);
-  const uniforms = useMemo(() => ({ uStrength: { value: 0 } }), []);
 
-  useFrame((state, delta) => {
+  useFrame((state) => {
     const night = skyState.dayNight;
     // Après un clic, le phare s'allume et balaie vite pendant quelques secondes, même de jour.
     const flash = Math.max(0, 1 - (state.clock.elapsedTime - flashAt.current) / 4.5);
-    const strength = Math.max(night * 0.55, flash * 0.75);
-    if (beam.current) {
-      beam.current.rotation.y += Math.min(delta, 1 / 30) * (0.7 + flash * 3.2);
-      beam.current.visible = strength > 0.02;
-    }
-    if (beamMaterial.current) beamMaterial.current.uniforms.uStrength.value = strength;
+    const control = beam.current;
+    control.strength = Math.max(night * 0.8, flash * 0.75);
+    control.speed = 0.7 + flash * 3.2;
     if (lamp.current) {
       (lamp.current.material as MeshStandardMaterial).emissiveIntensity = 0.6 + Math.max(night, flash) * 3.2
         + Math.sin(state.clock.elapsedTime * 2.2) * 0.15;
@@ -180,22 +171,8 @@ function Lighthouse({ position }: { position: [number, number, number] }) {
         <sphereGeometry args={[0.1, 8, 6]} />
         <meshStandardMaterial color="#2a2c33" roughness={0.4} metalness={0.6} />
       </mesh>
-      {/* Faisceau tournant, visible la nuit seulement. */}
-      <group ref={beam} position-y={5.78}>
-        <mesh rotation-z={Math.PI / 2} position-x={13}>
-          <coneGeometry args={[2.6, 26, 18, 1, true]} />
-          <shaderMaterial
-            ref={beamMaterial}
-            uniforms={uniforms}
-            vertexShader={beamVertex}
-            fragmentShader={beamFragment}
-            transparent
-            depthWrite={false}
-            blending={AdditiveBlending}
-            side={DoubleSide}
-          />
-        </mesh>
-      </group>
+      {/* Faisceau tournant (et son reflet sur l'eau), visible la nuit seulement. */}
+      <SweepBeam id="breizh" controlRef={beam} count={1} length={28} radius={2.6} tilt={0.08} position={[0, 5.78, 0]} />
     </group>
   );
 }
@@ -311,20 +288,31 @@ function PinkGranite({ sampler, radius, seed }: Pick<IsletDecorProps, 'sampler'>
 
 export function BreizhDecor({ islet, sampler, features }: IsletDecorProps) {
   const clearings = useContext(ClearingContext);
+  const quality = useWorld((state) => state.quality);
+  const night = useNightGate();
   const { hillX, hillZ } = features;
-  const lighthouse: [number, number, number] = [hillX, groundAt(sampler, hillX, hillZ, 1) - 0.1, hillZ];
+  const towerY = groundAt(sampler, hillX, hillZ, 1) - 0.1;
+  const lighthouse: V3 = [hillX, towerY, hillZ];
   const flagX = hillX + 2.1;
   const flagZ = hillZ + 1.2;
   const menhirStart: [number, number] = [-islet.radius * 0.5, islet.radius * 0.12];
+  const fest = useMemo(() => festLayout(sampler, [hillX, towerY, hillZ], quality), [hillX, hillZ, quality, sampler, towerY]);
+  const seaRock = useMemo(() => wordRockGroup(islet.seed + 0.7, SEA_WORD.length, SEA_WORD.width, SEA_WORD.top), [islet.seed]);
+  useEffect(() => () => seaRock.dispose(), [seaRock]);
 
   useLayoutEffect(() => {
     const removeTower = addClearing(clearings, hillX, hillZ, 1.4);
     const removeFlag = addClearing(clearings, flagX, flagZ, 0.4);
+    // Piste de danse et estrade : pas d'herbe haute sous les pieds.
+    const removeRing = addClearing(clearings, fest.center[0], fest.center[2], fest.radius + 0.55);
+    const removeStage = addClearing(clearings, fest.stage.x, fest.stage.z, 1.0);
     return () => {
       removeTower?.();
       removeFlag?.();
+      removeRing?.();
+      removeStage?.();
     };
-  }, [clearings, flagX, flagZ, hillX, hillZ]);
+  }, [clearings, fest, flagX, flagZ, hillX, hillZ]);
 
   return (
     <group>
@@ -332,6 +320,30 @@ export function BreizhDecor({ islet, sampler, features }: IsletDecorProps) {
       <Flag position={[flagX, groundAt(sampler, flagX, flagZ, 0.3) - 0.05, flagZ]} rotation={-0.6} />
       <Menhirs sampler={sampler} start={menhirStart} direction={-0.95} />
       <PinkGranite sampler={sampler} radius={islet.radius} seed={islet.seed} />
+      <FestNozSetup layout={fest} />
+      <mesh
+        geometry={seaRock}
+        material={PINK_GRANITE}
+        position={[SEA_WORD.x, 0, SEA_WORD.z]}
+        rotation-y={SEA_WORD.yaw}
+        castShadow
+        receiveShadow
+        raycast={() => null}
+      />
+      {night && (
+        <>
+          <GlowWord
+            text="Mor"
+            beam="breizh"
+            position={[SEA_WORD.x, SEA_WORD.top + 0.015, SEA_WORD.z]}
+            rotation={SEA_WORD.yaw}
+            width={SEA_WORD.length * 0.8}
+          />
+          <Suspense fallback={null}>
+            <FestNoz layout={fest} isletX={islet.position[0]} isletZ={islet.position[1]} />
+          </Suspense>
+        </>
+      )}
     </group>
   );
 }

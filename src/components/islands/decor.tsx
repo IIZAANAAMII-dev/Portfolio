@@ -1,7 +1,7 @@
 'use client';
 
 import { MODEL, useModelPart, type ModelName } from '@/lib/models';
-import { QUALITY_LEVELS } from '@/lib/quality';
+import { TIER_LEVELS } from '@/lib/quality';
 import { useWorld } from '@/lib/store';
 import { Scatter } from './Scatter';
 
@@ -30,7 +30,8 @@ function InstancedModel({
 }) {
   const { geometry, material } = useModelPart(name);
   const quality = useWorld((state) => state.quality);
-  const actualCount = Math.max(1, Math.round(count * QUALITY_LEVELS[quality].vegetationDensity));
+  const density = useWorld((state) => TIER_LEVELS[state.tier].vegetationDensity);
+  const actualCount = Math.max(1, Math.round(count * density));
   const animatedSway = quality === 'low' ? 0 : sway;
   return (
     <Scatter

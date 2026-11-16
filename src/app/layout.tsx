@@ -69,6 +69,9 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   themeColor: '#08121c',
   colorScheme: 'dark',
+  // Plein écran sous l'encoche et la barre d'accueil des iPhone : sans cela, tous les
+  // `env(safe-area-inset-*)` de l'interface valent zéro.
+  viewportFit: 'cover',
 };
 
 export default function RootLayout({ children }: LayoutProps<'/'>) {

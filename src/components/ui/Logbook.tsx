@@ -1,9 +1,11 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useTour } from '@/components/tour/tour-store';
 import { STAMPS, STAR_COUNT, useLogbook, type StampId, type StampInfo } from '@/lib/logbook';
 import { useWorld } from '@/lib/store';
 import { hash } from '@/lib/utils/math';
+import { fr, NNBSP, plural } from './typography';
 import { VoyageMap } from './VoyageMap';
 
 /**
@@ -58,7 +60,7 @@ export function LogbookButton() {
       className="hud-btn"
       onClick={() => setOpen(true)}
       aria-haspopup="dialog"
-      aria-label={`Carnet de bord : ${stamps.length} tampons sur ${STAMPS.length}`}
+      aria-label={`Carnet de bord : ${stamps.length} ${plural(stamps.length, 'tampon')} sur ${STAMPS.length}`}
       title="Carnet de bord"
     >
       <BookIcon />
@@ -110,21 +112,20 @@ export function LogbookPanel() {
           <header className="logbook__header">
             <span className="intro-eyebrow">Carnet de bord</span>
             <h2>Tampons de voyage</h2>
-            <p>
-              {stamps.length} / {STAMPS.length} tampons · étoiles d’or {stars.length} / {STAR_COUNT}
-            </p>
+            <p>{fr(`${stamps.length}/${STAMPS.length} tampons · ${stars.length}/${STAR_COUNT} étoiles d’or`)}</p>
             <div className="logbook__progress" aria-hidden="true">
               <span style={{ transform: `scaleX(${progress.toFixed(3)})` }} />
             </div>
           </header>
           <div className="logbook__tabs" role="tablist" aria-label="Pages du carnet">
-            <button type="button" role="tab" aria-selected={tab === 'map'} onClick={() => setTab('map')}>
+            <button type="button" role="tab" id="logbook-tab-map" aria-selected={tab === 'map'} aria-controls="logbook-page" onClick={() => setTab('map')}>
               Carte de voyage
             </button>
-            <button type="button" role="tab" aria-selected={tab === 'stamps'} onClick={() => setTab('stamps')}>
+            <button type="button" role="tab" id="logbook-tab-stamps" aria-selected={tab === 'stamps'} aria-controls="logbook-page" onClick={() => setTab('stamps')}>
               Tampons
             </button>
           </div>
+          <div id="logbook-page" role="tabpanel" aria-labelledby={tab === 'map' ? 'logbook-tab-map' : 'logbook-tab-stamps'}>
           {tab === 'map' ? (
             <VoyageMap />
           ) : (
@@ -145,7 +146,7 @@ export function LogbookPanel() {
                       return (
                         <div key={stamp.id} className="logbook__cell" data-earned={earned || undefined}>
                           <Stamp stamp={stamp} earned={earned} />
-                          <span className="logbook__hint">{earned ? 'obtenu' : stamp.hint}</span>
+                          <span className="logbook__hint">{earned ? 'obtenu' : fr(stamp.hint)}</span>
                         </div>
                       );
                     })}
@@ -154,6 +155,7 @@ export function LogbookPanel() {
               );
             })
           )}
+          </div>
         </div>
         <button type="button" className="logbook__close" onClick={() => setOpen(false)} aria-label="Fermer le carnet">
           ×
@@ -189,11 +191,11 @@ export function StampToast() {
       <div className="stamp-toast" key={latest.at} role="status">
         <Stamp stamp={stamp} earned size="large" />
         <div className="stamp-toast__text">
-          <span className="intro-eyebrow">{complete ? 'Carnet complet !' : 'Nouveau tampon'}</span>
+          <span className="intro-eyebrow">{complete ? fr('Carnet complet !') : 'Nouveau tampon'}</span>
           <strong>{complete ? 'Merci d’avoir navigué jusqu’ici' : stamp.title}</strong>
           {complete && (
             <button type="button" className="stamp-toast__cta" onClick={() => sailTo('contact')}>
-              On se parle ?
+              {fr('On se parle ?')}
             </button>
           )}
         </div>
@@ -206,7 +208,7 @@ export function StampToast() {
         <span className="stamp-toast__star" aria-hidden="true">✦</span>
         <div className="stamp-toast__text">
           <span className="intro-eyebrow">Étoile d’or</span>
-          <strong>{latestStar.count} / {STAR_COUNT}</strong>
+          <strong>{`${latestStar.count}${NNBSP}/${NNBSP}${STAR_COUNT}`}</strong>
         </div>
       </div>
     );
@@ -216,17 +218,21 @@ export function StampToast() {
 
 /**
  * Mot d'accueil : quelques secondes après le dévoilement, une seule fois par visite et
- * seulement pour un carnet presque vide, il présente le jeu du carnet de bord.
+ * seulement pour un carnet presque vide, il présente le jeu du carnet de bord. Un message à
+ * la fois : il attend que l'invitation à la visite guidée soit partie, et se tait pendant la
+ * visite.
  */
 export function WelcomeHint() {
   const phase = useWorld((state) => state.phase);
   const stamps = useLogbook((state) => state.stamps);
   const setOpen = useLogbook((state) => state.setOpen);
+  const tourBusy = useTour((state) => state.invite || state.status !== 'idle');
+  const touring = useTour((state) => state.status === 'running');
   const [shown, setShown] = useState(false);
   const [gone, setGone] = useState(false);
 
   useEffect(() => {
-    if (phase !== 'playing' || shown) return;
+    if (phase !== 'playing' || shown || tourBusy) return;
     let seen = false;
     try {
       seen = window.sessionStorage.getItem('kyliann-welcome') === '1';
@@ -243,7 +249,7 @@ export function WelcomeHint() {
       }
     }, 2600);
     return () => window.clearTimeout(show);
-  }, [phase, shown]);
+  }, [phase, shown, tourBusy]);
 
   useEffect(() => {
     if (!shown) return;
@@ -251,13 +257,13 @@ export function WelcomeHint() {
     return () => window.clearTimeout(hide);
   }, [shown]);
 
-  if (!shown || gone || stamps.length > 3) return null;
+  if (!shown || gone || stamps.length > 3 || touring) return null;
   return (
     <div className="stamp-toast is-welcome" role="status">
       <span className="stamp-toast__star" aria-hidden="true">✦</span>
       <div className="stamp-toast__text">
         <span className="intro-eyebrow">Ton carnet de bord t’attend</span>
-        <strong>{STAMPS.length} tampons, {STAR_COUNT} étoiles d’or et la carte de ton voyage</strong>
+        <strong>{fr(`${STAMPS.length} tampons, ${STAR_COUNT} étoiles d’or et la carte de ton voyage`)}</strong>
         <button
           type="button"
           className="stamp-toast__cta"

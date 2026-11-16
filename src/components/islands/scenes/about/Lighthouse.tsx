@@ -7,18 +7,18 @@ import {
   CanvasTexture,
   Color,
   CylinderGeometry,
-  DoubleSide,
-  Group,
   Mesh,
   MeshBasicMaterial,
   MeshStandardMaterial,
-  Quaternion,
-  ShaderMaterial,
   SphereGeometry,
   SRGBColorSpace,
   TorusGeometry,
   Vector3,
 } from 'three';
+import { GlowWord } from '@/components/world/night/GlowWord';
+import { useNightGate } from '@/components/world/night/night-gate';
+import { SweepBeam, type BeamControl } from '@/components/world/night/SweepBeam';
+import { slabCompanions, wordSlab } from '@/components/world/night/word-rock';
 import { ambience } from '@/lib/audio/ambience';
 import { logbook } from '@/lib/logbook';
 import { skyState } from '@/lib/sky';
@@ -33,9 +33,15 @@ import { Mesher, meterCylinder, pebble, pose, type Vec3 } from './mesher';
  * Le grand phare, sur son rocher de granit au bout de la pointe — à la manière des phares
  * en mer du Morbihan : soubassement de granit, tour blanchie à la chaux cerclée de granit,
  * encorbellement de consoles sous la galerie, garde-corps noir, lanterne vitrée et
- * coupole vert bronze. La nuit, deux faisceaux opposés balaient lentement la mer ; quand l'un
- * d'eux passe face à la caméra, la lanterne éclate. Un clic : il tourne à toute vitesse.
+ * coupole vert bronze. La nuit, deux faisceaux opposés balaient lentement la mer (SweepBeam :
+ * cône de lumière et reflet sur l'eau) ; quand l'un d'eux passe face à la caméra, la lanterne
+ * éclate. Un clic : il tourne à toute vitesse. Au large du port, une dalle de granit porte
+ * « Degemer mat » (bienvenue) peint à la peinture phosphorescente : invisible de jour, le
+ * mot s'écrit en lumière derrière le faisceau.
  */
+
+/** Dalle du « Degemer mat », à droite de l'entrée du port (repère de l'île). */
+const WELCOME = { x: 21.5, z: -3, yaw: 0.12, length: 6.6, width: 2.3, top: 0.62 };
 
 const WHITE = '#f4f0e7';
 /** Vert bronze des lanternes bretonnes (chambre de veille, coupole). */
@@ -156,40 +162,20 @@ function buildOutcrop(sampler: HeightSampler, center: [number, number], base: nu
     rocks.add(slab, pose([x, sampler(x, z) + 0.02, z], [0, index, 0], [size, 0.1, size * 0.85]), tone);
   }
   slab.dispose();
+  // La dalle du « Degemer mat » et ses galets, au large du port.
+  const table = wordSlab(7.3, WELCOME.length, WELCOME.width, WELCOME.top);
+  const tablePose = pose([WELCOME.x, 0, WELCOME.z], [0, WELCOME.yaw, 0]);
+  rocks.add(table, tablePose, '#c4b3a6');
+  table.dispose();
+  slabCompanions(7.3, WELCOME.length, WELCOME.width).forEach((stone, index) => {
+    tone.set('#b8aaa0').multiplyScalar(0.84 + hash(index * 2.9 + 1.7) * 0.2);
+    rocks.add(stone, tablePose, tone);
+    stone.dispose();
+  });
   return rocks.build();
 }
 
 /* --------------------------------------------------------------- faisceaux */
-
-const beamVertex = /* glsl */ `
-varying vec2 vUv;
-varying vec3 vView;
-varying vec3 vNormalView;
-void main() {
-  vUv = uv;
-  vec4 mv = modelViewMatrix * vec4(position, 1.0);
-  vView = -mv.xyz;
-  vNormalView = normalize(normalMatrix * normal);
-  gl_Position = projectionMatrix * mv;
-}
-`;
-
-const beamFragment = /* glsl */ `
-uniform float uStrength;
-varying vec2 vUv;
-varying vec3 vView;
-varying vec3 vNormalView;
-void main() {
-  // Cône ouvert : uv.y = 1 côté lanterne. Bords du cône adoucis (vus de biais).
-  float along = pow(vUv.y, 1.8);
-  float facing = abs(dot(normalize(vNormalView), normalize(vView)));
-  float soft = smoothstep(0.05, 0.6, facing);
-  // Assez dense pour se lire de loin sur la mer de nuit, sans voiler l'île.
-  float alpha = along * soft * 0.46 * uStrength;
-  gl_FragColor = vec4(vec3(1.0, 0.9, 0.68) * alpha, alpha);
-  #include <colorspace_fragment>
-}
-`;
 
 function haloTexture() {
   const canvas = document.createElement('canvas');
@@ -208,11 +194,9 @@ function haloTexture() {
   return texture;
 }
 
-const BEAM_LENGTH = 22;
 const toCamera = new Vector3();
 const lampWorld = new Vector3();
 const beamAxis = new Vector3();
-const beamTurn = new Quaternion();
 
 export function Lighthouse({ sampler }: { sampler: HeightSampler }) {
   const center = useMemo(() => polar(LIGHTHOUSE.angle, LIGHTHOUSE.radius), []);
@@ -220,14 +204,13 @@ export function Lighthouse({ sampler }: { sampler: HeightSampler }) {
   const tower = useMemo(() => buildTower(), []);
   const outcrop = useMemo(() => buildOutcrop(sampler, center, base), [base, center, sampler]);
   const materials = villageMaterials();
-  const beam = useRef<Group>(null);
   const halo = useRef<Mesh>(null);
   const spinUntil = useRef(-10);
   const clock = useThree((state) => state.clock);
   const lamp = useRef<MeshStandardMaterial>(null);
-  const beamMaterial = useRef<ShaderMaterial>(null);
   const haloMaterial = useRef<MeshBasicMaterial>(null);
-  const beamUniforms = useMemo(() => ({ uStrength: { value: 0 } }), []);
+  const beam = useRef<BeamControl>({ strength: 0, speed: 0.42, angle: 0.4 });
+  const night = useNightGate();
   const haloMap = useMemo(() => haloTexture(), []);
   useEffect(() => () => {
     tower.masonry?.dispose();
@@ -236,25 +219,21 @@ export function Lighthouse({ sampler }: { sampler: HeightSampler }) {
     haloMap.dispose();
   }, [haloMap, outcrop, tower]);
 
-  useFrame((state, delta) => {
-    const dt = Math.min(delta, 1 / 30);
+  useFrame((state) => {
     const time = state.clock.elapsedTime;
-    const night = skyState.dayNight;
+    const dark = skyState.dayNight;
     const spinning = Math.max(0, Math.min(1, (spinUntil.current - time) / 1.5));
-    const strength = Math.max(night, spinning * 0.85);
-    const group = beam.current;
-    if (group) {
-      group.rotation.y += dt * (0.42 + spinning * 3.4);
-      group.visible = strength > 0.03;
-    }
-    if (beamMaterial.current) beamMaterial.current.uniforms.uStrength.value = strength;
+    const strength = Math.max(dark, spinning * 0.85);
+    const control = beam.current;
+    control.strength = strength;
+    control.speed = 0.42 + spinning * 3.4;
     // Éclat : un des deux faisceaux passe dans l'axe de la caméra.
     let flash = 0;
     const glow = halo.current;
-    if (group && glow && haloMaterial.current) {
+    if (glow && haloMaterial.current) {
       glow.getWorldPosition(lampWorld);
       toCamera.subVectors(state.camera.position, lampWorld).setY(0).normalize();
-      beamAxis.set(1, 0, 0).applyQuaternion(group.getWorldQuaternion(beamTurn)).setY(0).normalize();
+      beamAxis.set(Math.cos(control.angle), 0, -Math.sin(control.angle));
       flash = Math.pow(Math.abs(beamAxis.dot(toCamera)), 18) * strength;
       glow.quaternion.copy(state.camera.quaternion);
       glow.scale.setScalar(2.2 + flash * 4.5);
@@ -267,6 +246,15 @@ export function Lighthouse({ sampler }: { sampler: HeightSampler }) {
   return (
     <group>
       {outcrop && <mesh geometry={outcrop} material={materials.rock} castShadow receiveShadow />}
+      {night && (
+        <GlowWord
+          text="Degemer mat"
+          beam="about"
+          position={[WELCOME.x, WELCOME.top + 0.015, WELCOME.z]}
+          rotation={WELCOME.yaw}
+          width={WELCOME.length * 0.86}
+        />
+      )}
       <group position={[center[0], base, center[1]]}>
         <Hotspot
           hoverScale={1.02}
@@ -285,23 +273,7 @@ export function Lighthouse({ sampler }: { sampler: HeightSampler }) {
             <meshStandardMaterial ref={lamp} color="#fff4d6" emissive="#ffc66e" emissiveIntensity={0.45} roughness={0.15} metalness={0.1} />
           </mesh>
         </Hotspot>
-        <group ref={beam} position-y={LIGHTHOUSE_LAMP_Y}>
-          {[0, Math.PI].map((angle) => (
-            <mesh key={angle} rotation={[0, angle, Math.PI / 2]} position={[Math.cos(angle) * BEAM_LENGTH * 0.5, 0, -Math.sin(angle) * BEAM_LENGTH * 0.5]} raycast={() => null}>
-              <coneGeometry args={[2.6, BEAM_LENGTH, 20, 1, true]} />
-              <shaderMaterial
-                ref={angle === 0 ? beamMaterial : undefined}
-                uniforms={beamUniforms}
-                vertexShader={beamVertex}
-                fragmentShader={beamFragment}
-                transparent
-                depthWrite={false}
-                blending={AdditiveBlending}
-                side={DoubleSide}
-              />
-            </mesh>
-          ))}
-        </group>
+        <SweepBeam id="about" controlRef={beam} count={2} length={36} radius={3.1} tilt={0.075} position={[0, LIGHTHOUSE_LAMP_Y, 0]} />
         <mesh ref={halo} position-y={LIGHTHOUSE_LAMP_Y} raycast={() => null} renderOrder={10} visible={false}>
           <planeGeometry args={[1, 1]} />
           <meshBasicMaterial ref={haloMaterial} map={haloMap} transparent depthWrite={false} blending={AdditiveBlending} opacity={0} toneMapped={false} />
