@@ -190,9 +190,8 @@ const WIPE_TO = -3.7;
 function runAtelier(time: number, reducedMotion: boolean, phase: string) {
   const homeMoored = mooring.phase === 'moored' && mooring.berth?.home === true
     && time >= Math.max(mooring.stopAt, mooring.lineAt) + 0.5;
-  if (!atelier.job && atelier.pending && homeMoored && phase === 'playing') {
-    const { kind, id } = atelier.pending;
-    atelier.pending = null;
+  if (!atelier.job && atelier.queue.length > 0 && homeMoored && phase === 'playing') {
+    const { kind, id } = atelier.queue.shift()!;
     const chosen = useLivery.getState();
     const from = kind === 'livery' ? chosen.livery : chosen.flag;
     if (from !== id) {

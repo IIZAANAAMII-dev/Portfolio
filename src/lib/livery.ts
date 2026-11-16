@@ -161,8 +161,11 @@ export const useLivery = create<LiveryState>((set, get) => ({
  * Horloge : celle de three (secondes).
  */
 export const atelier = {
-  /** Commande en attente : exécutée dès que le bateau est amarré au port de départ. */
-  pending: null as null | { kind: PaintKind; id: string },
+  /**
+   * Commandes en attente (une livrée, un pavillon au plus) : exécutées dans l'ordre dès que le
+   * bateau est amarré au port de départ.
+   */
+  queue: [] as { kind: PaintKind; id: string }[],
   /** Travail en cours sur le bateau (coup de pinceau, pavillon hissé). */
   job: null as null | { kind: PaintKind; id: string; from: string; startedAt: number; duration: number },
   /** Dernier travail terminé (le décor fait briller l'objet choisi). */

@@ -232,7 +232,6 @@ export function Atelier({ sampler }: { sampler: HeightSampler }) {
 
     const { livery: currentLivery, flag: currentFlag } = useLivery.getState();
     const job = atelier.job;
-    const pending = atelier.pending;
     const memo = motion.current;
     FLAG_CLOCK.value = time;
 
@@ -258,7 +257,7 @@ export function Atelier({ sampler }: { sampler: HeightSampler }) {
         const squash = sinceClick >= 0 && sinceClick < 0.9 ? Math.sin(sinceClick * 22) * Math.exp(-sinceClick * 6) * 0.12 : 0;
         const deniedAt = atelier.denied.id === `livery:${livery.id}` ? time - atelier.denied.at : 10;
         const shake = deniedAt >= 0 && deniedAt < 0.6 ? Math.sin(deniedAt * 40) * (1 - deniedAt / 0.6) * 0.22 : 0;
-        const waiting = pending?.kind === 'livery' && pending.id === livery.id ? Math.abs(Math.sin(time * 6)) * 0.04 : 0;
+        const waiting = atelier.queue.some((order) => order.kind === 'livery' && order.id === livery.id) ? Math.abs(Math.sin(time * 6)) * 0.04 : 0;
         const y = BENCH_TOP + memo.lift[index] * 0.035 + hop + waiting;
         dummy.position.set(potX(index, LIVERY_COUNT), y, POT_Z);
         dummy.rotation.set(0, 0, shake);

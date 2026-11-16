@@ -327,10 +327,11 @@ export function CameraRig({ mobile }: { mobile: boolean }) {
       omega = lerp(1.8, lambda * 2, leaving);
       // Atelier de peinture : dès que le bateau approche du port de départ, plan sur l'appentis
       // et le bateau amarré (le pinceau court sur sa coque, le pavillon est hissé).
-      const painting = phase === 'playing' && atelier.focus && distanceHome() < 28;
+      // Rien de commandé : on choisit (plan serré sur l'appentis, où que soit le bateau) ;
+      // sinon on regarde peindre, dès que le bateau est rentré au port.
+      const browse = atelier.queue.length === 0 && !atelier.job && atelier.doneAt < atelier.focusAt;
+      const painting = phase === 'playing' && atelier.focus && (browse || distanceHome() < 28);
       if (painting) {
-        // Rien de commandé : on choisit (plan serré sur l'appentis) ; sinon on regarde peindre.
-        const browse = !atelier.pending && !atelier.job && atelier.doneAt < atelier.focusAt;
         atelierPose(mobile, aspect < 0.82, browse, desiredPosition, desiredTarget);
         omega = 2.2;
         zeta = 0.86;

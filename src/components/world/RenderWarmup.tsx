@@ -205,19 +205,31 @@ function ShaderWarmup() {
         busy = true;
         const bloom = QUALITY_LEVELS[quality].bloom;
         const previous = gl.getRenderTarget();
-        let compiling: Promise<unknown> = Promise.resolve();
+        let compiling = new Set<Material>();
         try {
           if (bloom) gl.setRenderTarget(target);
-          compiling = gl.compileAsync(next, camera, scene);
+          compiling = gl.compile(next, camera, scene);
         } catch {
           // Un matériau mal formé n'empêche pas les autres de se compiler au premier rendu.
         } finally {
           if (bloom) gl.setRenderTarget(previous);
         }
         uploadTextures(gl, next);
-        compiling.catch(() => undefined).finally(() => {
-          busy = false;
-        });
+        // Attente des programmes, comme `compileAsync`, mais sans planter si un matériau est
+        // libéré entre-temps (démontage pendant l'accueil) : three.js lirait alors le
+        // programme d'un matériau disparu, et la promesse ne se résoudrait jamais.
+        const parallel = gl.extensions.has('KHR_parallel_shader_compile');
+        const settle = () => {
+          if (cancelled) return;
+          compiling.forEach((material) => {
+            const program = (gl.properties.get(material) as { currentProgram?: { isReady(): boolean } }).currentProgram;
+            if (!program || program.isReady()) compiling.delete(material);
+          });
+          if (compiling.size === 0) busy = false;
+          else window.setTimeout(settle, 10);
+        };
+        if (parallel) settle();
+        else window.setTimeout(settle, 10);
       }
       timer = window.setTimeout(pass, queue.length > 0 ? 260 : 900);
     };

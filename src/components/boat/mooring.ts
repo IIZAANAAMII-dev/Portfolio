@@ -11,6 +11,7 @@ import { homeIsland, islandById } from '@/data/islands';
 import { boatState } from '@/lib/boat-state';
 import { clamp, shortestAngle, smoothstep } from '@/lib/utils/math';
 import type { IslandId, Vec2, WorldPhase } from '@/types';
+import { BOAT_VARIANT } from './variant';
 
 /**
  * Accostage et appareillage : la chorégraphie du bateau au port, hors React.
@@ -272,7 +273,8 @@ function scheduleMooring(berth: Berth, time: number, stopAt: number, calm: boole
   if (!line) {
     mooring.throwAt = -1;
     mooring.lineAt = -1;
-  } else if (calm) {
+  } else if (calm || BOAT_VARIANT !== 'breton') {
+    // Mouvement réduit (ou ancien modèle, sans patron articulé) : l'amarre est capelée d'emblée.
     mooring.throwAt = -1;
     mooring.lineAt = stopAt;
   } else {
@@ -291,10 +293,19 @@ function scheduleMooring(berth: Berth, time: number, stopAt: number, calm: boole
 }
 
 function startArrival(berth: Berth, time: number, calm: boolean) {
-  planGlide(berth, time, calm);
   if (berth.home) mooring.wantHome = false;
-  mooring.phase = 'arriving';
   mooring.arriveAt = time;
+  if (Math.hypot(berth.x - boatState.position.x, berth.z - boatState.position.z) < 0.8 && boatState.speed < 1) {
+    // Déjà à son poste : pas de glissade (elle ferait une boucle), juste l'amarre à lancer.
+    mooring.phase = 'moored';
+    boatState.position.set(berth.x, 0, berth.z);
+    boatState.heading = berth.heading;
+    boatState.speed = 0;
+    scheduleMooring(berth, time, time + (calm ? 0 : 0.8), calm, true);
+    return;
+  }
+  planGlide(berth, time, calm);
+  mooring.phase = 'arriving';
   scheduleMooring(berth, time, time + glide.duration, calm, true);
 }
 

@@ -154,6 +154,9 @@ export function MooringLine() {
         sag = 0.55 - k * 0.2;
         eyeShown = smoothstep(0.75, 1, k);
       }
+    } else if (mooring.lineAt >= 0 && time < mooring.lineAt) {
+      // Mouvement réduit (pas de lancer) : l'amarre n'apparaît qu'une fois le bateau arrêté.
+      visible = false;
     } else {
       // Capelée : la boucle glisse le long de la bitte, l'amarre se raidit (petit claquement),
       // puis garde un mou qui suit les mouvements du bateau.

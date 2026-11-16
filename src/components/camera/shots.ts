@@ -94,8 +94,9 @@ export function atelierPose(mobile: boolean, portrait: boolean, browse: boolean,
     const rx = Math.cos(ATELIER.facing - Math.PI / 2);
     const rz = Math.sin(ATELIER.facing - Math.PI / 2);
     focus.set(ATELIER.x + fx * 0.3 + rx * 0.45, ATELIER.ground + 0.85, ATELIER.z + fz * 0.3 + rz * 0.45);
-    const distance = portrait ? 8.2 : mobile ? 6.6 : 5.6;
-    outPosition.set(focus.x + fx * distance + rx * 0.9, focus.y + (portrait ? 3.6 : 2.4), focus.z + fz * distance + rz * 0.9);
+    // Portrait : l'appentis et le râtelier (4,5 m de large) doivent tenir dans un cadre étroit.
+    const distance = portrait ? 12.5 : mobile ? 7.2 : 5.8;
+    outPosition.set(focus.x + fx * distance + rx * 0.9, focus.y + (portrait ? 5 : 2.5), focus.z + fz * distance + rz * 0.9);
     outTarget.copy(focus);
     return;
   }

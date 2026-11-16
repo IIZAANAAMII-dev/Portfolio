@@ -27,11 +27,14 @@ export function orderPaint(kind: PaintKind, id: string, now: number): OrderResul
   const chosen = useLivery.getState();
   const running = atelier.job?.kind === kind ? atelier.job.id : null;
   const current = running ?? (kind === 'livery' ? chosen.livery : chosen.flag);
-  if (id === current && atelier.pending?.kind !== kind) {
+  const queued = atelier.queue.findIndex((order) => order.kind === kind);
+  if (id === current && queued < 0) {
     ambience.cue(880, 0.12);
     return 'same';
   }
-  atelier.pending = { kind, id };
+  // Une commande par sorte : un nouveau pot remplace le pot commandé, pas le pavillon.
+  if (queued >= 0) atelier.queue[queued] = { kind, id };
+  else atelier.queue.push({ kind, id });
   ambience.chime([523, 659], 0.06);
   const home = mooring.berth?.home === true && (mooring.phase === 'moored' || mooring.phase === 'arriving');
   if (!home) {
@@ -61,15 +64,15 @@ export function updateOrders(now: number) {
   const elsewhere = world.destination !== null
     || (world.freeTarget !== null && (atelier.approach === null
       || Math.hypot(world.freeTarget[0] - atelier.approach[0], world.freeTarget[1] - atelier.approach[1]) > 0.5));
-  if (elsewhere && (atelier.pending || atelier.focus || mooring.wantHome)) {
-    atelier.pending = null;
+  if (elsewhere && (atelier.queue.length > 0 || atelier.focus || mooring.wantHome)) {
+    atelier.queue.length = 0;
     atelier.focus = false;
     atelier.approach = null;
     mooring.wantHome = false;
   }
   if (world.freeTarget === null && atelier.approach !== null && !mooring.wantHome) atelier.approach = null;
   // Plus rien en cours : le plan rapproché se relâche (vite après un travail, plus tard sinon).
-  if (atelier.focus && !atelier.pending && !atelier.job) {
+  if (atelier.focus && atelier.queue.length === 0 && !atelier.job) {
     const since = now - Math.max(atelier.focusAt, atelier.doneAt);
     if ((atelier.doneAt > atelier.focusAt && since > 3.2) || since > 14) atelier.focus = false;
   }
