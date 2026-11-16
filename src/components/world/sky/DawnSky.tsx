@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef } from 'react';
-import { useFrame } from '@react-three/fiber';
+import { useFrame, useThree } from '@react-three/fiber';
 import { BackSide, CircleGeometry, Color, Fog, Mesh, ShaderMaterial, SphereGeometry, Vector2, Vector3 } from 'three';
 import { boatState } from '@/lib/boat-state';
 import { INTRO_DURATION } from '@/lib/cinematic';
@@ -30,6 +30,7 @@ uniform float uHorizon;
 uniform float uMorning;
 uniform float uTime;
 uniform float uStrength;
+uniform float uDetail;
 
 vec3 lin(vec3 c) { return pow(c, vec3(2.2)); }
 
@@ -122,13 +123,15 @@ void main() {
   vec3 glowColor = lin(vec3(1.0, 0.8, 0.52));
   float halo = exp(-d * d / 0.0016) * 0.85 + exp(-d * d / 0.02) * 0.38 + exp(-d * 3.5) * 0.18;
   sky += glowColor * (halo * 0.8 + dawnBand(s, facing) * 0.5) * (1.0 - cloud * 0.5);
-  vec2 local = vec2(dot(dir, sunRight), dir.y - uSunDir.y);
-  float angle = atan(local.y, local.x);
-  vec2 spoke = vec2(cos(angle), sin(angle));
-  float rays = dawnNoise(spoke * 4.0 + vec2(uTime * 0.05, 0.0)) * 0.6
-    + dawnNoise(spoke * 9.0 - vec2(0.0, uTime * 0.04)) * 0.4;
-  rays = smoothstep(0.52, 0.8, rays) * exp(-d * 3.0) * smoothstep(0.035, 0.12, d) * smoothstep(0.0, 0.02, s);
-  sky += glowColor * rays * 0.3 * (1.0 - 0.55 * uMorning);
+  if (uDetail > 0.5) {
+    vec2 local = vec2(dot(dir, sunRight), dir.y - uSunDir.y);
+    float angle = atan(local.y, local.x);
+    vec2 spoke = vec2(cos(angle), sin(angle));
+    float rays = dawnNoise(spoke * 4.0 + vec2(uTime * 0.05, 0.0)) * 0.6
+      + dawnNoise(spoke * 9.0 - vec2(0.0, uTime * 0.04)) * 0.4;
+    rays = smoothstep(0.52, 0.8, rays) * exp(-d * 3.0) * smoothstep(0.035, 0.12, d) * smoothstep(0.0, 0.02, s);
+    sky += glowColor * rays * 0.3 * (1.0 - 0.55 * uMorning);
+  }
   float disc = 1.0 - smoothstep(0.0225, 0.0255, d);
   sky = mix(sky, lin(vec3(1.0, 0.97, 0.86)), disc);
 
@@ -173,9 +176,12 @@ void main() {
   float off = acos(clamp(facing, -1.0, 1.0));
   float path = exp(-pow(off / (0.035 + s * 0.55), 2.0));
   float dist = length(vWorld.xz - cameraPosition.xz);
-  float glint = dawnNoise(vWorld.xz * 0.45 + vec2(uTime * 0.9, -uTime * 0.5))
-    * dawnNoise(vWorld.xz * 0.9 - vec2(uTime * 0.6, uTime * 0.7));
-  glint = smoothstep(0.4, 0.6, glint) * (1.0 - smoothstep(220.0, 420.0, dist));
+  float glint = 0.0;
+  if (uDetail > 0.5) {
+    glint = dawnNoise(vWorld.xz * 0.45 + vec2(uTime * 0.9, -uTime * 0.5))
+      * dawnNoise(vWorld.xz * 0.9 - vec2(uTime * 0.6, uTime * 0.7));
+    glint = smoothstep(0.4, 0.6, glint) * (1.0 - smoothstep(220.0, 420.0, dist));
+  }
   float sunUp = smoothstep(-0.03, 0.0, uSunLift);
   sea += lin(vec3(1.0, 0.9, 0.66)) * path * (0.16 + glint * 1.2) * sunUp;
   gl_FragColor = vec4(sea, mask);
@@ -198,6 +204,8 @@ const uniforms = {
   uMorning: { value: 0 },
   uTime: { value: 0 },
   uStrength: { value: 0 },
+  /** 1 : rayons et paillettes ; 0 en qualité basse (téléphones). */
+  uDetail: { value: 1 },
   uCenter: { value: new Vector2() },
   uFront: { value: 0 },
 };
@@ -238,6 +246,18 @@ export function DawnSky() {
     materials.sea.dispose();
   }, [domeGeometry, materials, seaGeometry]);
 
+  // Shaders compilés dès l'écran-titre : rien ne fige l'image à l'impact du bateau.
+  const gl = useThree((state) => state.gl);
+  const camera = useThree((state) => state.camera);
+  useEffect(() => {
+    const meshes = [dome.current, sea.current].filter((mesh): mesh is Mesh => mesh !== null);
+    meshes.forEach((mesh) => {
+      mesh.visible = true;
+      gl.compile(mesh, camera);
+      mesh.visible = false;
+    });
+  }, [camera, gl]);
+
   // Monté à l'écran-titre, donc après l'atmosphère : ce callback passe derrière le sien et
   // peut teinter la brume qu'elle vient d'écrire.
   useFrame((state, delta) => {
@@ -266,6 +286,7 @@ export function DawnSky() {
     uniforms.uMorning.value = dawnMorning(seconds);
     uniforms.uTime.value = state.clock.elapsedTime;
     uniforms.uStrength.value = strength;
+    uniforms.uDetail.value = useWorld.getState().quality === 'low' ? 0 : 1;
     uniforms.uCenter.value.set(introCenter[0], introCenter[1]);
     uniforms.uFront.value = introRadius;
     dome.current?.position.copy(camera.position);

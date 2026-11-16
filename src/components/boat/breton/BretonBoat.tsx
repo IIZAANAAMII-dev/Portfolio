@@ -16,14 +16,18 @@ import {
   Vector3,
   type Mesh,
 } from 'three';
-import { gwennHaDu } from '@/components/islets/BreizhDecor';
+import { ambience } from '@/lib/audio/ambience';
+import { atelier, liveryById, useLivery, type FlagId, type LiveryId } from '@/lib/livery';
 import { skyState } from '@/lib/sky';
 import { useWorld } from '@/lib/store';
+import { smoothstep } from '@/lib/utils/math';
 import { boatMotion } from '../motion';
 import { mooring, THROW_TIME } from '../mooring';
 import { animateCaptain, buildCaptain, handPosition, pipeBowl, type CaptainRig } from './captain';
-import { ANCHORS, buildBoatGeometries } from './parts';
-import { glassGlowTexture, glassTexture, haloTexture, hullTexture, nameDecal, nameTexture } from './textures';
+import { sideAt, stationU } from './hull';
+import { BRISTLES, brushGeometries, flagMap, hullMap, liveryUniforms, patchHull, patchPalette, setPalette } from './livery';
+import { ANCHORS, buildBoatGeometries, ROOF_TOP } from './parts';
+import { glassGlowTexture, glassTexture, haloTexture, nameDecal, nameTexture } from './textures';
 
 /**
  * Le bateau de pêche breton, entièrement procédural (aucun fichier sous licence) : coque
@@ -35,9 +39,14 @@ import { glassGlowTexture, glassTexture, haloTexture, hullTexture, nameDecal, na
 
 const HULL = new MeshStandardMaterial({ roughness: 0.62, metalness: 0 });
 HULL.name = 'boat-hull';
-/** Tout le statique peint par sommet (et le patron, articulé) : un seul programme. */
+patchHull(HULL);
+/** Le patron (articulé) et le pinceau de l'atelier : peints par sommet. */
 const PAINT = new MeshStandardMaterial({ vertexColors: true, roughness: 0.82, metalness: 0 });
 PAINT.name = 'boat-paint';
+/** Tout le statique peint par sommet : un seul programme, aux couleurs de la livrée. */
+const PAINT_LIVERY = new MeshStandardMaterial({ vertexColors: true, roughness: 0.82, metalness: 0 });
+PAINT_LIVERY.name = 'boat-paint-livery';
+patchPalette(PAINT_LIVERY);
 /** Vitres : reflets de ciel le jour ; la nuit, la timonerie s'allume (carte émissive chaude). */
 const GLASS = new MeshStandardMaterial({ roughness: 0.2, metalness: 0.05, emissive: new Color('#ffffff'), emissiveIntensity: 0 });
 GLASS.name = 'boat-glass';
@@ -80,7 +89,8 @@ const flagWind = { value: 0.3 };
 const flagPhase = { value: 0 };
 const FLAG_WIDTH = 0.95;
 const FLAG_HEIGHT = 0.62;
-const FLAG = new MeshStandardMaterial({ side: DoubleSide, roughness: 0.9 });
+// Découpe alpha : le pavillon « </> » est en queue d'aronde.
+const FLAG = new MeshStandardMaterial({ side: DoubleSide, roughness: 0.9, alphaTest: 0.5 });
 FLAG.name = 'boat-flag';
 FLAG.onBeforeCompile = (shader) => {
   shader.uniforms.uFlagPhase = flagPhase;
@@ -122,12 +132,16 @@ let cache: Assets | null = null;
 
 function createAssets() {
   const geometries = buildBoatGeometries();
-  HULL.map = hullTexture();
+  // Livrée et pavillon choisis à l'atelier (gardés dans le navigateur) : dès l'intro.
+  const chosen = useLivery.getState();
+  HULL.map = hullMap(chosen.livery);
+  setPalette(liveryUniforms.uFrom.value, liveryById(chosen.livery).colors);
+  setPalette(liveryUniforms.uTo.value, liveryById(chosen.livery).colors);
   GLASS.map = glassTexture();
   GLASS.emissiveMap = glassGlowTexture();
   HALOS.map = haloTexture();
   NAME.map = nameTexture();
-  FLAG.map = gwennHaDu();
+  FLAG.map = flagMap(chosen.flag);
   [HULL, GLASS, HALOS, NAME, FLAG].forEach((material) => {
     material.needsUpdate = true;
   });
@@ -148,7 +162,7 @@ function createAssets() {
   halos.setAttribute('aSize', new BufferAttribute(sizes, 1));
 
   const flag = new PlaneGeometry(FLAG_WIDTH, FLAG_HEIGHT, 14, 5).translate(FLAG_WIDTH / 2, -FLAG_HEIGHT / 2, 0);
-  return { ...geometries, haloPoints: halos, name: nameDecal(), flag };
+  return { ...geometries, haloPoints: halos, name: nameDecal(), flag, brush: brushGeometries() };
 }
 
 /** Le bateau est unique et permanent : ses géométries et textures sont construites une fois. */
@@ -160,13 +174,77 @@ function boatAssets() {
 /* ------------------------------------------------------------------ Composant */
 
 const cameraLocal = new Vector3();
+const eye = new Vector3();
+/** Pavillon hissé : drisse en tête de mât, et jusqu'où on l'amène pour le changer. */
+const FLAG_TOP = ANCHORS.masthead[1] - 0.03;
+const FLAG_LOW = ROOF_TOP + 0.72;
+/** Front du pinceau : de l'étrave (un peu devant) à la poupe (un peu derrière). */
+const WIPE_FROM = 3.3;
+const WIPE_TO = -3.7;
+
+/**
+ * Atelier de peinture : quand une commande attend et que le bateau est amarré au port de
+ * départ, le travail commence (coup de pinceau sur la coque, ou pavillon amené puis hissé) ;
+ * à la fin, le choix est gardé et un petit carillon sonne.
+ */
+function runAtelier(time: number, reducedMotion: boolean, phase: string) {
+  const homeMoored = mooring.phase === 'moored' && mooring.berth?.home === true
+    && time >= Math.max(mooring.stopAt, mooring.lineAt) + 0.5;
+  if (!atelier.job && atelier.pending && homeMoored && phase === 'playing') {
+    const { kind, id } = atelier.pending;
+    atelier.pending = null;
+    const chosen = useLivery.getState();
+    const from = kind === 'livery' ? chosen.livery : chosen.flag;
+    if (from !== id) {
+      const duration = reducedMotion ? 1 : kind === 'livery' ? 2.9 : 2.1;
+      atelier.job = { kind, id, from, startedAt: time, duration };
+      if (kind === 'livery') {
+        const next = liveryById(id as LiveryId);
+        liveryUniforms.uNextMap.value = hullMap(next.id);
+        setPalette(liveryUniforms.uTo.value, next.colors);
+        BRISTLES.color.set(next.colors.hull);
+      }
+    }
+  }
+  const job = atelier.job;
+  if (!job) return null;
+  const progress = Math.min((time - job.startedAt) / job.duration, 1);
+  if (job.kind === 'livery') {
+    // Le pinceau entre, court de l'étrave à la poupe (lent aux bouts), puis s'efface.
+    const sweep = smoothstep(0.1, 0.9, progress);
+    liveryUniforms.uWipe.value = WIPE_FROM + (WIPE_TO - WIPE_FROM) * sweep;
+    liveryUniforms.uWipeOn.value = 1;
+  } else if (progress >= 0.45 && FLAG.map !== flagMap(job.id as FlagId)) {
+    // Pavillon amené au pied du mât : on change de couleurs avant de le hisser.
+    FLAG.map = flagMap(job.id as FlagId);
+  }
+  if (progress >= 1) {
+    useLivery.getState().apply(job.kind, job.id);
+    if (job.kind === 'livery') {
+      HULL.map = hullMap(job.id as LiveryId);
+      setPalette(liveryUniforms.uFrom.value, liveryById(job.id as LiveryId).colors);
+      liveryUniforms.uWipeOn.value = 0;
+      liveryUniforms.uWipe.value = 10;
+      ambience.chime([659, 880, 1047, 1319], 0.08);
+    } else {
+      ambience.chime([784, 988, 1175], 0.09);
+    }
+    atelier.job = null;
+    atelier.doneAt = time;
+    return null;
+  }
+  return { kind: job.kind, progress };
+}
 
 export function BretonBoat() {
   const assets = useMemo(() => boatAssets(), []);
   const quality = useWorld((state) => state.quality);
+  const root = useRef<Group>(null);
   const radar = useRef<Mesh>(null);
   const propeller = useRef<Mesh>(null);
   const rudder = useRef<Mesh>(null);
+  const flag = useRef<Mesh>(null);
+  const brush = useRef<Group>(null);
   const captainHolder = useRef<Group>(null);
   const captain = useRef<CaptainRig | null>(null);
   /** Régime de l'hélice (rad/s) : elle s'emballe et ralentit avec le moteur, sans à-coup. */
@@ -198,8 +276,38 @@ export function BretonBoat() {
     LAMPS.color.setScalar(0.85 + night * 1.9);
     GLASS.emissiveIntensity = night * 1.55;
     HALOS.opacity = Math.max(0, Math.min(1, (night - 0.12) * 1.6));
-    flagWind.value += (0.3 + boatMotion.throttle * 0.7 - flagWind.value) * Math.min(1, dt * 1.5);
+
+    // Atelier de peinture : livrée au pinceau, pavillon amené puis hissé.
+    if (root.current) liveryUniforms.uBoatInverse.value.copy(root.current.matrixWorld).invert();
+    const work = runAtelier(time, reducedMotion, phase);
+    const hoisting = work?.kind === 'flag' ? work.progress : -1;
+    const gust = hoisting >= 0 ? 1 : 0;
+    flagWind.value += (Math.max(0.3 + boatMotion.throttle * 0.7, gust) - flagWind.value) * Math.min(1, dt * 1.5);
     flagPhase.value = (flagPhase.value + dt * (5 + flagWind.value * 7)) % (Math.PI * 2000);
+    if (flag.current) {
+      // Amené (ralenti en bas), puis hissé d'un trait qui ralentit en tête de mât.
+      const lowered = hoisting < 0 ? 0 : hoisting < 0.45 ? smoothstep(0, 0.45, hoisting) : 1 - smoothstep(0.45, 1, hoisting);
+      flag.current.position.y = FLAG_TOP - (FLAG_TOP - FLAG_LOW) * lowered;
+    }
+    const painter = brush.current;
+    if (painter) {
+      const painting = work?.kind === 'livery' ? work.progress : -1;
+      painter.visible = painting >= 0;
+      if (painting >= 0 && root.current) {
+        // Le pinceau travaille du côté de la caméra, au front de peinture, à grands coups verticaux.
+        root.current.worldToLocal(eye.copy(state.camera.position));
+        const side = eye.z >= 0 ? 1 : -1;
+        const x = Math.max(-2.95, Math.min(2.6, liveryUniforms.uWipe.value + 0.08));
+        const stroke = Math.sin(time * 9.5);
+        const y = 0.38 + stroke * 0.32;
+        const z = side * (sideAt(Math.max(0.02, Math.min(0.98, stationU(x))), Math.max(y, 0.1)) + 0.04);
+        const pop = smoothstep(0, 0.08, painting) * (1 - smoothstep(0.9, 1, painting));
+        painter.position.set(x, y, z);
+        // Manche penché vers l'extérieur et vers l'étrave (le pinceau est tiré vers la poupe).
+        painter.rotation.set(side * (0.8 + stroke * 0.12), 0, -0.35 - Math.cos(time * 9.5) * 0.15);
+        painter.scale.setScalar(Math.max(pop, 0.001));
+      }
+    }
 
     if (radar.current) radar.current.rotation.y += dt * 2.3;
     spin.current += ((running ? 5 + boatMotion.throttle * 32 : 0) - spin.current) * Math.min(1, dt * 2.5);
@@ -242,22 +350,27 @@ export function BretonBoat() {
   });
 
   const shadows = quality !== 'low';
-  const [mx, my, mz] = ANCHORS.masthead;
+  const [mx, , mz] = ANCHORS.masthead;
   return (
-    <group>
+    <group ref={root}>
       <mesh geometry={assets.hull} material={HULL} castShadow={shadows} receiveShadow />
-      <mesh geometry={assets.paint} material={PAINT} castShadow={shadows} receiveShadow />
+      <mesh geometry={assets.paint} material={PAINT_LIVERY} castShadow={shadows} receiveShadow />
       <mesh geometry={assets.glass} material={GLASS} />
       <mesh geometry={assets.lamps} material={LAMPS} />
       <mesh geometry={assets.name} material={NAME} />
       <points geometry={assets.haloPoints} material={HALOS} renderOrder={8} frustumCulled={false} />
       <mesh geometry={assets.mask} material={WATER_MASK} renderOrder={1} />
-      <mesh ref={radar} geometry={assets.radar} material={PAINT} position={ANCHORS.radar} castShadow={shadows} />
-      <mesh ref={propeller} geometry={assets.propeller} material={PAINT} position={ANCHORS.propeller} />
-      <mesh ref={rudder} geometry={assets.rudder} material={PAINT} position={ANCHORS.rudder} />
-      {/* Gwenn-ha-Du en tête de mât, flottant vers l'arrière (−X). */}
-      <mesh geometry={assets.flag} material={FLAG} position={[mx - 0.02, my - 0.03, mz]} rotation-y={Math.PI} castShadow={shadows} />
+      <mesh ref={radar} geometry={assets.radar} material={PAINT_LIVERY} position={ANCHORS.radar} castShadow={shadows} />
+      <mesh ref={propeller} geometry={assets.propeller} material={PAINT_LIVERY} position={ANCHORS.propeller} />
+      <mesh ref={rudder} geometry={assets.rudder} material={PAINT_LIVERY} position={ANCHORS.rudder} />
+      {/* Pavillon (Gwenn-ha-Du d'origine) en tête de mât, flottant vers l'arrière (−X). */}
+      <mesh ref={flag} geometry={assets.flag} material={FLAG} position={[mx - 0.02, FLAG_TOP, mz]} rotation-y={Math.PI} castShadow={shadows} />
       <group ref={captainHolder} position={ANCHORS.captain} />
+      {/* Pinceau de l'atelier (visible seulement pendant une mise en peinture). */}
+      <group ref={brush} visible={false}>
+        <mesh geometry={assets.brush.body} material={PAINT} raycast={() => null} />
+        <mesh geometry={assets.brush.bristles} material={BRISTLES} raycast={() => null} />
+      </group>
     </group>
   );
 }

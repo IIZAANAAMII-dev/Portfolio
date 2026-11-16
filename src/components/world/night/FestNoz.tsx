@@ -135,9 +135,9 @@ const poolFragment = /* glsl */ `
 uniform float uFire;
 varying vec2 vLocal;
 void main() {
-  float r = length(vLocal) / 3.0;
-  float glow = exp(-r * r * 2.6) * (1.0 - smoothstep(0.75, 1.0, r));
-  gl_FragColor = vec4(vec3(1.0, 0.62, 0.28), glow * uFire * 0.72);
+  float r = length(vLocal) / 3.6;
+  float glow = exp(-r * r * 2.4) * (1.0 - smoothstep(0.7, 1.0, r));
+  gl_FragColor = vec4(vec3(1.0, 0.6, 0.26), glow * uFire * 0.9);
   #include <colorspace_fragment>
 }
 `;
@@ -156,7 +156,7 @@ void main() {
   vTint = aTint;
   vLit = smoothstep(aOn, aOn + 0.05, uNight) * (0.85 + 0.15 * sin(uTime * 5.3 + aOn * 97.0));
   vec4 mv = modelViewMatrix * vec4(aOffset, 1.0);
-  mv.xy += position.xy * 0.95;
+  mv.xy += position.xy * 1.15;
   gl_Position = projectionMatrix * mv;
 }
 `;
@@ -281,7 +281,7 @@ export default function FestNoz({ layout, isletX, isletZ }: { layout: FestLayout
       biniou: playerGeometry('biniou'),
       flames: flameGeometry(),
       embers: emberGeometry(18),
-      pool: new CircleGeometry(3.0, 28).rotateX(-Math.PI / 2),
+      pool: new CircleGeometry(3.6, 32).rotateX(-Math.PI / 2),
       halos: haloGeometry(layout),
     }),
     [count, layout],

@@ -17,6 +17,7 @@ import {
   type BufferGeometry,
 } from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import { useWorld } from '@/lib/store';
 import { beams, type BeamSource } from './beams';
 
 /**
@@ -190,6 +191,8 @@ export function SweepBeam({
   position?: [number, number, number];
 }) {
   const group = useRef<Group>(null);
+  // Qualité basse (téléphones) : le cône seul, sans son reflet sur l'eau.
+  const lite = useWorld((state) => state.quality === 'low');
   const cone = useRef<Mesh>(null);
   const wedge = useRef<Mesh>(null);
   const source = useRef<BeamSource>({ x: 0, y: 0, z: 0, bearing: 0, count, spin: 0, spread: 0, reach: 0, strength: 0 });
@@ -228,10 +231,14 @@ export function SweepBeam({
   useEffect(() => {
     const entry = source.current;
     beams.set(id, entry);
+    // Développement : `window.__beams.<id>.angle = …` oriente un faisceau (captures).
+    const target = window as unknown as { __beams?: Record<string, BeamControl | null> };
+    if (process.env.NODE_ENV !== 'production') (target.__beams ??= {})[id] = controlRef.current;
     return () => {
       if (beams.get(id) === entry) beams.delete(id);
+      if (target.__beams) delete target.__beams[id];
     };
-  }, [id]);
+  }, [controlRef, id]);
 
   useFrame((state, delta) => {
     const target = group.current;
@@ -273,7 +280,7 @@ export function SweepBeam({
   return (
     <group ref={group} position={position} visible={false}>
       <mesh ref={cone} geometry={geometries.cone} material={materials.cone} renderOrder={7} raycast={() => null} />
-      <mesh ref={wedge} geometry={geometries.wedge} material={materials.wedge} renderOrder={5} raycast={() => null} />
+      {!lite && <mesh ref={wedge} geometry={geometries.wedge} material={materials.wedge} renderOrder={5} raycast={() => null} />}
     </group>
   );
 }

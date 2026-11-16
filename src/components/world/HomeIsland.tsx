@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useRef } from 'react';
+import { lazy, Suspense, useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { Group } from 'three';
 import { Dock } from '@/components/islands/docks';
@@ -36,6 +36,9 @@ import { damp, smoothstep } from '@/lib/utils/math';
  * sec, un cocotier penché sur le lagon, les rochers, fleurs, étoiles de mer et coquillages.
  * Le ponton reste libre (un chat viendra s'y installer).
  */
+
+/** Atelier de peinture (livrées et pavillons du bateau) : chargé après la première image. */
+const Atelier = lazy(() => import('@/components/world/atelier/Atelier').then((module) => ({ default: module.Atelier })));
 
 const { radius: RADIUS, elevation: ELEVATION, dockAngle: DOCK_ANGLE } = homeIsland;
 const DOCK_X = Math.cos(DOCK_ANGLE);
@@ -186,6 +189,11 @@ export function HomeIsland() {
         </AssetBoundary>
         <AssetBoundary>
           <HarborDressing sampler={sampler} plateau={features.plateau} />
+        </AssetBoundary>
+        <AssetBoundary>
+          <Suspense fallback={null}>
+            <Atelier sampler={sampler} />
+          </Suspense>
         </AssetBoundary>
 
         {/* Lumière chaude de la lanterne du bout du ponton : c'est elle qui accroche l'œil dans le noir. */}

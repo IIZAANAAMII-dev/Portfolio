@@ -138,7 +138,7 @@ export function festLayout(sampler: HeightSampler, tower: V3, quality: 'low' | '
   const cz = 1.35;
   const ground = groundAt(sampler, cx, cz, 1.2);
   const center: V3 = [cx, ground, cz];
-  const radius = 1.3;
+  const radius = 1.42;
 
   const stageX = 4.0;
   const stageZ = -1.0;
@@ -150,9 +150,11 @@ export function festLayout(sampler: HeightSampler, tower: V3, quality: 'low' | '
     { at: [stageX + 0.36, stage.top, stageZ + 0.02], yaw: -0.14, kind: 'biniou' },
   ];
 
-  const poleSpots: [number, number][] = [[4.6, 3.05], [5.55, 0.85], [4.95, -0.4]];
+  // Hors de la ronde (rayon ≥ 1,75 m) : au coin de l'estrade, au bord de la falaise, au sud.
+  const poleSpots: [number, number][] = [[5.35, -0.35], [5.65, 2.0], [3.6, 3.25]];
   const poles = poleSpots.map(([x, z]) => {
-    const foot = groundAt(sampler, x, z, 0.3) - 0.05;
+    // Hauteur du sol au pied même (une empreinte plus large plongerait dans la falaise voisine).
+    const foot = sampler(x, z) - 0.06;
     return { foot: [x, foot, z] as V3, top: [x, foot + 2.35, z] as V3 };
   });
 
@@ -183,7 +185,7 @@ export function festLayout(sampler: HeightSampler, tower: V3, quality: 'low' | '
     const count = Math.max(3, Math.round(span * perMeter));
     for (let index = 0; index < count; index++) {
       const point = sag(a, b, (index + 0.5) / count, depth);
-      point[1] -= 0.13;
+      point[1] -= 0.16;
       lampions.push({
         at: point,
         color: LAMPION_COLORS[(index + garland * 2) % LAMPION_COLORS.length],
@@ -411,9 +413,9 @@ function addLimbTo(kit: Kit, from: V3, to: V3, radius: number, color: string) {
 /** Lampion de papier : corps à teinter (blanc), cerclages sombres en haut et en bas. */
 export function lampionGeometry() {
   const kit = new Kit(false);
-  kit.add(new SphereGeometry(0.13, 9, 6), place([0, 0, 0], [0, 0, 0], [1, 0.82, 1]), WHITE);
-  kit.add(new CylinderGeometry(0.06, 0.06, 0.03, 8), place([0, 0.11, 0]), '#3a2c22');
-  kit.add(new CylinderGeometry(0.06, 0.06, 0.03, 8), place([0, -0.11, 0]), '#3a2c22');
-  kit.add(new CylinderGeometry(0.004, 0.004, 0.1, 3), place([0, 0.16, 0]), '#3a2c22');
+  kit.add(new SphereGeometry(0.155, 9, 6), place([0, 0, 0], [0, 0, 0], [1, 0.82, 1]), WHITE);
+  kit.add(new CylinderGeometry(0.07, 0.07, 0.035, 8), place([0, 0.13, 0]), '#3a2c22');
+  kit.add(new CylinderGeometry(0.07, 0.07, 0.035, 8), place([0, -0.13, 0]), '#3a2c22');
+  kit.add(new CylinderGeometry(0.004, 0.004, 0.1, 3), place([0, 0.19, 0]), '#3a2c22');
   return kit.build();
 }

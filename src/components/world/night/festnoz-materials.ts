@@ -26,7 +26,7 @@ export const danceUniforms = {
   /** 0 = mouvements réduits. */
   uMotion: { value: 1 },
   /** Taille des danseurs (lisibles depuis le bateau). */
-  uSize: { value: 1.15 },
+  uSize: { value: 1.25 },
 };
 
 export const lampionUniforms = {
@@ -101,7 +101,7 @@ void festDance(inout vec3 p, inout vec3 n) {
   if (aPart > 0.5 && aPart < 2.5) {
     float side = aPart < 1.5 ? 1.0 : -1.0;
     vec3 pivot = vec3(side * 0.15, 0.62, 0.0);
-    float abduct = side * (0.98 + 0.14 * cos(ph) * uMotion);
+    float abduct = side * (0.84 + 0.12 * cos(ph) * uMotion);
     float swing = -(0.55 * sin(ph) + 0.2) * uMotion - 0.15;
     mat3 r = fnRotX(swing) * fnRotZ(abduct);
     p = pivot + r * (p - pivot);

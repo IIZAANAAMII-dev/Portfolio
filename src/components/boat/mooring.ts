@@ -116,21 +116,30 @@ export function islandBerth(id: IslandId, preferHeading?: number): Berth {
   return berthAt(id, island.position, a, island.radius + 4.5, island.radius + DOCK_END_OFFSET, heading, true);
 }
 
-/** Poste du port de départ (celui de l'intro) : de flanc contre le bout du ponton. */
-export function homeBerth(): Berth {
+/**
+ * Poste du port de départ : de flanc contre le bout du ponton. Celui de l'intro a l'étrave
+ * vers +Z du ponton ; un bateau qui revient de l'autre côté s'amarre tête-bêche.
+ */
+export function homeBerth(preferHeading?: number): Berth {
   const a = homeIsland.dockAngle;
-  return berthAt('home', homeIsland.position, a, homeIsland.radius + HOME_BERTH, homeIsland.radius + HOME_DOCK_END, a + Math.PI / 2, false);
+  const intro = a + Math.PI / 2;
+  const heading = preferHeading !== undefined && Math.abs(shortestAngle(preferHeading, intro)) > Math.PI / 2 ? a - Math.PI / 2 : intro;
+  return berthAt('home', homeIsland.position, a, homeIsland.radius + HOME_BERTH, homeIsland.radius + HOME_DOCK_END, heading, false);
 }
 
 const HOME = homeBerth();
 
-/** Point d'approche du port de départ : derrière le poste, un peu au large (le bateau y arrive dans l'axe). */
+/**
+ * Point d'approche du port de départ, dans l'axe du poste, du côté d'où vient le bateau :
+ * il y arrive lancé dans la bonne direction et n'a plus qu'à glisser contre le ponton.
+ */
 export function homeApproach(): Vec2 {
   const fx = Math.cos(HOME.heading);
   const fz = Math.sin(HOME.heading);
   const dx = Math.cos(HOME.dockAngle);
   const dz = Math.sin(HOME.dockAngle);
-  return [HOME.x - fx * 6.5 + dx * 2.2, HOME.z - fz * 6.5 + dz * 2.2];
+  const ahead = (boatState.position.x - HOME.x) * fx + (boatState.position.z - HOME.z) * fz > 0 ? 1 : -1;
+  return [HOME.x + ahead * fx * 6.5 + dx * 2.2, HOME.z + ahead * fz * 6.5 + dz * 2.2];
 }
 
 /** Distance du bateau au poste du port de départ. */
@@ -361,7 +370,7 @@ export function updateMooring(time: number, dt: number, world: MooringWorld) {
       // Fin de l'intro : le bateau flotte à son poste du port de départ (sans amarre).
       snapMoored(HOME, time, false);
     } else if (mooring.phase === 'free' && mooring.wantHome && !goal && distanceHome() < 9 && boatState.speed < 4.5 && !jumped) {
-      startArrival(HOME, time, reducedMotion);
+      startArrival(homeBerth(boatState.heading), time, reducedMotion);
     }
   }
 

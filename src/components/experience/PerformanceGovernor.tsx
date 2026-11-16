@@ -9,33 +9,24 @@ import {
   deviceProfile,
   forcedTier,
   graphicsMemory,
-  stepTier,
   tierDpr,
   tierDprFloor,
-  tierRank,
+  perfOff,
   TIER_LEVELS,
   useGraphicsStatus,
   useRenderDpr,
-  type GraphicsTier,
 } from '@/lib/quality';
 import { useSheetCover } from '@/lib/sheet';
 import { useWorld } from '@/lib/store';
+import { createPolicyState, decide, onTierChanged } from './governor-policy';
 
 /*
  * Régulateur graphique : il observe les temps d'image réellement présentés (et non une
- * moyenne de FPS), par fenêtres de 2,5 s, et n'agit que sur des tendances franches.
- *  - Ordre des leviers : la résolution d'abord (par grands pas, jusqu'au plancher du
- *    palier), puis le palier. Effondrement (médiane très lente) : palier tout de suite.
- *  - Montée lente : il faut une longue période d'images parfaites (16 s sur ordinateur,
- *    40 s sur téléphone), la résolution remonte avant le palier, et jamais au-delà du
- *    plafond de l'appareil (lib/quality : deviceProfile).
- *  - Pas d'oscillation : un palier essayé puis quitté dans les 30 s est bloqué (3 min, puis
- *    pour la visite) ; une baisse après une longue période stable est lue comme de la
- *    chauffe (throttling) : plus aucune montée pendant 5 min.
- *  - Choix manuel (« Graphismes ») : le palier ne bouge plus ; seule la résolution peut
- *    baisser en cas d'effondrement durable. `?quality=` : rien ne bouge.
+ * moyenne de FPS), par fenêtres de 2,5 s, résumées par leur médiane et leur 90e centile ; la
+ * décision elle-même est une fonction pure (governor-policy.ts : résolution avant palier,
+ * montée lente, essais bloqués s'ils échouent, chauffe, choix manuel respecté).
  *  - Rien n'est jugé pendant l'ouverture (compilations), monde masqué, onglet caché, ni
- *    juste après un changement.
+ *    juste après un changement. `?quality=` : rien ne bouge.
  * Le rendu lui-même : onglet caché = aucune image ; palier « Très léger » = 30 images/s
  * régulières (les animations gardent leur horloge, seules les images sautent).
  */
@@ -43,25 +34,16 @@ import { useWorld } from '@/lib/store';
 const WINDOW_MS = 2500;
 const SETTLE_MS = 2500;
 const MAX_SAMPLES = 512;
-const PROBATION_MS = 30_000;
-const THERMAL_MS = 5 * 60_000;
-const STABLE_FOR_THERMAL_MS = 120_000;
 
-/** Seuils (ms) d'une fenêtre, selon la cible : ordinateur 60 i/s, téléphone 30 i/s acceptés. */
-function thresholds(mobile: boolean, cap: number) {
-  if (cap > 0) {
-    const frame = 1000 / cap;
-    return { great: frame + 2.5, bad: frame * 1.35, severe: frame * 2.1 };
-  }
-  return mobile ? { great: 18.5, bad: 36, severe: 55 } : { great: 18.5, bad: 26, severe: 40 };
-}
-
-/** Partagé avec l'enveloppe de `gl.render` (cadence, temps d'image présentés). */
+/** Partagé avec l'enveloppe de `gl.render` (cadence, temps d'image présentés, ombres). */
 const pacing = {
   cap: 0,
   lastFrameAt: 0,
   samples: new Float32Array(MAX_SAMPLES),
   count: 0,
+  /** Palier « Équilibré » : carte d'ombre redessinée une image sur deux. */
+  halfShadows: false,
+  shadowFlip: false,
 };
 
 function setRenderDpr(value: number) {
@@ -80,19 +62,8 @@ export function PerformanceGovernor({ mobile }: { mobile: boolean }) {
   const getState = useThree((state) => state.get);
   const tier = useWorld((state) => state.tier);
   const mode = useWorld((state) => state.graphicsMode);
-  const gov = useRef({
-    windowStart: 0,
-    settleUntil: 0,
-    badStreak: 0,
-    severeStreak: 0,
-    greatMs: 0,
-    lastChange: 0,
-    lastDprChange: 0,
-    lastGoodAt: 0,
-    probation: null as { tier: GraphicsTier; until: number } | null,
-    blocked: new Map<GraphicsTier, { until: number; failures: number }>(),
-    thermalUntil: 0,
-  });
+  const timing = useRef({ windowStart: 0, settleUntil: 0 });
+  const policy = useRef(createPolicyState(0));
   const forced = useRef(forcedTier());
 
   // Enveloppe du rendu à l'écran : onglet caché = rien ; cadence plafonnée ; temps d'image.
@@ -106,11 +77,23 @@ export function PerformanceGovernor({ mobile }: { mobile: boolean }) {
         if (pacing.cap > 0 && now - pacing.lastFrameAt < 1000 / pacing.cap - 3) return;
         if (pacing.lastFrameAt > 0 && pacing.count < MAX_SAMPLES) pacing.samples[pacing.count++] = now - pacing.lastFrameAt;
         pacing.lastFrameAt = now;
+        // Ombres à mi-cadence (« Équilibré ») : la passe d'ombre doublait les draw calls. Les
+        // matrices d'ombre ne changent qu'avec la carte : aucune incohérence, au pire une image
+        // de retard pour l'ombre d'un objet en mouvement.
+        const shadows = renderer.shadowMap;
+        if (pacing.halfShadows) {
+          shadows.autoUpdate = false;
+          pacing.shadowFlip = !pacing.shadowFlip;
+          if (pacing.shadowFlip) shadows.needsUpdate = true;
+        } else if (!shadows.autoUpdate) {
+          shadows.autoUpdate = true;
+        }
       }
       original.call(renderer, scene, camera);
     };
     return () => {
       renderer.render = original;
+      renderer.shadowMap.autoUpdate = true;
     };
   }, [getState]);
 
@@ -119,23 +102,23 @@ export function PerformanceGovernor({ mobile }: { mobile: boolean }) {
   useEffect(() => {
     setRenderDpr(tierDpr(tier));
     pacing.cap = TIER_LEVELS[tier].frameCap;
+    pacing.count = 0;
+    // L'image qui suit un changement de palier redessine toujours les ombres (carte recréée).
+    pacing.halfShadows = tier === 'medium' && !perfOff;
+    pacing.shadowFlip = false;
     useGraphicsStatus.setState({ capped: pacing.cap > 0 });
     if (useWorld.getState().graphicsMode === 'auto') graphicsMemory.autoTier = tier;
-    const g = gov.current;
-    g.settleUntil = performance.now() + SETTLE_MS;
-    g.lastChange = performance.now();
-    g.badStreak = 0;
-    g.severeStreak = 0;
-    pacing.count = 0;
+    const now = performance.now();
+    onTierChanged(policy.current, now);
+    timing.current.settleUntil = now + SETTLE_MS;
   }, [tier]);
 
   // Nouveau choix du joueur : on repart de zéro (pas de jugement sur l'ancien réglage).
   useEffect(() => {
-    const g = gov.current;
-    g.settleUntil = performance.now() + SETTLE_MS;
-    g.greatMs = 0;
-    g.badStreak = 0;
-    g.probation = null;
+    const now = performance.now();
+    policy.current.probation = null;
+    onTierChanged(policy.current, now);
+    timing.current.settleUntil = now + SETTLE_MS;
     pacing.count = 0;
   }, [mode]);
 
@@ -143,7 +126,7 @@ export function PerformanceGovernor({ mobile }: { mobile: boolean }) {
   useEffect(() => {
     let timer = 0;
     const resettle = () => {
-      gov.current.settleUntil = performance.now() + SETTLE_MS;
+      timing.current.settleUntil = performance.now() + SETTLE_MS;
       pacing.count = 0;
       pacing.lastFrameAt = 0;
     };
@@ -166,133 +149,57 @@ export function PerformanceGovernor({ mobile }: { mobile: boolean }) {
 
   useFrame((state) => {
     const now = performance.now();
-    const g = gov.current;
+    const clock = timing.current;
     const world = useWorld.getState();
     // Ouverture (compilations), monde masqué par une page, onglet caché : pas de jugement.
     const judged = (world.phase === 'playing' || world.phase === 'docked') && state.scene.visible && !document.hidden;
-    if (!judged || now < g.settleUntil || forced.current) {
-      if (!judged) g.settleUntil = Math.max(g.settleUntil, now + 600);
-      g.windowStart = now;
+    if (!judged || now < clock.settleUntil || forced.current) {
+      if (!judged) clock.settleUntil = Math.max(clock.settleUntil, now + 600);
+      clock.windowStart = now;
       pacing.count = 0;
       return;
     }
-    if (now - g.windowStart < WINDOW_MS) return;
+    if (now - clock.windowStart < WINDOW_MS) return;
     const count = pacing.count;
-    const span = now - g.windowStart;
+    const span = now - clock.windowStart;
     // Trop peu d'images pour conclure : la fenêtre s'allonge (jusqu'à 6 s) au lieu d'être
     // jetée, sinon un appareil à moins de 2,4 i/s ne serait jamais jugé.
     if (count < 6 && span < 6000) return;
-    g.windowStart = now;
+    clock.windowStart = now;
     pacing.count = 0;
     if (count === 0) return;
 
     sortBuffer.set(pacing.samples.subarray(0, count));
     const sorted = sortBuffer.subarray(0, count).sort();
-    const p50 = percentile(sorted, count, 0.5);
-    const p90 = percentile(sorted, count, 0.9);
     const current = world.tier;
-    const limits = thresholds(mobile, TIER_LEVELS[current].frameCap);
-    const verdict = p50 > limits.severe ? 'severe' : p90 > limits.bad ? 'bad' : p90 <= limits.great ? 'great' : 'ok';
-
-    const auto = world.graphicsMode === 'auto';
-    const dpr = useRenderDpr.getState().dpr;
-    const ceiling = tierDpr(current);
-    const floor = tierDprFloor(current);
-    const step = Math.max(0.08, (ceiling - floor) / 2);
-    const profile = deviceProfile();
-    // Captures de l'équipe (navigateur piloté, rendu logiciel) : jamais sous 'low' tout seul.
-    const lowest: GraphicsTier = automatedBrowser() ? 'low' : 'minimal';
-    if (g.thermalUntil > 0 && now > g.thermalUntil) {
-      g.thermalUntil = 0;
-      useGraphicsStatus.setState({ thermal: false });
+    const action = decide(
+      policy.current,
+      {
+        mobile,
+        auto: world.graphicsMode === 'auto',
+        ceiling: deviceProfile().ceiling,
+        // Captures de l'équipe (navigateur piloté, rendu logiciel) : jamais sous 'low' tout seul.
+        lowest: automatedBrowser() ? 'low' : 'minimal',
+      },
+      {
+        tier: current,
+        cap: TIER_LEVELS[current].frameCap,
+        dpr: useRenderDpr.getState().dpr,
+        dprCeiling: tierDpr(current),
+        dprFloor: tierDprFloor(current),
+      },
+      { p50: percentile(sorted, count, 0.5), p90: percentile(sorted, count, 0.9), span },
+      now,
+    );
+    const thermal = policy.current.thermalUntil > now;
+    if (thermal !== useGraphicsStatus.getState().thermal) useGraphicsStatus.setState({ thermal });
+    if (action.type === 'dpr') {
+      setRenderDpr(action.value);
+      clock.settleUntil = now + SETTLE_MS;
+    } else if (action.type === 'tier') {
+      world.setTier(action.tier);
+      clock.settleUntil = now + SETTLE_MS;
     }
-
-    const changed = () => {
-      g.settleUntil = now + SETTLE_MS;
-      g.lastChange = now;
-      g.badStreak = 0;
-      g.severeStreak = 0;
-      g.greatMs = 0;
-    };
-    const lowerDpr = (to: number) => {
-      setRenderDpr(Math.max(floor, to));
-      g.lastDprChange = now;
-      changed();
-    };
-    const downgrade = () => {
-      const next = stepTier(current, -1);
-      if (next === current || tierRank(next) < tierRank(lowest)) return false;
-      // Palier essayé puis quitté aussitôt : bloqué (3 min, puis pour la visite).
-      if (g.probation && g.probation.tier === current && now < g.probation.until) {
-        const entry = g.blocked.get(current) ?? { until: 0, failures: 0 };
-        entry.failures += 1;
-        entry.until = entry.failures >= 2 ? Infinity : now + 3 * 60_000;
-        g.blocked.set(current, entry);
-      } else if (now - g.lastChange > STABLE_FOR_THERMAL_MS && now - g.lastGoodAt < 15_000) {
-        // Longtemps parfait, puis plus lent à réglage égal : l'appareil chauffe.
-        g.thermalUntil = now + THERMAL_MS;
-        useGraphicsStatus.setState({ thermal: true });
-      }
-      g.probation = null;
-      world.setTier(next);
-      changed();
-      return true;
-    };
-
-    if (verdict === 'great') g.lastGoodAt = now;
-
-    if (verdict === 'severe') {
-      g.severeStreak += 1;
-      g.badStreak += 1;
-      g.greatMs = 0;
-      if (auto) {
-        if (!downgrade() && dpr > floor + 0.005) lowerDpr(floor);
-      } else if (g.severeStreak >= 2 && dpr > floor + 0.005) {
-        // Choix manuel : le palier est respecté, la résolution baisse en dernier recours.
-        lowerDpr(dpr - step);
-      }
-      return;
-    }
-    g.severeStreak = 0;
-
-    if (verdict === 'bad') {
-      g.badStreak += 1;
-      g.greatMs = 0;
-      if (!auto || g.badStreak < 2) return;
-      if (dpr > floor + 0.005) {
-        if (now - g.lastDprChange > 4000) lowerDpr(dpr - step);
-      } else {
-        downgrade();
-      }
-      return;
-    }
-
-    if (verdict === 'ok') {
-      g.badStreak = Math.max(0, g.badStreak - 1);
-      g.greatMs = Math.max(0, g.greatMs - span * 0.5);
-      return;
-    }
-
-    // Images parfaites : on accumule, puis on remonte lentement (résolution d'abord).
-    g.badStreak = 0;
-    g.greatMs += span;
-    const patience = !auto ? 20_000 : mobile ? 40_000 : 16_000;
-    if (g.greatMs < patience) return;
-    g.greatMs = 0;
-    if (dpr < ceiling - 0.005) {
-      setRenderDpr(Math.min(ceiling, dpr + step));
-      g.lastDprChange = now;
-      g.settleUntil = now + SETTLE_MS;
-      return;
-    }
-    if (!auto || g.thermalUntil > now) return;
-    const next = stepTier(current, 1);
-    if (next === current || tierRank(next) > tierRank(profile.ceiling)) return;
-    const blocked = g.blocked.get(next);
-    if (blocked && now < blocked.until) return;
-    g.probation = { tier: next, until: now + PROBATION_MS };
-    world.setTier(next);
-    changed();
   });
 
   return null;

@@ -3,6 +3,7 @@
 import { useRef } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import { PerspectiveCamera, Vector3, type Camera } from 'three';
+import { arrivalShot, distanceHome, mooring } from '@/components/boat/mooring';
 import { splashState } from '@/components/boat/Splash';
 import { islandById } from '@/data/islands';
 import { impactRecoil, introCameraAt } from '@/components/intro/camera-path';
@@ -11,10 +12,12 @@ import { boatState } from '@/lib/boat-state';
 import { ecologyState } from '@/lib/ecology';
 import { skyState } from '@/lib/sky';
 import { INTRO_DURATION, introSeconds } from '@/lib/cinematic';
+import { atelier } from '@/lib/livery';
 import { SHEET_PEEK, sheetState } from '@/lib/sheet';
 import { useWorld } from '@/lib/store';
-import { damp, shortestAngle, smoothstep } from '@/lib/utils/math';
+import { damp, lerp, shortestAngle, smoothstep } from '@/lib/utils/math';
 import { MAX_SPEED } from '@/hooks/useBoatNavigation';
+import { arrivalPose, atelierPose, springTo } from './shots';
 
 const desiredPosition = new Vector3();
 const desiredTarget = new Vector3();
@@ -49,6 +52,10 @@ function introFov(aspect: number, mobile: boolean) {
 
 /** Téléphone en portrait, à quai : champ vertical plus ouvert (le cadre est étroit). */
 const PORTRAIT_DOCK_FOV = 50;
+/** Bureau, page ouverte à gauche : part de la largeur dont le plan rapproché décale le sujet. */
+const PANEL_SHIFT = 0.36;
+/** Durée de la glissade douce quand on quitte le quai (cadrage de l'île → suivi du bateau). */
+const DEPART_GLIDE = 2.6;
 /** Bande occupée par la barre du HUD en haut d'un téléphone (part de la hauteur d'écran). */
 const HUD_TOP_SHARE = 0.085;
 
@@ -164,17 +171,25 @@ export function CameraRig({ mobile }: { mobile: boolean }) {
   const aspect = useThree((state) => state.size.width / Math.max(state.size.height, 1));
   const position = useRef(new Vector3());
   const target = useRef(new Vector3());
+  /** Vitesses de la caméra et de sa visée (glissades à ressort, vitesse continue). */
+  const velocity = useRef({ position: new Vector3(), target: new Vector3() });
   const initialized = useRef(false);
   const lens = useRef({ shift: 0, applied: 0 });
   const lastPhase = useRef('loading');
+  /** Instant où le bateau a quitté le quai (ou la page s'est fermée) : glissade douce vers le suivi. */
+  const departAt = useRef(-10);
+  /** Plan de l'atelier de peinture à l'image précédente (sa fin relance la glissade douce). */
+  const atelierShot = useRef(false);
 
   useFrame((state, delta) => {
     const camera = state.camera;
     const dt = Math.min(delta, 1 / 30);
+    const time = state.clock.elapsedTime;
     const { phase, gameTransition, activeIsland, reducedMotion } = useWorld.getState();
     // Mouvement réduit : le monde se pose d'un coup sous le fondu de la carte, la caméra aussi.
     const snapAfterIntro = reducedMotion && phase !== lastPhase.current
       && (lastPhase.current === 'intro' || lastPhase.current === 'transitioning');
+    if (lastPhase.current === 'docked' && phase === 'playing') departAt.current = time;
     lastPhase.current = phase;
     // Téléphone en portrait, page ouverte : décentrage optique (la perspective ne change
     // pas), l'île se place au milieu de l'espace libre entre le HUD et la feuille.
@@ -199,6 +214,11 @@ export function CameraRig({ mobile }: { mobile: boolean }) {
     introPose(mobile, aspect);
     gameplayPose(mobile);
     let lambda = 2.4;
+    // Glissade à ressort : pulsation (raideur) et amortissement (1 = critique, < 1 : se pose).
+    let omega = 4.8;
+    let zeta = 1;
+    let exponential = false;
+    const motion = velocity.current;
 
     if (!initialized.current) {
       position.current.copy(introPosition);
@@ -211,6 +231,7 @@ export function CameraRig({ mobile }: { mobile: boolean }) {
       desiredTarget.copy(introTarget);
       // Idle statique : la caméra attend le clic START, aucun mouvement.
       lambda = 1.2;
+      exponential = true;
       if (camera instanceof PerspectiveCamera) {
         const introFov = aspect < 0.82 ? 36 : mobile ? 33 : 30;
         const nextFov = damp(camera.fov, introFov, 4, dt);
@@ -232,6 +253,11 @@ export function CameraRig({ mobile }: { mobile: boolean }) {
         desiredPosition.x += Math.sin(sinceSplash * 29 + 1.3) * shake * 0.6;
       }
 
+      // Vitesse de la grue retenue : le suivi du bateau en repartira sans à-coup.
+      if (dt > 0) {
+        motion.position.subVectors(desiredPosition, position.current).divideScalar(dt);
+        motion.target.subVectors(desiredTarget, target.current).divideScalar(dt);
+      }
       position.current.copy(desiredPosition);
       target.current.copy(desiredTarget);
       camera.position.copy(position.current);
@@ -278,11 +304,38 @@ export function CameraRig({ mobile }: { mobile: boolean }) {
       // Visée relevée selon le relief : les monuments (clocher, maison…) restent dans le cadre.
       desiredTarget.set(island.position[0], 2.2 + island.elevation * 0.45 + (framing?.lift ?? 0), island.position[1]);
       lambda = 1.6;
+      // Révélation de l'île : longue glissade qui se pose, avec un soupçon de dépassement.
+      omega = 2.1;
+      zeta = 0.84;
+      const berth = mooring.berth;
+      if (berth && berth.key === activeIsland && arrivalShot(time)) {
+        // Accostage : plan rapproché sur le bateau et le bout du ponton, le temps que le
+        // patron lance l'amarre et que le passavant se pose ; puis la caméra révèle l'île.
+        const panelOpen = !mobile && state.size.width >= 768 && document.documentElement.dataset.panel === 'open';
+        arrivalPose(berth, { x: viewX, z: viewZ }, mobile, panelOpen ? PANEL_SHIFT : 0, desiredPosition, desiredTarget);
+        omega = 2.6;
+        zeta = 0.9;
+      }
     } else {
       gameplayPose(mobile);
       desiredPosition.copy(gameplayPosition);
       desiredTarget.copy(gameplayTarget);
       lambda = 2.2 + Math.min(boatState.speed / MAX_SPEED, 1) * 1.2;
+      // Suivi : ressort critique aussi vif que l'ancien lissage ; en quittant le quai, il
+      // démarre en douceur (la caméra décolle du cadrage de l'île, puis rattrape le bateau).
+      const leaving = smoothstep(0, DEPART_GLIDE, time - departAt.current);
+      omega = lerp(1.8, lambda * 2, leaving);
+      // Atelier de peinture : dès que le bateau approche du port de départ, plan sur l'appentis
+      // et le bateau amarré (le pinceau court sur sa coque, le pavillon est hissé).
+      const painting = phase === 'playing' && atelier.focus && distanceHome() < 28;
+      if (painting) {
+        // Rien de commandé : on choisit (plan serré sur l'appentis) ; sinon on regarde peindre.
+        const browse = !atelier.pending && !atelier.job && atelier.doneAt < atelier.focusAt;
+        atelierPose(mobile, aspect < 0.82, browse, desiredPosition, desiredTarget);
+        omega = 2.2;
+        zeta = 0.86;
+      } else if (atelierShot.current) departAt.current = time;
+      atelierShot.current = painting;
 
       const boundaryBlend = ecologyState.boundaryCinematic;
       if (boundaryBlend > 0.001) {
@@ -290,6 +343,7 @@ export function CameraRig({ mobile }: { mobile: boolean }) {
         desiredPosition.lerp(boundaryPosition, boundaryBlend);
         desiredTarget.lerp(boundaryTarget, boundaryBlend);
         lambda = 1.35 + boundaryBlend * 0.75;
+        omega = lerp(omega, lambda * 2, boundaryBlend);
         const shake = ecologyState.impact * (reducedMotion ? 0.08 : 0.42);
         desiredPosition.x += Math.sin(state.clock.elapsedTime * 31) * shake;
         desiredPosition.y += Math.sin(state.clock.elapsedTime * 37 + 1.7) * shake * 0.7;
@@ -304,13 +358,26 @@ export function CameraRig({ mobile }: { mobile: boolean }) {
     if (snapAfterIntro) {
       position.current.copy(desiredPosition);
       target.current.copy(desiredTarget);
+      motion.position.set(0, 0, 0);
+      motion.target.set(0, 0, 0);
     }
-    position.current.x = damp(position.current.x, desiredPosition.x, lambda, dt);
-    position.current.y = damp(position.current.y, desiredPosition.y, lambda, dt);
-    position.current.z = damp(position.current.z, desiredPosition.z, lambda, dt);
-    target.current.x = damp(target.current.x, desiredTarget.x, lambda, dt);
-    target.current.y = damp(target.current.y, desiredTarget.y, lambda, dt);
-    target.current.z = damp(target.current.z, desiredTarget.z, lambda, dt);
+    if (exponential) {
+      // Attente de l'intro : l'ancien lissage, inchangé (la vitesse est tout de même suivie).
+      const fromX = position.current.x;
+      const fromY = position.current.y;
+      const fromZ = position.current.z;
+      position.current.x = damp(position.current.x, desiredPosition.x, lambda, dt);
+      position.current.y = damp(position.current.y, desiredPosition.y, lambda, dt);
+      position.current.z = damp(position.current.z, desiredPosition.z, lambda, dt);
+      target.current.x = damp(target.current.x, desiredTarget.x, lambda, dt);
+      target.current.y = damp(target.current.y, desiredTarget.y, lambda, dt);
+      target.current.z = damp(target.current.z, desiredTarget.z, lambda, dt);
+      if (dt > 0) motion.position.set(position.current.x - fromX, position.current.y - fromY, position.current.z - fromZ).divideScalar(dt);
+      motion.target.set(0, 0, 0);
+    } else {
+      springTo(position.current, motion.position, desiredPosition, omega, zeta, dt);
+      springTo(target.current, motion.target, desiredTarget, omega, zeta, dt);
+    }
     camera.position.copy(position.current);
     camera.lookAt(target.current);
 

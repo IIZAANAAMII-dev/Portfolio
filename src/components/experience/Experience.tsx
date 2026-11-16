@@ -91,6 +91,9 @@ export function Experience() {
           // version rapide que si la restauration n'arrive pas.
           let lostTimer = 0;
           gl.domElement.addEventListener('webglcontextlost', () => {
+            // Version rapide ouverte : le canvas est démonté et R3F rend son contexte exprès,
+            // ce n'est pas une panne (sinon le retour à la 3D renverrait vers la version rapide).
+            if (useWorld.getState().quickView) return;
             window.clearTimeout(lostTimer);
             lostTimer = window.setTimeout(failWebgl, 5000);
           });

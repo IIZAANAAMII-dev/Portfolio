@@ -14,6 +14,7 @@ import {
   type GraphicsTier,
 } from '@/lib/quality';
 import { useWorld } from '@/lib/store';
+import { fr } from './typography';
 import styles from './GraphicsSettings.module.css';
 
 /** Auto en tête, puis du plus riche au plus léger. */
@@ -68,7 +69,7 @@ export function GraphicsSettings({ placement = 'below', align = 'end', className
   const menuId = useId();
 
   const current = TIER_LABELS[tier].name;
-  const value = mode === 'auto' ? `Auto · ${current}` : current;
+  const value = fr(mode === 'auto' ? `Auto · ${current}` : current);
 
   // À l'ouverture, le focus va sur l'option choisie ; un clic ailleurs referme.
   useEffect(() => {
@@ -131,9 +132,9 @@ export function GraphicsSettings({ placement = 'below', align = 'end', className
   const profile = open ? deviceProfile() : null;
   const trimmed = open && dpr < tierDpr(tier) - 0.005;
   const footer = profile
-    ? [profile.gpu || 'Carte graphique non communiquée', trimmed ? 'résolution réduite' : '', capped ? '30 images/s' : '']
+    ? fr([profile.gpu || 'Carte graphique non communiquée', trimmed ? 'résolution réduite' : '', capped ? '30 images/s' : '']
       .filter(Boolean)
-      .join(' · ')
+      .join(' · '))
     : '';
   const recommended = open ? TIER_LABELS[autoTier()].name : '';
 
@@ -146,7 +147,7 @@ export function GraphicsSettings({ placement = 'below', align = 'end', className
         aria-haspopup="menu"
         aria-expanded={open}
         aria-controls={open ? menuId : undefined}
-        aria-label={`Graphismes : ${value}`}
+        aria-label={fr(`Graphismes : ${value}`)}
         title="Graphismes"
         onClick={() => setOpen((previous) => !previous)}
         onKeyDown={onTriggerKey}
@@ -170,11 +171,11 @@ export function GraphicsSettings({ placement = 'below', align = 'end', className
             {OPTIONS.map((option, index) => {
               const checked = option === mode;
               const name = option === 'auto' ? 'Auto' : TIER_LABELS[option].name;
-              const hint = option === 'auto'
+              const hint = fr(option === 'auto'
                 ? mode === 'auto'
-                  ? `S'adapte en continu à ton appareil · actuellement ${current}.`
-                  : `S'adapte en continu à ton appareil (conseillé : ${recommended}).`
-                : TIER_LABELS[option].hint;
+                  ? `S’adapte en continu à ton appareil · actuellement ${current}.`
+                  : `S’adapte en continu à ton appareil. Conseillé : ${recommended}.`
+                : TIER_LABELS[option].hint);
               const level = option === 'auto' ? null : tierRank(option);
               return (
                 <button
@@ -192,15 +193,15 @@ export function GraphicsSettings({ placement = 'below', align = 'end', className
                   onClick={() => choose(option)}
                 >
                   <span className={styles.mark} aria-hidden="true" />
-                  <span className={styles.name}>{name}</span>
+                  <span className={styles.name}>{fr(name)}</span>
                   <span className={styles.hint}>{hint}</span>
                 </button>
               );
             })}
           </div>
-          {forced && <p className={styles.note}>Fixé par l&apos;adresse de la page (?quality={forced}).</p>}
+          {forced && <p className={styles.note}>{fr(`Fixé par l’adresse de la page (?quality=${forced}).`)}</p>}
           {!forced && thermal && mode === 'auto' && (
-            <p className={styles.note}>L&apos;appareil chauffe : Auto reste plus léger quelques minutes.</p>
+            <p className={styles.note}>{fr('L’appareil chauffe : Auto reste plus léger quelques minutes.')}</p>
           )}
           {footer && <p className={styles.footer}>{footer}</p>}
         </div>

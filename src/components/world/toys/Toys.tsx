@@ -249,11 +249,14 @@ export function Toys() {
     viewMatrix.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse);
     view.setFromProjectionMatrix(viewMatrix);
     for (const shape of SHAPES) inView[shape] = false;
+    // Avec les ombres (« Équilibré », « Élevé »), un jouet juste hors champ peut y projeter
+    // son ombre au soleil couchant : marge plus large.
+    const margin = tier === 'medium' || tier === 'high' ? 10 : 2.5;
     for (let index = 0; index < toys.length; index++) {
       const toy = toys[index];
       if (toy === raft || !toy.enabled || inView[toy.shape]) continue;
       probe.center.copy(toy.p);
-      probe.radius = toy.radius * 1.8 + 2.5;
+      probe.radius = toy.radius * 1.8 + margin;
       if (perfOff || view.intersectsSphere(probe)) inView[toy.shape] = true;
     }
     for (const shape of SHAPES) {

@@ -6,7 +6,9 @@ import {
   LinearFilter,
   SRGBColorSpace,
 } from 'three';
+import { gwennHaDu } from '@/components/islets/BreizhDecor';
 import { site } from '@/data/site';
+import { paintFlag, type FlagId, type LiveryColors } from '@/lib/livery';
 import { hullPaintCanvas, rakeX } from './hull';
 import { BOAT_COLORS as C } from './parts';
 
@@ -24,9 +26,12 @@ function texture(canvas: HTMLCanvasElement, mipmaps = true) {
   return map;
 }
 
-/** Peinture de coque (lue par hauteur / profondeur sous le livet, sans mipmaps : bandes nettes). */
-export function hullTexture() {
-  const map = texture(hullPaintCanvas({
+/**
+ * Peinture de coque (lue par hauteur / profondeur sous le livet, sans mipmaps : bandes nettes),
+ * aux couleurs d'une livrée de l'atelier (par défaut, le rouge breton d'origine).
+ */
+export function hullTexture(colors?: LiveryColors) {
+  const map = texture(hullPaintCanvas(colors ?? {
     hull: C.hull,
     seam: C.hullSeam,
     antifouling: C.antifouling,
@@ -36,6 +41,17 @@ export function hullTexture() {
   }), false);
   map.flipY = false;
   return map;
+}
+
+/** Pavillon de tête de mât (le Gwenn-ha-Du vient de l'îlot breton ; les autres, de l'atelier). */
+export function flagTexture(id: FlagId) {
+  if (id === 'gwenn') return gwennHaDu();
+  const canvas = document.createElement('canvas');
+  canvas.width = 192;
+  canvas.height = 128;
+  const ctx = canvas.getContext('2d')!;
+  paintFlag(ctx, id, 0, 0, canvas.width, canvas.height);
+  return texture(canvas);
 }
 
 /** Vitre : bleu profond, deux reflets obliques de ciel (dessin animé, pas de réalisme). */

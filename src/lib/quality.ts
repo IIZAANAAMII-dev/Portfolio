@@ -238,11 +238,26 @@ export interface DeviceProfile {
   reasons: string[];
 }
 
+/**
+ * Nom lisible de la carte : « ANGLE (Intel, Intel(R) UHD Graphics 620 (0x00005917) Direct3D11
+ * vs_5_0 ps_5_0, D3D11) » → « Intel UHD Graphics 620 ». Chaîne masquée par le navigateur :
+ * rien (le panneau dit alors « Carte graphique non communiquée »).
+ */
 function shortGpu(renderer: string) {
+  if (/^(webkit webgl|mozilla|webgl|generic renderer)$/i.test(renderer.trim())) return '';
   const inner = /angle \((.*)\)/i.exec(renderer)?.[1] ?? renderer;
   const parts = inner.split(',').map((part) => part.trim()).filter(Boolean);
-  const name = parts.length >= 2 ? parts[1] : parts[0] ?? '';
-  return name.replace(/\(r\)|\(tm\)|direct3d.*|vs_\d.*|opengl.*|vulkan.*|metal renderer:\s*/gi, '').replace(/\s+/g, ' ').trim().slice(0, 48);
+  let name = parts.length >= 2 ? parts[1] : parts[0] ?? '';
+  // Pilotes Vulkan / OpenGL : le nom de la carte est entre parenthèses (« Vulkan 1.3.0 (…) »).
+  const wrapped = /^(?:vulkan|opengl)[^(]*\((.*)\)$/i.exec(name);
+  if (wrapped) name = wrapped[1];
+  return name
+    .replace(/\(0x[0-9a-f]+\)|\(r\)|\(tm\)/gi, '')
+    .replace(/direct3d.*|vs_\d.*|opengl.*|vulkan.*|\/pcie.*|metal renderer:\s*/gi, '')
+    .replace(/^angle\s+/i, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 48);
 }
 
 let profileCache: DeviceProfile | null = null;

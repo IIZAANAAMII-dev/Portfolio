@@ -23,7 +23,9 @@
   border: 1px solid var(--glass-line);
   border-radius: 1.15rem;
   color: var(--paper);
-  background: var(--glass-strong);
+  /* Presque opaque : dans la barre du HUD (elle-même en verre flouté), le flou d'arrière-plan
+     ne voit pas la page, et une carte posée derrière resterait lisible à travers le menu. */
+  background: color-mix(in srgb, var(--abyss) 90%, transparent);
   -webkit-backdrop-filter: blur(14px) saturate(1.2);
   backdrop-filter: blur(14px) saturate(1.2);
   box-shadow: 0 18px 44px color-mix(in srgb, var(--ink) 42%, transparent);
