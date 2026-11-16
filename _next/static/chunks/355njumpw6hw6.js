@@ -1,0 +1,1 @@
+(globalThis.TURBOPACK||(globalThis.TURBOPACK=[])).push(["object"==typeof document?document.currentScript:void 0,78643,e=>{"use strict";e.s(["darkroom",0,{snapshot:null,capture:null},"probe",0,{live:!1,boat:{x:0,y:0,visible:!1},float:{x:0,y:0,visible:!1},spot:{x:0,y:0,visible:!1},spotIndex:-1,spotDistance:1/0,viewX:0,viewZ:-1}])}]);
